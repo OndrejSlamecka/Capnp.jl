@@ -1,0 +1,13 @@
+#!/usr/bin/env -S julia --project
+
+# The main plugin entry point called by capnp when you do `capnp -o./capnp-jl`.
+
+# `--project` appended to make Julia use a local version which is useful especially when you're working on Capnp.jl.
+
+import Capnp
+
+const capnp = Capnp.Generator.capnp 
+
+const message = Capnp.MessageReader(stdin)
+const request = capnp.schema.root_CodeGeneratorRequest(message)
+Capnp.Generator.generate(Capnp.Generator.read_CodeGeneratorRequest(request))
