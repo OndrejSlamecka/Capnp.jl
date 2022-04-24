@@ -256,10 +256,8 @@ function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFi
         strct = env.nodes[elementType.typeId]
         # TODO: when checking for SimpleListPointer we should also check that sum(sizeof(strct.fields...)) == p.element_size
         # because "a list of any element size (except C = 1, i.e. 1-bit) may be decoded as a struct list"
-        colon = findfirst(':', strct.displayName)
-        jlName = replace(strct.displayName[colon+1:end], '.' => '_')
         cprintln(env, "    @assert isempty(p) || p isa SimpleListPointer ||")
-        cprintln(env, "       (p isa CompositeListPointer && p.data_word_count == $(jlName)_data_word_count) && p.pointer_count == $(jlName)_pointer_count")
+        cprintln(env, "       (p isa CompositeListPointer && p.data_word_count == $(strct.jlName)_data_word_count) && p.pointer_count == $(strct.jlName)_pointer_count")
     end
     cprintln(env, "    p")
     cprintln(env, "end")
