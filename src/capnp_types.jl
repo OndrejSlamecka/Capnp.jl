@@ -1,7 +1,5 @@
 # Julia representation of types used by Capnp. These are tags for types, i.e. not their realization.
 
-export ElementSize, Empty, Bit, Byte, TwoBytes, FourBytes, EightBytes, Pointer, InlineComposite
-
 @enum ElementSize::UInt16 Empty Bit Byte TwoBytes FourBytes EightBytes Pointer InlineComposite
 
 const noDiscriminant = 0xff_ff::UInt16

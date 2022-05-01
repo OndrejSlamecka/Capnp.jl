@@ -1,11 +1,6 @@
 # Shared functionality used by generated code.
 
-export MessageTraverser, Reader, Writer
-export alloc, writeMessageToStream
-export WirePointer, ListPointer, SimpleListPointer, CompositeListPointer, StructPointer
-
-export read_bool, read_bits, read_struct_pointer, read_text, read_list_pointer
-export read_bool, write_bits, write_struct_pointer, write_root_struct_pointer, write_text, write_list_pointer
+# TODO: Separate this into internal (e.g. read_struct_pointer) and external (e.g. MessageReader) and only export the latter.
 
 const Segment = Vector{UInt8}
 
