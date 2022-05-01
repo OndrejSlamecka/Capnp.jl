@@ -52,6 +52,20 @@ function namespace_annotation(env::Environment, node::Node{FileNodeProps})::Vect
     end
 end
 
+schema_to_runtime_type(::SchemaVoid   ) = Capnp.CapnpVoid
+schema_to_runtime_type(::SchemaBool   ) = Capnp.CapnpBool
+schema_to_runtime_type(::SchemaInt8   ) = Capnp.CapnpInt8
+schema_to_runtime_type(::SchemaInt16  ) = Capnp.CapnpInt16
+schema_to_runtime_type(::SchemaInt32  ) = Capnp.CapnpInt32
+schema_to_runtime_type(::SchemaInt64  ) = Capnp.CapnpInt64
+schema_to_runtime_type(::SchemaUInt8  ) = Capnp.CapnpUInt8
+schema_to_runtime_type(::SchemaUInt16 ) = Capnp.CapnpUInt16
+schema_to_runtime_type(::SchemaUInt32 ) = Capnp.CapnpUInt32
+schema_to_runtime_type(::SchemaUInt64 ) = Capnp.CapnpUInt64
+schema_to_runtime_type(::SchemaFloat32) = Capnp.CapnpFloat32
+schema_to_runtime_type(::SchemaFloat64) = Capnp.CapnpFloat64
+schema_to_runtime_type(::SchemaStruct ) = Capnp.CapnpStruct
+
 # Phase 1: Determine nested names of types to know all of them before the generation phase.
 function assign_node_names(env::Environment, node::Node{FileNodeProps})
     assign_node_names(env, String[], node)
@@ -142,7 +156,7 @@ function generateNode(env::Environment, node::Node{StructNodeProps})
     end
 
     # union
-    unionFields = filter(f -> f.discriminantValue != Capnp.noDiscriminant, node.nodeProperties.fields)
+    unionFields = filter(f -> f.discriminantValue != noDiscriminant, node.nodeProperties.fields)
     if !isempty(unionFields) # or props.discriminantCount > 0 ?
         cprintln(env, "@enum $(node.jlName)_union::UInt16 $([ "$(node.jlName)_union_$(f.name) " for f in unionFields ]...)")
         cprintln(env, "function $(node.jlName)_which(ptr::StructPointer)")
@@ -186,7 +200,7 @@ end
 function generateNode(env::Environment, r::Node) end
 
 function generateDiscriminantSetter(env::Environment, structPtrName, strct, field)
-    if field.discriminantValue != Capnp.noDiscriminant
+    if field.discriminantValue != noDiscriminant
         cprintln(env, "    write_bits($(structPtrName), $(sizeof(UInt16) * strct.discriminantOffset), UInt16, $(field.discriminantValue)) # union discriminant")
     end
 end
@@ -210,7 +224,7 @@ function generateField(env::Environment, node::Node{StructNodeProps}, field::Fie
     generateNode(env, group_struct)
 end
 
-function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFieldProps}, type::Capnp.CapnpTypeEnum)
+function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFieldProps}, type::SchemaEnum)
     enum = env.nodes[type.typeId]
     position = field.fieldProperties.offset * sizeof(UInt16) # "Enums are encoded the same as UInt16."
 
@@ -230,7 +244,7 @@ function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFi
     cprintln(env, "end")
 end
 
-function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFieldProps}, type::Capnp.UnconstrainedPointer)
+function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFieldProps}, type::SchemaUnconstrainedPointer)
     position = node.nodeProperties.dataWordCount + field.fieldProperties.offset
 
     cprintln(env, "function $(node.jlName)_get$(uppercasefirst(field.name))(ptr)")
@@ -243,16 +257,17 @@ function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFi
     cprintln(env, "end")
 end
 
-function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFieldProps}, type::Capnp.CapnpTypeList)
+function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFieldProps}, type::SchemaList)
     elementType = field.fieldProperties.type.elementType
+    runtimeElementType = schema_to_runtime_type(field.fieldProperties.type.elementType)
 
     cprintln(env, "function $(node.jlName)_get$(uppercasefirst(field.name))(ptr::Nothing)")
     cprintln(env, "    []") # TODO: return SimpleListPointer with length 0
     cprintln(env, "end")
 
     cprintln(env, "function $(node.jlName)_get$(uppercasefirst(field.name))(ptr)")
-    cprintln(env, "    p = read_list_pointer(ptr, $(node.nodeProperties.dataWordCount), $(Int(field.fieldProperties.offset)))")
-    if elementType isa Capnp.CapnpTypeStruct
+    cprintln(env, "    p = read_list_pointer(ptr, $(node.nodeProperties.dataWordCount), $(Int(field.fieldProperties.offset)), $(runtimeElementType))")
+    if elementType isa SchemaStruct
         strct = env.nodes[elementType.typeId]
         # TODO: when checking for SimpleListPointer we should also check that sum(sizeof(strct.fields...)) == p.element_size
         # because "a list of any element size (except C = 1, i.e. 1-bit) may be decoded as a struct list"
@@ -262,11 +277,18 @@ function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFi
     cprintln(env, "    p")
     cprintln(env, "end")
 
-    if field.fieldProperties.type.elementType isa Bool
-        # simple list of bools # TODO
-    elseif Capnp.is_capnp_bits(field.fieldProperties.type.elementType)
-        # simple list # TODO
-    elseif field.fieldProperties.type.elementType isa Capnp.CapnpTypeStruct
+    if field.fieldProperties.type.elementType isa SchemaBool
+        throw("Lists of bools not supported yet.")
+    elseif is_capnp_bits(field.fieldProperties.type.elementType)
+        cprintln(env, "function $(node.jlName)_init$(uppercasefirst(field.name))(ptr, size)")
+        cprintln(env, "    pointer_location = WirePointer(ptr.segment, ptr.offset + $(node.nodeProperties.dataWordCount + field.fieldProperties.offset))")
+        cprintln(env, "    pointer_location, segment, offset = alloc(ptr.traverser, pointer_location, $(capnp_sizeof(field.fieldProperties.type.elementType)) * size)")
+        cprintln(env, "    child_ptr = SimpleListPointer{$(runtimeElementType), typeof(ptr.traverser)}(ptr.traverser, segment, offset, $(elementsize(field.fieldProperties.type.elementType)), convert(UInt32, size))")
+        cprintln(env, "    write_list_pointer(pointer_location, child_ptr)")
+        generateDiscriminantSetter(env, "ptr", node.nodeProperties, field)
+        cprintln(env, "    child_ptr")
+        cprintln(env, "end")
+    elseif field.fieldProperties.type.elementType isa SchemaStruct
         # TODO: maybe assert?
         slotStructProps = env.nodes[field.fieldProperties.type.elementType.typeId].nodeProperties
         cprintln(env, "function $(node.jlName)_init$(uppercasefirst(field.name))(ptr, size)")
@@ -282,7 +304,7 @@ function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFi
     end
 end
 
-function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFieldProps}, type::Capnp.CapnpTypeStruct)
+function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFieldProps}, type::SchemaStruct)
     typeNode = env.nodes[field.fieldProperties.type.typeId]
     slotStructProps = typeNode.nodeProperties
 
@@ -306,7 +328,7 @@ function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFi
     cprintln(env, "end")
 end
 
-function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFieldProps}, type::Capnp.CapnpTypeText)
+function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFieldProps}, type::SchemaText)
     cprintln(env, "function $(node.jlName)_get$(uppercasefirst(field.name))(ptr)")
     cprintln(env, "    p = read_list_pointer(ptr, $(node.nodeProperties.dataWordCount), $(Int(field.fieldProperties.offset)))")
     cprintln(env, "    read_text(p)")
@@ -323,7 +345,7 @@ function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFi
     cprintln(env, "end")
 end
 
-function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFieldProps}, type::Capnp.CapnpTypeVoid)
+function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFieldProps}, type::SchemaVoid)
     cprintln(env, "function $(node.jlName)_set$(uppercasefirst(field.name))(ptr)")
     generateDiscriminantSetter(env, "ptr", node.nodeProperties, field)
     cprintln(env, "end")
@@ -335,7 +357,7 @@ end
 
 # Separate generator for bools than other "plain values" because capnp fits 8 bools into 1 byte.
 function generateBoolSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFieldProps})
-    @assert field.fieldProperties.type isa Capnp.CapnpTypeBool
+    @assert field.fieldProperties.type isa SchemaBool
 
     # reader
     cprintln(env, "function $(node.jlName)_get$(uppercasefirst(field.name))(ptr)")
@@ -355,10 +377,10 @@ function generateBoolSlotField(env, node::Node{StructNodeProps}, field::Field{Sl
 end
 
 function generateBitsSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFieldProps})
-    @assert !(field.fieldProperties.type isa Capnp.CapnpTypeBool)
+    @assert !(field.fieldProperties.type isa SchemaBool)
 
-    position = field.fieldProperties.offset * Capnp.capnp_sizeof(field.fieldProperties.type)
-    juliaBitsType = Capnp.capnp_type_to_bits_type(field.fieldProperties.type)
+    position = field.fieldProperties.offset * capnp_sizeof(field.fieldProperties.type)
+    juliaBitsType = capnp_type_to_bits_type(field.fieldProperties.type)
 
     # reader
     cprintln(env, "function $(node.jlName)_get$(uppercasefirst(field.name))(ptr)")
@@ -378,9 +400,9 @@ function generateBitsSlotField(env, node::Node{StructNodeProps}, field::Field{Sl
 end
 
 function generateField(env, node::Node{StructNodeProps}, field::Field{SlotFieldProps})
-    if field.fieldProperties.type isa Capnp.CapnpTypeBool
+    if field.fieldProperties.type isa SchemaBool
         generateBoolSlotField(env, node, field)
-    elseif Capnp.is_capnp_bits(field.fieldProperties.type)
+    elseif is_capnp_bits(field.fieldProperties.type)
         generateBitsSlotField(env, node, field)
     else
         generateSlotField(env, node, field, field.fieldProperties.type)

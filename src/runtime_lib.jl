@@ -285,7 +285,7 @@ end
 ## Lists
 abstract type ListPointer <: CapnpPointer end
 
-struct SimpleListPointer{ElType,T} <: ListPointer where {T<:MessageTraverser,ElType}
+struct SimpleListPointer{ElType,T} <: ListPointer where {ElType<:CapnpType,T<:MessageTraverser}
     traverser::T
 
     segment::UInt32
@@ -311,7 +311,7 @@ function Base.getindex(ptr::CompositeListPointer, i)
     @assert 1 <= i <= ptr.length
 
     # +1 for tag
-    # i-1 for 1-based indices    
+    # i-1 for 1-based indices
     position = UInt32(ptr.offset + 1 + (i - 1) * (ptr.data_word_count + ptr.pointer_count))
     # println("getting ", i, " ", position)
     StructPointer(ptr.traverser, ptr.segment, position, ptr.data_word_count, ptr.pointer_count)
@@ -327,7 +327,7 @@ function Base.iterate(ptr::CompositeListPointer, state = 0)
     end
 end
 
-function Base.iterate(ptr::SimpleListPointer{T}, state = 0) where {T}
+function Base.iterate(ptr::SimpleListPointer{T}, state = 0) where {T<:CapnpType}
     if state >= ptr.length
         nothing
     else
@@ -335,7 +335,7 @@ function Base.iterate(ptr::SimpleListPointer{T}, state = 0) where {T}
         if is_capnp_bits(T)
             item = read_bits(ptr, capnp_sizeof(T) * state, capnp_type_to_bits_type(T))
         else
-            item = StructPointer(ptr.traverser, ptr.segment, ptr.offset + (ptr.data_word_count + ptr.pointer_count) * state, ptr.data_word_count, ptr.pointer_count)
+            throw("Iteration over simple lists only supports bits types now.")
         end
 
         (item, state + 1)
@@ -397,7 +397,7 @@ function write_text(ptr::ListPointer, text)
 end
 
 # List pointer read/write
-function read_list_pointer(ptr, byte_section_words, ptrix, element_type = CapnpTypeAnyPointer)
+function read_list_pointer(ptr, byte_section_words, ptrix, element_type = CapnpVoid)
     (bytes, segment, offset) = resolve_pointer(ptr, byte_section_words, ptrix)
 
     if bytes == 0

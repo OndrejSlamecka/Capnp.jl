@@ -127,21 +127,21 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             write_list_pointer(pointer_location, child_ptr)
             write_text(child_ptr, txt)
         end
-        function Node_SourceInfo_getMembers(ptr::Nothing)
-            []
-        end
-        function Node_SourceInfo_getMembers(ptr)
-            p = read_list_pointer(ptr, 1, 1)
-            @assert isempty(p) || p isa SimpleListPointer ||
-               (p isa CompositeListPointer && p.data_word_count == Node_SourceInfo_Member_data_word_count) && p.pointer_count == Node_SourceInfo_Member_pointer_count
-            p
-        end
         function Node_SourceInfo_initMembers(ptr, size)
             pointer_location = WirePointer(ptr.segment, ptr.offset + 2)
             pointer_location, segment, offset = alloc(ptr.traverser, pointer_location, 8*(1 + size * (0 + 1)))
             child_ptr = CompositeListPointer(ptr.traverser, segment, offset, convert(UInt32, size), UInt16(0), UInt16(1))
             write_list_pointer(pointer_location, child_ptr)
             child_ptr
+        end
+        function Node_SourceInfo_getMembers(ptr::Nothing)
+            []
+        end
+        function Node_SourceInfo_getMembers(ptr)
+            p = read_list_pointer(ptr, 1, 1, Capnp.CapnpStruct)
+            @assert isempty(p) || p isa SimpleListPointer ||
+               (p isa CompositeListPointer && p.data_word_count == Node_SourceInfo_Member_data_word_count) && p.pointer_count == Node_SourceInfo_Member_pointer_count
+            p
         end
         const Node_data_word_count = 5
         const Node_pointer_count = 6
@@ -195,15 +195,6 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         function Node_setScopeId(ptr, value)
             write_bits(ptr, 16, UInt64, value)
         end
-        function Node_getNestedNodes(ptr::Nothing)
-            []
-        end
-        function Node_getNestedNodes(ptr)
-            p = read_list_pointer(ptr, 5, 1)
-            @assert isempty(p) || p isa SimpleListPointer ||
-               (p isa CompositeListPointer && p.data_word_count == Node_NestedNode_data_word_count) && p.pointer_count == Node_NestedNode_pointer_count
-            p
-        end
         function Node_initNestedNodes(ptr, size)
             pointer_location = WirePointer(ptr.segment, ptr.offset + 6)
             pointer_location, segment, offset = alloc(ptr.traverser, pointer_location, 8*(1 + size * (1 + 1)))
@@ -211,13 +202,13 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             write_list_pointer(pointer_location, child_ptr)
             child_ptr
         end
-        function Node_getAnnotations(ptr::Nothing)
+        function Node_getNestedNodes(ptr::Nothing)
             []
         end
-        function Node_getAnnotations(ptr)
-            p = read_list_pointer(ptr, 5, 2)
+        function Node_getNestedNodes(ptr)
+            p = read_list_pointer(ptr, 5, 1, Capnp.CapnpStruct)
             @assert isempty(p) || p isa SimpleListPointer ||
-               (p isa CompositeListPointer && p.data_word_count == Annotation_data_word_count) && p.pointer_count == Annotation_pointer_count
+               (p isa CompositeListPointer && p.data_word_count == Node_NestedNode_data_word_count) && p.pointer_count == Node_NestedNode_pointer_count
             p
         end
         function Node_initAnnotations(ptr, size)
@@ -226,6 +217,15 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             child_ptr = CompositeListPointer(ptr.traverser, segment, offset, convert(UInt32, size), UInt16(1), UInt16(2))
             write_list_pointer(pointer_location, child_ptr)
             child_ptr
+        end
+        function Node_getAnnotations(ptr::Nothing)
+            []
+        end
+        function Node_getAnnotations(ptr)
+            p = read_list_pointer(ptr, 5, 2, Capnp.CapnpStruct)
+            @assert isempty(p) || p isa SimpleListPointer ||
+               (p isa CompositeListPointer && p.data_word_count == Annotation_data_word_count) && p.pointer_count == Annotation_pointer_count
+            p
         end
         function Node_setFile(ptr)
             write_bits(ptr, 12, UInt16, 0) # union discriminant
@@ -293,21 +293,21 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         function Node_struct_setDiscriminantOffset(ptr, value)
             write_bits(ptr, 32, UInt32, value)
         end
-        function Node_struct_getFields(ptr::Nothing)
-            []
-        end
-        function Node_struct_getFields(ptr)
-            p = read_list_pointer(ptr, 5, 3)
-            @assert isempty(p) || p isa SimpleListPointer ||
-               (p isa CompositeListPointer && p.data_word_count == Field_data_word_count) && p.pointer_count == Field_pointer_count
-            p
-        end
         function Node_struct_initFields(ptr, size)
             pointer_location = WirePointer(ptr.segment, ptr.offset + 8)
             pointer_location, segment, offset = alloc(ptr.traverser, pointer_location, 8*(1 + size * (3 + 4)))
             child_ptr = CompositeListPointer(ptr.traverser, segment, offset, convert(UInt32, size), UInt16(3), UInt16(4))
             write_list_pointer(pointer_location, child_ptr)
             child_ptr
+        end
+        function Node_struct_getFields(ptr::Nothing)
+            []
+        end
+        function Node_struct_getFields(ptr)
+            p = read_list_pointer(ptr, 5, 3, Capnp.CapnpStruct)
+            @assert isempty(p) || p isa SimpleListPointer ||
+               (p isa CompositeListPointer && p.data_word_count == Field_data_word_count) && p.pointer_count == Field_pointer_count
+            p
         end
         function Node_getEnum(ptr::StructPointer)
             ptr
@@ -330,21 +330,21 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             write_root_struct_pointer(ptr)
             ptr
         end
-        function Node_enum_getEnumerants(ptr::Nothing)
-            []
-        end
-        function Node_enum_getEnumerants(ptr)
-            p = read_list_pointer(ptr, 5, 3)
-            @assert isempty(p) || p isa SimpleListPointer ||
-               (p isa CompositeListPointer && p.data_word_count == Enumerant_data_word_count) && p.pointer_count == Enumerant_pointer_count
-            p
-        end
         function Node_enum_initEnumerants(ptr, size)
             pointer_location = WirePointer(ptr.segment, ptr.offset + 8)
             pointer_location, segment, offset = alloc(ptr.traverser, pointer_location, 8*(1 + size * (1 + 2)))
             child_ptr = CompositeListPointer(ptr.traverser, segment, offset, convert(UInt32, size), UInt16(1), UInt16(2))
             write_list_pointer(pointer_location, child_ptr)
             child_ptr
+        end
+        function Node_enum_getEnumerants(ptr::Nothing)
+            []
+        end
+        function Node_enum_getEnumerants(ptr)
+            p = read_list_pointer(ptr, 5, 3, Capnp.CapnpStruct)
+            @assert isempty(p) || p isa SimpleListPointer ||
+               (p isa CompositeListPointer && p.data_word_count == Enumerant_data_word_count) && p.pointer_count == Enumerant_pointer_count
+            p
         end
         function Node_getInterface(ptr::StructPointer)
             ptr
@@ -367,15 +367,6 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             write_root_struct_pointer(ptr)
             ptr
         end
-        function Node_interface_getMethods(ptr::Nothing)
-            []
-        end
-        function Node_interface_getMethods(ptr)
-            p = read_list_pointer(ptr, 5, 3)
-            @assert isempty(p) || p isa SimpleListPointer ||
-               (p isa CompositeListPointer && p.data_word_count == Method_data_word_count) && p.pointer_count == Method_pointer_count
-            p
-        end
         function Node_interface_initMethods(ptr, size)
             pointer_location = WirePointer(ptr.segment, ptr.offset + 8)
             pointer_location, segment, offset = alloc(ptr.traverser, pointer_location, 8*(1 + size * (3 + 5)))
@@ -383,13 +374,13 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             write_list_pointer(pointer_location, child_ptr)
             child_ptr
         end
-        function Node_interface_getSuperclasses(ptr::Nothing)
+        function Node_interface_getMethods(ptr::Nothing)
             []
         end
-        function Node_interface_getSuperclasses(ptr)
-            p = read_list_pointer(ptr, 5, 4)
+        function Node_interface_getMethods(ptr)
+            p = read_list_pointer(ptr, 5, 3, Capnp.CapnpStruct)
             @assert isempty(p) || p isa SimpleListPointer ||
-               (p isa CompositeListPointer && p.data_word_count == Superclass_data_word_count) && p.pointer_count == Superclass_pointer_count
+               (p isa CompositeListPointer && p.data_word_count == Method_data_word_count) && p.pointer_count == Method_pointer_count
             p
         end
         function Node_interface_initSuperclasses(ptr, size)
@@ -398,6 +389,15 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             child_ptr = CompositeListPointer(ptr.traverser, segment, offset, convert(UInt32, size), UInt16(1), UInt16(1))
             write_list_pointer(pointer_location, child_ptr)
             child_ptr
+        end
+        function Node_interface_getSuperclasses(ptr::Nothing)
+            []
+        end
+        function Node_interface_getSuperclasses(ptr)
+            p = read_list_pointer(ptr, 5, 4, Capnp.CapnpStruct)
+            @assert isempty(p) || p isa SimpleListPointer ||
+               (p isa CompositeListPointer && p.data_word_count == Superclass_data_word_count) && p.pointer_count == Superclass_pointer_count
+            p
         end
         function Node_getConst(ptr::StructPointer)
             ptr
@@ -561,21 +561,21 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         function Node_annotation_setTargetsAnnotation(ptr, value)
             write_bool(ptr, 123, value)
         end
-        function Node_getParameters(ptr::Nothing)
-            []
-        end
-        function Node_getParameters(ptr)
-            p = read_list_pointer(ptr, 5, 5)
-            @assert isempty(p) || p isa SimpleListPointer ||
-               (p isa CompositeListPointer && p.data_word_count == Node_Parameter_data_word_count) && p.pointer_count == Node_Parameter_pointer_count
-            p
-        end
         function Node_initParameters(ptr, size)
             pointer_location = WirePointer(ptr.segment, ptr.offset + 10)
             pointer_location, segment, offset = alloc(ptr.traverser, pointer_location, 8*(1 + size * (0 + 1)))
             child_ptr = CompositeListPointer(ptr.traverser, segment, offset, convert(UInt32, size), UInt16(0), UInt16(1))
             write_list_pointer(pointer_location, child_ptr)
             child_ptr
+        end
+        function Node_getParameters(ptr::Nothing)
+            []
+        end
+        function Node_getParameters(ptr)
+            p = read_list_pointer(ptr, 5, 5, Capnp.CapnpStruct)
+            @assert isempty(p) || p isa SimpleListPointer ||
+               (p isa CompositeListPointer && p.data_word_count == Node_Parameter_data_word_count) && p.pointer_count == Node_Parameter_pointer_count
+            p
         end
         function Node_getIsGeneric(ptr)
             value = read_bool(ptr, 288)
@@ -623,21 +623,21 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         function Field_setCodeOrder(ptr, value)
             write_bits(ptr, 0, UInt16, value)
         end
-        function Field_getAnnotations(ptr::Nothing)
-            []
-        end
-        function Field_getAnnotations(ptr)
-            p = read_list_pointer(ptr, 3, 1)
-            @assert isempty(p) || p isa SimpleListPointer ||
-               (p isa CompositeListPointer && p.data_word_count == Annotation_data_word_count) && p.pointer_count == Annotation_pointer_count
-            p
-        end
         function Field_initAnnotations(ptr, size)
             pointer_location = WirePointer(ptr.segment, ptr.offset + 4)
             pointer_location, segment, offset = alloc(ptr.traverser, pointer_location, 8*(1 + size * (1 + 2)))
             child_ptr = CompositeListPointer(ptr.traverser, segment, offset, convert(UInt32, size), UInt16(1), UInt16(2))
             write_list_pointer(pointer_location, child_ptr)
             child_ptr
+        end
+        function Field_getAnnotations(ptr::Nothing)
+            []
+        end
+        function Field_getAnnotations(ptr)
+            p = read_list_pointer(ptr, 3, 1, Capnp.CapnpStruct)
+            @assert isempty(p) || p isa SimpleListPointer ||
+               (p isa CompositeListPointer && p.data_word_count == Annotation_data_word_count) && p.pointer_count == Annotation_pointer_count
+            p
         end
         function Field_getDiscriminantValue(ptr)
             value = read_bits(ptr, 2, UInt16)
@@ -803,21 +803,21 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         function Enumerant_setCodeOrder(ptr, value)
             write_bits(ptr, 0, UInt16, value)
         end
-        function Enumerant_getAnnotations(ptr::Nothing)
-            []
-        end
-        function Enumerant_getAnnotations(ptr)
-            p = read_list_pointer(ptr, 1, 1)
-            @assert isempty(p) || p isa SimpleListPointer ||
-               (p isa CompositeListPointer && p.data_word_count == Annotation_data_word_count) && p.pointer_count == Annotation_pointer_count
-            p
-        end
         function Enumerant_initAnnotations(ptr, size)
             pointer_location = WirePointer(ptr.segment, ptr.offset + 2)
             pointer_location, segment, offset = alloc(ptr.traverser, pointer_location, 8*(1 + size * (1 + 2)))
             child_ptr = CompositeListPointer(ptr.traverser, segment, offset, convert(UInt32, size), UInt16(1), UInt16(2))
             write_list_pointer(pointer_location, child_ptr)
             child_ptr
+        end
+        function Enumerant_getAnnotations(ptr::Nothing)
+            []
+        end
+        function Enumerant_getAnnotations(ptr)
+            p = read_list_pointer(ptr, 1, 1, Capnp.CapnpStruct)
+            @assert isempty(p) || p isa SimpleListPointer ||
+               (p isa CompositeListPointer && p.data_word_count == Annotation_data_word_count) && p.pointer_count == Annotation_pointer_count
+            p
         end
         const Superclass_data_word_count = 1
         const Superclass_pointer_count = 1
@@ -902,21 +902,21 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         function Method_setResultStructType(ptr, value)
             write_bits(ptr, 16, UInt64, value)
         end
-        function Method_getAnnotations(ptr::Nothing)
-            []
-        end
-        function Method_getAnnotations(ptr)
-            p = read_list_pointer(ptr, 3, 1)
-            @assert isempty(p) || p isa SimpleListPointer ||
-               (p isa CompositeListPointer && p.data_word_count == Annotation_data_word_count) && p.pointer_count == Annotation_pointer_count
-            p
-        end
         function Method_initAnnotations(ptr, size)
             pointer_location = WirePointer(ptr.segment, ptr.offset + 4)
             pointer_location, segment, offset = alloc(ptr.traverser, pointer_location, 8*(1 + size * (1 + 2)))
             child_ptr = CompositeListPointer(ptr.traverser, segment, offset, convert(UInt32, size), UInt16(1), UInt16(2))
             write_list_pointer(pointer_location, child_ptr)
             child_ptr
+        end
+        function Method_getAnnotations(ptr::Nothing)
+            []
+        end
+        function Method_getAnnotations(ptr)
+            p = read_list_pointer(ptr, 3, 1, Capnp.CapnpStruct)
+            @assert isempty(p) || p isa SimpleListPointer ||
+               (p isa CompositeListPointer && p.data_word_count == Annotation_data_word_count) && p.pointer_count == Annotation_pointer_count
+            p
         end
         function Method_getParamBrand(ptr::StructPointer{T}) where T <: Reader
             p = read_struct_pointer(ptr, 3, 2)
@@ -942,21 +942,21 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             write_struct_pointer(pointer_location, child_ptr)
             child_ptr
         end
-        function Method_getImplicitParameters(ptr::Nothing)
-            []
-        end
-        function Method_getImplicitParameters(ptr)
-            p = read_list_pointer(ptr, 3, 4)
-            @assert isempty(p) || p isa SimpleListPointer ||
-               (p isa CompositeListPointer && p.data_word_count == Node_Parameter_data_word_count) && p.pointer_count == Node_Parameter_pointer_count
-            p
-        end
         function Method_initImplicitParameters(ptr, size)
             pointer_location = WirePointer(ptr.segment, ptr.offset + 7)
             pointer_location, segment, offset = alloc(ptr.traverser, pointer_location, 8*(1 + size * (0 + 1)))
             child_ptr = CompositeListPointer(ptr.traverser, segment, offset, convert(UInt32, size), UInt16(0), UInt16(1))
             write_list_pointer(pointer_location, child_ptr)
             child_ptr
+        end
+        function Method_getImplicitParameters(ptr::Nothing)
+            []
+        end
+        function Method_getImplicitParameters(ptr)
+            p = read_list_pointer(ptr, 3, 4, Capnp.CapnpStruct)
+            @assert isempty(p) || p isa SimpleListPointer ||
+               (p isa CompositeListPointer && p.data_word_count == Node_Parameter_data_word_count) && p.pointer_count == Node_Parameter_pointer_count
+            p
         end
         const Type_data_word_count = 3
         const Type_pointer_count = 1
@@ -1325,15 +1325,6 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         function Brand_Scope_setScopeId(ptr, value)
             write_bits(ptr, 0, UInt64, value)
         end
-        function Brand_Scope_getBind(ptr::Nothing)
-            []
-        end
-        function Brand_Scope_getBind(ptr)
-            p = read_list_pointer(ptr, 2, 0)
-            @assert isempty(p) || p isa SimpleListPointer ||
-               (p isa CompositeListPointer && p.data_word_count == Brand_Binding_data_word_count) && p.pointer_count == Brand_Binding_pointer_count
-            p
-        end
         function Brand_Scope_initBind(ptr, size)
             pointer_location = WirePointer(ptr.segment, ptr.offset + 2)
             pointer_location, segment, offset = alloc(ptr.traverser, pointer_location, 8*(1 + size * (1 + 1)))
@@ -1341,6 +1332,15 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             write_list_pointer(pointer_location, child_ptr)
             write_bits(ptr, 8, UInt16, 0) # union discriminant
             child_ptr
+        end
+        function Brand_Scope_getBind(ptr::Nothing)
+            []
+        end
+        function Brand_Scope_getBind(ptr)
+            p = read_list_pointer(ptr, 2, 0, Capnp.CapnpStruct)
+            @assert isempty(p) || p isa SimpleListPointer ||
+               (p isa CompositeListPointer && p.data_word_count == Brand_Binding_data_word_count) && p.pointer_count == Brand_Binding_pointer_count
+            p
         end
         function Brand_Scope_setInherit(ptr)
             write_bits(ptr, 8, UInt16, 1) # union discriminant
@@ -1397,21 +1397,21 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             write_root_struct_pointer(ptr)
             ptr
         end
-        function Brand_getScopes(ptr::Nothing)
-            []
-        end
-        function Brand_getScopes(ptr)
-            p = read_list_pointer(ptr, 0, 0)
-            @assert isempty(p) || p isa SimpleListPointer ||
-               (p isa CompositeListPointer && p.data_word_count == Brand_Scope_data_word_count) && p.pointer_count == Brand_Scope_pointer_count
-            p
-        end
         function Brand_initScopes(ptr, size)
             pointer_location = WirePointer(ptr.segment, ptr.offset + 0)
             pointer_location, segment, offset = alloc(ptr.traverser, pointer_location, 8*(1 + size * (2 + 1)))
             child_ptr = CompositeListPointer(ptr.traverser, segment, offset, convert(UInt32, size), UInt16(2), UInt16(1))
             write_list_pointer(pointer_location, child_ptr)
             child_ptr
+        end
+        function Brand_getScopes(ptr::Nothing)
+            []
+        end
+        function Brand_getScopes(ptr)
+            p = read_list_pointer(ptr, 0, 0, Capnp.CapnpStruct)
+            @assert isempty(p) || p isa SimpleListPointer ||
+               (p isa CompositeListPointer && p.data_word_count == Brand_Scope_data_word_count) && p.pointer_count == Brand_Scope_pointer_count
+            p
         end
         const Value_data_word_count = 2
         const Value_pointer_count = 1
@@ -1536,7 +1536,7 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             write_bits(ptr, 0, UInt16, 12) # union discriminant
             write_text(child_ptr, txt)
         end
-        # Value's data has type Capnp.CapnpTypeData() which is not supported by Capnp.jl yet
+        # Value's data has type Capnp.Generator.SchemaData() which is not supported by Capnp.jl yet
         function Value_getList(ptr)
             value = read_bits(ptr, 2, Int64)
             if value == 0
@@ -1725,21 +1725,21 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             write_list_pointer(pointer_location, child_ptr)
             write_text(child_ptr, txt)
         end
-        function CodeGeneratorRequest_RequestedFile_getImports(ptr::Nothing)
-            []
-        end
-        function CodeGeneratorRequest_RequestedFile_getImports(ptr)
-            p = read_list_pointer(ptr, 1, 1)
-            @assert isempty(p) || p isa SimpleListPointer ||
-               (p isa CompositeListPointer && p.data_word_count == CodeGeneratorRequest_RequestedFile_Import_data_word_count) && p.pointer_count == CodeGeneratorRequest_RequestedFile_Import_pointer_count
-            p
-        end
         function CodeGeneratorRequest_RequestedFile_initImports(ptr, size)
             pointer_location = WirePointer(ptr.segment, ptr.offset + 2)
             pointer_location, segment, offset = alloc(ptr.traverser, pointer_location, 8*(1 + size * (1 + 1)))
             child_ptr = CompositeListPointer(ptr.traverser, segment, offset, convert(UInt32, size), UInt16(1), UInt16(1))
             write_list_pointer(pointer_location, child_ptr)
             child_ptr
+        end
+        function CodeGeneratorRequest_RequestedFile_getImports(ptr::Nothing)
+            []
+        end
+        function CodeGeneratorRequest_RequestedFile_getImports(ptr)
+            p = read_list_pointer(ptr, 1, 1, Capnp.CapnpStruct)
+            @assert isempty(p) || p isa SimpleListPointer ||
+               (p isa CompositeListPointer && p.data_word_count == CodeGeneratorRequest_RequestedFile_Import_data_word_count) && p.pointer_count == CodeGeneratorRequest_RequestedFile_Import_pointer_count
+            p
         end
         const CodeGeneratorRequest_data_word_count = 0
         const CodeGeneratorRequest_pointer_count = 4
@@ -1757,15 +1757,6 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             write_root_struct_pointer(ptr)
             ptr
         end
-        function CodeGeneratorRequest_getNodes(ptr::Nothing)
-            []
-        end
-        function CodeGeneratorRequest_getNodes(ptr)
-            p = read_list_pointer(ptr, 0, 0)
-            @assert isempty(p) || p isa SimpleListPointer ||
-               (p isa CompositeListPointer && p.data_word_count == Node_data_word_count) && p.pointer_count == Node_pointer_count
-            p
-        end
         function CodeGeneratorRequest_initNodes(ptr, size)
             pointer_location = WirePointer(ptr.segment, ptr.offset + 0)
             pointer_location, segment, offset = alloc(ptr.traverser, pointer_location, 8*(1 + size * (5 + 6)))
@@ -1773,13 +1764,13 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             write_list_pointer(pointer_location, child_ptr)
             child_ptr
         end
-        function CodeGeneratorRequest_getRequestedFiles(ptr::Nothing)
+        function CodeGeneratorRequest_getNodes(ptr::Nothing)
             []
         end
-        function CodeGeneratorRequest_getRequestedFiles(ptr)
-            p = read_list_pointer(ptr, 0, 1)
+        function CodeGeneratorRequest_getNodes(ptr)
+            p = read_list_pointer(ptr, 0, 0, Capnp.CapnpStruct)
             @assert isempty(p) || p isa SimpleListPointer ||
-               (p isa CompositeListPointer && p.data_word_count == CodeGeneratorRequest_RequestedFile_data_word_count) && p.pointer_count == CodeGeneratorRequest_RequestedFile_pointer_count
+               (p isa CompositeListPointer && p.data_word_count == Node_data_word_count) && p.pointer_count == Node_pointer_count
             p
         end
         function CodeGeneratorRequest_initRequestedFiles(ptr, size)
@@ -1788,6 +1779,15 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             child_ptr = CompositeListPointer(ptr.traverser, segment, offset, convert(UInt32, size), UInt16(1), UInt16(2))
             write_list_pointer(pointer_location, child_ptr)
             child_ptr
+        end
+        function CodeGeneratorRequest_getRequestedFiles(ptr::Nothing)
+            []
+        end
+        function CodeGeneratorRequest_getRequestedFiles(ptr)
+            p = read_list_pointer(ptr, 0, 1, Capnp.CapnpStruct)
+            @assert isempty(p) || p isa SimpleListPointer ||
+               (p isa CompositeListPointer && p.data_word_count == CodeGeneratorRequest_RequestedFile_data_word_count) && p.pointer_count == CodeGeneratorRequest_RequestedFile_pointer_count
+            p
         end
         function CodeGeneratorRequest_getCapnpVersion(ptr::StructPointer{T}) where T <: Reader
             p = read_struct_pointer(ptr, 0, 2)
@@ -1801,21 +1801,21 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             write_struct_pointer(pointer_location, child_ptr)
             child_ptr
         end
-        function CodeGeneratorRequest_getSourceInfo(ptr::Nothing)
-            []
-        end
-        function CodeGeneratorRequest_getSourceInfo(ptr)
-            p = read_list_pointer(ptr, 0, 3)
-            @assert isempty(p) || p isa SimpleListPointer ||
-               (p isa CompositeListPointer && p.data_word_count == Node_SourceInfo_data_word_count) && p.pointer_count == Node_SourceInfo_pointer_count
-            p
-        end
         function CodeGeneratorRequest_initSourceInfo(ptr, size)
             pointer_location = WirePointer(ptr.segment, ptr.offset + 3)
             pointer_location, segment, offset = alloc(ptr.traverser, pointer_location, 8*(1 + size * (1 + 2)))
             child_ptr = CompositeListPointer(ptr.traverser, segment, offset, convert(UInt32, size), UInt16(1), UInt16(2))
             write_list_pointer(pointer_location, child_ptr)
             child_ptr
+        end
+        function CodeGeneratorRequest_getSourceInfo(ptr::Nothing)
+            []
+        end
+        function CodeGeneratorRequest_getSourceInfo(ptr)
+            p = read_list_pointer(ptr, 0, 3, Capnp.CapnpStruct)
+            @assert isempty(p) || p isa SimpleListPointer ||
+               (p isa CompositeListPointer && p.data_word_count == Node_SourceInfo_data_word_count) && p.pointer_count == Node_SourceInfo_pointer_count
+            p
         end
     end
 end

@@ -10,7 +10,7 @@ export read_bool, write_bits, write_struct_pointer, write_root_struct_pointer, w
 
 export ElementSize, Empty, Bit, Byte, TwoBytes, FourBytes, EightBytes, Pointer, InlineComposite
 
-include("capnp_types.jl")
+include("runtime_types.jl")
 include("runtime_lib.jl")
 
 module Generator

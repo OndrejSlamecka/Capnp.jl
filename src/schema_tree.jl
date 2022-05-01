@@ -1,11 +1,117 @@
 # This file defines types of the Capnp schema tree structure and functions for parsing a provided schema into that tree.
 # The root is CodeGeneratorRequest and the corresponding function is read_CodeGeneratorRequest.
 
+const noDiscriminant = 0xff_ff::UInt16
+
+# Types as parsed from the given schema.
+abstract type SchemaType end
+
+@enum Inherit inherit
+const Binding = Union{Nothing,SchemaType}
+struct Scope
+    scopeId::UInt64
+    scope::Union{Vector{Binding},Inherit}
+end
+struct Brand
+    scopes::Vector{Scope}
+end
+
+struct SchemaVoid <: SchemaType end
+struct SchemaBool <: SchemaType end
+struct SchemaInt8 <: SchemaType end
+struct SchemaInt16 <: SchemaType end
+struct SchemaInt32 <: SchemaType end
+struct SchemaInt64 <: SchemaType end
+struct SchemaUInt8 <: SchemaType end
+struct SchemaUInt16 <: SchemaType end
+struct SchemaUInt32 <: SchemaType end
+struct SchemaUInt64 <: SchemaType end
+struct SchemaFloat32 <: SchemaType end
+struct SchemaFloat64 <: SchemaType end
+struct SchemaText <: SchemaType end
+struct SchemaData <: SchemaType end
+struct SchemaList <: SchemaType
+    # TODO maybe elementType could be a parameter of SchemaTypeList?
+    elementType::SchemaType
+end
+struct SchemaEnum <: SchemaType
+    typeId::UInt64
+    brand::Brand
+end
+struct SchemaStruct <: SchemaType
+    typeId::UInt64
+    brand::Brand
+end
+struct SchemaInterface <: SchemaType
+    typeId::UInt64
+    brand::Brand
+end
+struct SchemaAnyPointer <: SchemaType
+    # TODO
+end
+
+struct SchemaUnconstrainedPointer <: SchemaType
+    type::Any # capnp.schema.Type_anyPointer_unconstrained_union
+end
+
+struct SchemaParameterPointer <: SchemaType
+    scopeId::UInt64
+    parameterIndex::UInt16
+end
+
+struct SchemaImplicitMethodParameterPointer <: SchemaType
+    parameterIndex::UInt16
+end
+
+elementsize(::SchemaVoid) = Empty
+elementsize(::SchemaBool) = Bit
+elementsize(::SchemaInt8) = Byte
+elementsize(::SchemaInt16) = TwoBytes
+elementsize(::SchemaInt32) = FourBytes
+elementsize(::SchemaInt64) = EightBytes
+elementsize(::SchemaUInt8) = Byte
+elementsize(::SchemaUInt16) = TwoBytes
+elementsize(::SchemaUInt32) = FourBytes
+elementsize(::SchemaUInt64) = EightBytes
+elementsize(::SchemaFloat32) = FourBytes
+elementsize(::SchemaFloat64) = EightBytes
+
+# capnp_sizeof returns the number of bytes a capnp type takes.
+# Bool variant is intentionally not defined. Bools get separate treatment because capnp fits 8 bools into a byte.
+
+# capnp_sizeof(::SchemaTypeBool)
+capnp_sizeof(::SchemaInt8) = 1
+capnp_sizeof(::SchemaInt16) = 2
+capnp_sizeof(::SchemaInt32) = 4
+capnp_sizeof(::SchemaInt64) = 8
+capnp_sizeof(::SchemaUInt8) = 1
+capnp_sizeof(::SchemaUInt16) = 2
+capnp_sizeof(::SchemaUInt32) = 4
+capnp_sizeof(::SchemaUInt64) = 8
+capnp_sizeof(::SchemaFloat32) = 4
+capnp_sizeof(::SchemaFloat64) = 8
+
+# capnp_type_to_bits_type(::SchemaTypeBool) = Bool see capnp_sizeof
+capnp_type_to_bits_type(::SchemaInt8) = UInt8
+capnp_type_to_bits_type(::SchemaInt16) = UInt16
+capnp_type_to_bits_type(::SchemaInt32) = UInt32
+capnp_type_to_bits_type(::SchemaInt64) = UInt64
+capnp_type_to_bits_type(::SchemaUInt8) = UInt8
+capnp_type_to_bits_type(::SchemaUInt16) = UInt16
+capnp_type_to_bits_type(::SchemaUInt32) = UInt32
+capnp_type_to_bits_type(::SchemaUInt64) = UInt64
+capnp_type_to_bits_type(::SchemaFloat32) = Float32
+capnp_type_to_bits_type(::SchemaFloat64) = Float64
+capnp_type_to_bits_type(::Any) = nothing
+
+is_capnp_bits(type) = capnp_type_to_bits_type(type) !== nothing
+
+
 const Value = Any # TODO: consider whether it's worth making this more precise
 
 struct Annotation
     id::UInt64
-    brand::Union{Nothing,Capnp.Brand}
+    brand::Union{Nothing,Brand}
     value::Value
 end
 
@@ -22,7 +128,7 @@ abstract type FieldProperties end
 
 struct SlotFieldProps <: FieldProperties
     offset::UInt32
-    type::Capnp.CapnpType
+    type::SchemaType
     defaultValue::Value
     hadExplicitDefault::Bool
 end
@@ -60,7 +166,7 @@ end
 struct FileNodeProps <: NodeProperties end
 
 struct AnnotationNodeProps <: NodeProperties
-    type::Capnp.CapnpType
+    type::SchemaType
     targetsFile::Bool
     targetsConst::Bool
     targetsEnum::Bool
@@ -86,7 +192,7 @@ struct EnumNodeProps <: NodeProperties
 end
 
 struct ConstNodeProps <: NodeProperties
-    type::Capnp.CapnpType
+    type::SchemaType
     value::Value
 end
 
@@ -150,59 +256,59 @@ function read_Type(ptr::StructPointer)
 
     result = nothing
     if unionTag == capnp.schema.Type_union_void
-        result = Capnp.CapnpTypeVoid()
+        result = SchemaVoid()
     elseif unionTag == capnp.schema.Type_union_bool
-        result = Capnp.CapnpTypeBool()
+        result = SchemaBool()
     elseif unionTag == capnp.schema.Type_union_int8
-        result = Capnp.CapnpTypeInt8()
+        result = SchemaInt8()
     elseif unionTag == capnp.schema.Type_union_int16
-        result = Capnp.CapnpTypeInt16()
+        result = SchemaInt16()
     elseif unionTag == capnp.schema.Type_union_int32
-        result = Capnp.CapnpTypeInt32()
+        result = SchemaInt32()
     elseif unionTag == capnp.schema.Type_union_int64
-        result = Capnp.CapnpTypeInt64()
+        result = SchemaInt64()
     elseif unionTag == capnp.schema.Type_union_uint8
-        result = Capnp.CapnpTypeUInt8()
+        result = SchemaUInt8()
     elseif unionTag == capnp.schema.Type_union_uint16
-        result = Capnp.CapnpTypeUInt16()
+        result = SchemaUInt16()
     elseif unionTag == capnp.schema.Type_union_uint32
-        result = Capnp.CapnpTypeUInt32()
+        result = SchemaUInt32()
     elseif unionTag == capnp.schema.Type_union_uint64
-        result = Capnp.CapnpTypeUInt64()
+        result = SchemaUInt64()
     elseif unionTag == capnp.schema.Type_union_float32
-        result = Capnp.CapnpTypeFloat32()
+        result = SchemaFloat32()
     elseif unionTag == capnp.schema.Type_union_float64
-        result = Capnp.CapnpTypeFloat64()
+        result = SchemaFloat64()
     elseif unionTag == capnp.schema.Type_union_text
-        result = Capnp.CapnpTypeText()
+        result = SchemaText()
     elseif unionTag == capnp.schema.Type_union_data
-        result = Capnp.CapnpTypeData()
+        result = SchemaData()
     elseif unionTag == capnp.schema.Type_union_list
         elementType = read_Type(capnp.schema.Type_list_getElementType(ptr))
-        result = Capnp.CapnpTypeList(elementType)
+        result = SchemaList(elementType)
     elseif unionTag == capnp.schema.Type_union_enum
         typeId = capnp.schema.Type_enum_getTypeId(ptr)
         brand = read_Brand(capnp.schema.Type_enum_getBrand(ptr))
 
-        result = Capnp.CapnpTypeEnum(typeId, brand)
+        result = SchemaEnum(typeId, brand)
     elseif unionTag == capnp.schema.Type_union_struct
         typeId = capnp.schema.Type_struct_getTypeId(ptr)
         brand = read_Brand(capnp.schema.Type_struct_getBrand(ptr))
 
-        result = Capnp.CapnpTypeStruct(typeId, brand)
+        result = SchemaStruct(typeId, brand)
     elseif unionTag == capnp.schema.Type_union_anyPointer
         pointerUnionTag = capnp.schema.Type_anyPointer_which(ptr)
 
         if pointerUnionTag == capnp.schema.Type_anyPointer_union_unconstrained
             unconstrainedPointerUnionTag = capnp.schema.Type_anyPointer_unconstrained_which(ptr)
-            result = Capnp.UnconstrainedPointer(unconstrainedPointerUnionTag)
+            result = SchemaUnconstrainedPointer(unconstrainedPointerUnionTag)
         elseif pointerUnionTag == capnp.schema.Type_anyPointer_union_parameter
             scopeId = capnp.schema.Type_anyPointer_parameter_scopeId(ptr)
             parameterIndex = capnp.schema.Type_anyPointer_Parameter_getParameterIndex(ptr)
-            result = Capnp.ParameterPointer(scopeId, parameterIndex)
+            result = SchemaParameterPointer(scopeId, parameterIndex)
         elseif pointerUnionTag == capnp.schema.Type_anyPointer_union_implicitMethodParameter
             parameterIndex = capnp.schema.Type_anyPointer_ImplciitMethodParameter_getParameterIndex(ptr)
-            result = Capnp.ImplicitMethodParameterPointer(parameterIndex)
+            result = SchemaImplicitMethodParameterPointer(parameterIndex)
         end
     end
 
@@ -303,7 +409,7 @@ end
 
 function read_Brand(ptr)
     scopes = [read_Brand_Scope(p) for p in capnp.schema.Brand_getScopes(ptr)]
-    Capnp.Brand(scopes)
+    Brand(scopes)
 end
 
 function read_Annotation(ptr::StructPointer)
