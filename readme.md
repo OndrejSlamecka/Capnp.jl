@@ -1,4 +1,4 @@
-# Capnp.jl
+# Capnp.jl - Julia plugin for Cap'n'proto
 
 **This is currently a prototype.**
 
