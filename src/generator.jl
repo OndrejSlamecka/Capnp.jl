@@ -159,28 +159,28 @@ function generateNode(env::Environment, node::Node{StructNodeProps})
     unionFields = filter(f -> f.discriminantValue != noDiscriminant, node.nodeProperties.fields)
     if !isempty(unionFields) # or props.discriminantCount > 0 ?
         cprintln(env, "@enum $(node.jlName)_union::UInt16 $([ "$(node.jlName)_union_$(f.name) " for f in unionFields ]...)")
-        cprintln(env, "function $(node.jlName)_which(ptr::StructPointer)")
-        cprintln(env, "    $(node.jlName)_union(read_bits(ptr, $(sizeof(UInt16) * node.nodeProperties.discriminantOffset), UInt16))")
+        cprintln(env, "function $(node.jlName)_which(ptr::Capnp.StructPointer)")
+        cprintln(env, "    $(node.jlName)_union(Capnp.read_bits(ptr, $(sizeof(UInt16) * node.nodeProperties.discriminantOffset), UInt16))")
         cprintln(env, "end")
     end
 
     # root
     #  reader
     cprintln(env, "function root_$(node.jlName)(message)")
-    cprintln(env, "    ptr = StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))")
-    cprintln(env, "    p = read_struct_pointer(ptr, 0, 0)")
+    cprintln(env, "    ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))")
+    cprintln(env, "    p = Capnp.read_struct_pointer(ptr, 0, 0)")
     generate_struct_pointer_assert(env, node.jlName, "p")
     cprintln(env, "    p")
     cprintln(env, "end")
 
     #  writer
     cprintln(env, "function initRoot_$(node.jlName)(builder)")
-    cprintln(env, "    pointer_location = WirePointer(1, 0)")
-    cprintln(env, "    alloc(builder, pointer_location, 8)") # a word for the root pointer
-    cprintln(env, "    pointer_location, segment, offset = alloc(builder, pointer_location, 8*$(node.nodeProperties.dataWordCount + node.nodeProperties.pointerCount))") # root struct
+    cprintln(env, "    pointer_location = Capnp.WirePointer(1, 0)")
+    cprintln(env, "    Capnp.alloc(builder, pointer_location, 8)") # a word for the root pointer
+    cprintln(env, "    pointer_location, segment, offset = Capnp.alloc(builder, pointer_location, 8*$(node.nodeProperties.dataWordCount + node.nodeProperties.pointerCount))") # root struct
     # cprintln(env, "    @assert pointer_location.segment == 1 && pointer_location.offset == 0")
-    cprintln(env, "    ptr = StructPointer(builder, segment, offset, UInt16($(node.nodeProperties.dataWordCount)), UInt16($(node.nodeProperties.pointerCount)))")
-    cprintln(env, "    write_root_struct_pointer(ptr)")
+    cprintln(env, "    ptr = Capnp.StructPointer(builder, segment, offset, UInt16($(node.nodeProperties.dataWordCount)), UInt16($(node.nodeProperties.pointerCount)))")
+    cprintln(env, "    Capnp.write_root_struct_pointer(ptr)")
     cprintln(env, "    ptr")
     cprintln(env, "end")
 
@@ -201,7 +201,7 @@ function generateNode(env::Environment, r::Node) end
 
 function generateDiscriminantSetter(env::Environment, structPtrName, strct, field)
     if field.discriminantValue != noDiscriminant
-        cprintln(env, "    write_bits($(structPtrName), $(sizeof(UInt16) * strct.discriminantOffset), UInt16, $(field.discriminantValue)) # union discriminant")
+        cprintln(env, "    Capnp.write_bits($(structPtrName), $(sizeof(UInt16) * strct.discriminantOffset), UInt16, $(field.discriminantValue)) # union discriminant")
     end
 end
 
@@ -212,7 +212,7 @@ function generateField(env::Environment, node::Node{StructNodeProps}, field::Fie
     # TODO: Note this returns `ptr` which works because groups live in the scope of their parent, however,
     # ideally, we'd generate proper types and then emit `ptr` with a type tag of this group, providing checks for user code.
 
-    cprintln(env, "function $(node.jlName)_get$(uppercasefirst(field.name))(ptr::StructPointer)")
+    cprintln(env, "function $(node.jlName)_get$(uppercasefirst(field.name))(ptr::Capnp.StructPointer)")
     cprintln(env, "    ptr")
     cprintln(env, "end")
 
@@ -230,7 +230,7 @@ function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFi
 
     # reader
     cprintln(env, "function $(node.jlName)_get$(uppercasefirst(field.name))(ptr)")
-    cprintln(env, "    value = read_bits(ptr, $(position), $(enum.jlName))")
+    cprintln(env, "    value = Capnp.read_bits(ptr, $(position), $(enum.jlName))")
     # if field.fieldProperties.defaultValue != 0 # TODO
     #     cprintln(env, "    value = xor(value, $(field.fieldProperties.defaultValue))")
     # end
@@ -239,7 +239,7 @@ function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFi
 
     # writer
     cprintln(env, "function $(node.jlName)_set$(uppercasefirst(field.name))(ptr, value)")
-    cprintln(env, "    value = write_bits(ptr, $(position), $(enum.jlName), value)")
+    cprintln(env, "    value = Capnp.write_bits(ptr, $(position), $(enum.jlName), value)")
     generateDiscriminantSetter(env, "ptr", node.nodeProperties, field)
     cprintln(env, "end")
 end
@@ -248,7 +248,7 @@ function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFi
     position = node.nodeProperties.dataWordCount + field.fieldProperties.offset
 
     cprintln(env, "function $(node.jlName)_get$(uppercasefirst(field.name))(ptr)")
-    cprintln(env, "    value = read_bits(ptr, $(position), Int64)")
+    cprintln(env, "    value = Capnp.read_bits(ptr, $(position), Int64)")
     cprintln(env, "    if value == 0")
     cprintln(env, "        Nothing")
     cprintln(env, "    else")
@@ -262,17 +262,17 @@ function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFi
     runtimeElementType = schema_to_runtime_type(field.fieldProperties.type.elementType)
 
     cprintln(env, "function $(node.jlName)_get$(uppercasefirst(field.name))(ptr::Nothing)")
-    cprintln(env, "    []") # TODO: return SimpleListPointer with length 0
+    cprintln(env, "    []") # TODO: return Capnp.SimpleListPointer with length 0
     cprintln(env, "end")
 
     cprintln(env, "function $(node.jlName)_get$(uppercasefirst(field.name))(ptr)")
-    cprintln(env, "    p = read_list_pointer(ptr, $(node.nodeProperties.dataWordCount), $(Int(field.fieldProperties.offset)), $(runtimeElementType))")
+    cprintln(env, "    p = Capnp.read_list_pointer(ptr, $(node.nodeProperties.dataWordCount), $(Int(field.fieldProperties.offset)), $(runtimeElementType))")
     if elementType isa SchemaStruct
         strct = env.nodes[elementType.typeId]
-        # TODO: when checking for SimpleListPointer we should also check that sum(sizeof(strct.fields...)) == p.element_size
+        # TODO: when checking for Capnp.SimpleListPointer we should also check that sum(sizeof(strct.fields...)) == p.element_size
         # because "a list of any element size (except C = 1, i.e. 1-bit) may be decoded as a struct list"
-        cprintln(env, "    @assert isempty(p) || p isa SimpleListPointer ||")
-        cprintln(env, "       (p isa CompositeListPointer && p.data_word_count == $(strct.jlName)_data_word_count) && p.pointer_count == $(strct.jlName)_pointer_count")
+        cprintln(env, "    @assert isempty(p) || p isa Capnp.SimpleListPointer ||")
+        cprintln(env, "       (p isa Capnp.CompositeListPointer && p.data_word_count == $(strct.jlName)_data_word_count) && p.pointer_count == $(strct.jlName)_pointer_count")
     end
     cprintln(env, "    p")
     cprintln(env, "end")
@@ -281,10 +281,10 @@ function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFi
         throw("Lists of bools not supported yet.")
     elseif is_capnp_bits(field.fieldProperties.type.elementType)
         cprintln(env, "function $(node.jlName)_init$(uppercasefirst(field.name))(ptr, size)")
-        cprintln(env, "    pointer_location = WirePointer(ptr.segment, ptr.offset + $(node.nodeProperties.dataWordCount + field.fieldProperties.offset))")
-        cprintln(env, "    pointer_location, segment, offset = alloc(ptr.traverser, pointer_location, $(capnp_sizeof(field.fieldProperties.type.elementType)) * size)")
-        cprintln(env, "    child_ptr = SimpleListPointer{$(runtimeElementType), typeof(ptr.traverser)}(ptr.traverser, segment, offset, $(elementsize(field.fieldProperties.type.elementType)), convert(UInt32, size))")
-        cprintln(env, "    write_list_pointer(pointer_location, child_ptr)")
+        cprintln(env, "    pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + $(node.nodeProperties.dataWordCount + field.fieldProperties.offset))")
+        cprintln(env, "    pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, $(capnp_sizeof(field.fieldProperties.type.elementType)) * size)")
+        cprintln(env, "    child_ptr = Capnp.SimpleListPointer{$(runtimeElementType), typeof(ptr.traverser)}(ptr.traverser, segment, offset, Capnp.$(elementsize(field.fieldProperties.type.elementType)), convert(UInt32, size))")
+        cprintln(env, "    Capnp.write_list_pointer(pointer_location, child_ptr)")
         generateDiscriminantSetter(env, "ptr", node.nodeProperties, field)
         cprintln(env, "    child_ptr")
         cprintln(env, "end")
@@ -292,10 +292,10 @@ function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFi
         # TODO: maybe assert?
         slotStructProps = env.nodes[field.fieldProperties.type.elementType.typeId].nodeProperties
         cprintln(env, "function $(node.jlName)_init$(uppercasefirst(field.name))(ptr, size)")
-        cprintln(env, "    pointer_location = WirePointer(ptr.segment, ptr.offset + $(node.nodeProperties.dataWordCount + field.fieldProperties.offset))")
-        cprintln(env, "    pointer_location, segment, offset = alloc(ptr.traverser, pointer_location, 8*(1 + size * ($(slotStructProps.dataWordCount) + $(slotStructProps.pointerCount))))")
-        cprintln(env, "    child_ptr = CompositeListPointer(ptr.traverser, segment, offset, convert(UInt32, size), UInt16($(slotStructProps.dataWordCount)), UInt16($(slotStructProps.pointerCount)))")
-        cprintln(env, "    write_list_pointer(pointer_location, child_ptr)")
+        cprintln(env, "    pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + $(node.nodeProperties.dataWordCount + field.fieldProperties.offset))")
+        cprintln(env, "    pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, 8*(1 + size * ($(slotStructProps.dataWordCount) + $(slotStructProps.pointerCount))))")
+        cprintln(env, "    child_ptr = Capnp.CompositeListPointer(ptr.traverser, segment, offset, convert(UInt32, size), UInt16($(slotStructProps.dataWordCount)), UInt16($(slotStructProps.pointerCount)))")
+        cprintln(env, "    Capnp.write_list_pointer(pointer_location, child_ptr)")
         generateDiscriminantSetter(env, "ptr", node.nodeProperties, field)
         cprintln(env, "    child_ptr")
         cprintln(env, "end")
@@ -308,21 +308,21 @@ function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFi
     typeNode = env.nodes[field.fieldProperties.type.typeId]
     slotStructProps = typeNode.nodeProperties
 
-    cprintln(env, "function $(node.jlName)_get$(uppercasefirst(field.name))(ptr::StructPointer{T}) where T <: Reader")
-    cprintln(env, "    p = read_struct_pointer(ptr, $(node.nodeProperties.dataWordCount), $(field.fieldProperties.offset))")
+    cprintln(env, "function $(node.jlName)_get$(uppercasefirst(field.name))(ptr::Capnp.StructPointer{T}) where T <: Reader")
+    cprintln(env, "    p = Capnp.read_struct_pointer(ptr, $(node.nodeProperties.dataWordCount), $(field.fieldProperties.offset))")
     generate_struct_pointer_assert(env, typeNode.jlName, "p")
     cprintln(env, "    p")
     cprintln(env, "end")
 
-    # cprintln(env, "function $(path_name)_set$(uppercasefirst(r.name))(ptr::StructPointer{T}) where T <: Writer")
-    # cprintln(env, "    write_struct_pointer(ptr, $(structProps.dataWordCount * 8), $(slot.offset))")
+    # cprintln(env, "function $(path_name)_set$(uppercasefirst(r.name))(ptr::Capnp.StructPointer{T}) where T <: Writer")
+    # cprintln(env, "    Capnp.write_struct_pointer(ptr, $(structProps.dataWordCount * 8), $(slot.offset))")
     # cprintln(env, "end")
 
     cprintln(env, "function $(node.jlName)_init$(uppercasefirst(field.name))(ptr)")
-    cprintln(env, "    pointer_location = WirePointer(ptr.segment, ptr.offset + $(node.nodeProperties.dataWordCount + field.fieldProperties.offset))")
-    cprintln(env, "    pointer_location, segment, offset = alloc(ptr.traverser, pointer_location, 8*$(slotStructProps.dataWordCount + slotStructProps.pointerCount))")
-    cprintln(env, "    child_ptr = StructPointer(ptr.traverser, segment, offset, UInt16($(slotStructProps.dataWordCount)), UInt16($(slotStructProps.pointerCount)))")
-    cprintln(env, "    write_struct_pointer(pointer_location, child_ptr)")
+    cprintln(env, "    pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + $(node.nodeProperties.dataWordCount + field.fieldProperties.offset))")
+    cprintln(env, "    pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, 8*$(slotStructProps.dataWordCount + slotStructProps.pointerCount))")
+    cprintln(env, "    child_ptr = Capnp.StructPointer(ptr.traverser, segment, offset, UInt16($(slotStructProps.dataWordCount)), UInt16($(slotStructProps.pointerCount)))")
+    cprintln(env, "    Capnp.write_struct_pointer(pointer_location, child_ptr)")
     generateDiscriminantSetter(env, "ptr", node.nodeProperties, field)
     cprintln(env, "    child_ptr")
     cprintln(env, "end")
@@ -330,18 +330,18 @@ end
 
 function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFieldProps}, type::SchemaText)
     cprintln(env, "function $(node.jlName)_get$(uppercasefirst(field.name))(ptr)")
-    cprintln(env, "    p = read_list_pointer(ptr, $(node.nodeProperties.dataWordCount), $(Int(field.fieldProperties.offset)))")
-    cprintln(env, "    read_text(p)")
+    cprintln(env, "    p = Capnp.read_list_pointer(ptr, $(node.nodeProperties.dataWordCount), $(Int(field.fieldProperties.offset)))")
+    cprintln(env, "    Capnp.read_text(p)")
     cprintln(env, "end")
 
     # length +1 for terminating \0
     cprintln(env, "function $(node.jlName)_set$(uppercasefirst(field.name))(ptr, txt)")
-    cprintln(env, "    pointer_location = WirePointer(ptr.segment, ptr.offset + $(node.nodeProperties.dataWordCount + field.fieldProperties.offset))")
-    cprintln(env, "    pointer_location, segment, offset = alloc(ptr.traverser, pointer_location, length(txt) + 1)")
-    cprintln(env, "    child_ptr = SimpleListPointer{UInt8, typeof(ptr.traverser)}(ptr.traverser, segment, offset, Byte, UInt32(length(txt) + 1))")
-    cprintln(env, "    write_list_pointer(pointer_location, child_ptr)")
+    cprintln(env, "    pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + $(node.nodeProperties.dataWordCount + field.fieldProperties.offset))")
+    cprintln(env, "    pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, length(txt) + 1)")
+    cprintln(env, "    child_ptr = Capnp.SimpleListPointer{UInt8, typeof(ptr.traverser)}(ptr.traverser, segment, offset, Capnp.Byte, UInt32(length(txt) + 1))")
+    cprintln(env, "    Capnp.write_list_pointer(pointer_location, child_ptr)")
     generateDiscriminantSetter(env, "ptr", node.nodeProperties, field)
-    cprintln(env, "    write_text(child_ptr, txt)")
+    cprintln(env, "    Capnp.write_text(child_ptr, txt)")
     cprintln(env, "end")
 end
 
@@ -361,7 +361,7 @@ function generateBoolSlotField(env, node::Node{StructNodeProps}, field::Field{Sl
 
     # reader
     cprintln(env, "function $(node.jlName)_get$(uppercasefirst(field.name))(ptr)")
-    cprintln(env, "    value = read_bool(ptr, $(field.fieldProperties.offset))")
+    cprintln(env, "    value = Capnp.read_bool(ptr, $(field.fieldProperties.offset))")
     if field.fieldProperties.defaultValue != zero(Bool)
         cprintln(env, "    value = xor(value, Bool($(field.fieldProperties.defaultValue)))")
     end
@@ -370,7 +370,7 @@ function generateBoolSlotField(env, node::Node{StructNodeProps}, field::Field{Sl
 
     # writer
     cprintln(env, "function $(node.jlName)_set$(uppercasefirst(field.name))(ptr, value)")
-    cprintln(env, "    write_bool(ptr, $(field.fieldProperties.offset), value)")
+    cprintln(env, "    Capnp.write_bool(ptr, $(field.fieldProperties.offset), value)")
     generateDiscriminantSetter(env, "ptr", node.nodeProperties, field)
     # TODO: default value
     cprintln(env, "end")
@@ -384,7 +384,7 @@ function generateBitsSlotField(env, node::Node{StructNodeProps}, field::Field{Sl
 
     # reader
     cprintln(env, "function $(node.jlName)_get$(uppercasefirst(field.name))(ptr)")
-    cprintln(env, "    value = read_bits(ptr, $(position), $(juliaBitsType))")
+    cprintln(env, "    value = Capnp.read_bits(ptr, $(position), $(juliaBitsType))")
     if field.fieldProperties.defaultValue != zero(juliaBitsType)
         cprintln(env, "    value = xor(value, $(juliaBitsType)($(field.fieldProperties.defaultValue)))")
     end
@@ -393,7 +393,7 @@ function generateBitsSlotField(env, node::Node{StructNodeProps}, field::Field{Sl
 
     # writer
     cprintln(env, "function $(node.jlName)_set$(uppercasefirst(field.name))(ptr, value)")
-    cprintln(env, "    write_bits(ptr, $(position), $(juliaBitsType), value)")
+    cprintln(env, "    Capnp.write_bits(ptr, $(position), $(juliaBitsType), value)")
     generateDiscriminantSetter(env, "ptr", node.nodeProperties, field)
     # TODO: default value
     cprintln(env, "end")

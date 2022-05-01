@@ -1,7 +1,5 @@
 # Shared functionality used by generated code.
 
-# TODO: Separate this into internal (e.g. read_struct_pointer) and external (e.g. MessageReader) and only export the latter.
-
 const Segment = Vector{UInt8}
 
 abstract type MessageTraverser end

@@ -63,18 +63,18 @@ struct SchemaImplicitMethodParameterPointer <: SchemaType
     parameterIndex::UInt16
 end
 
-elementsize(::SchemaVoid) = Empty
-elementsize(::SchemaBool) = Bit
-elementsize(::SchemaInt8) = Byte
-elementsize(::SchemaInt16) = TwoBytes
-elementsize(::SchemaInt32) = FourBytes
-elementsize(::SchemaInt64) = EightBytes
-elementsize(::SchemaUInt8) = Byte
-elementsize(::SchemaUInt16) = TwoBytes
-elementsize(::SchemaUInt32) = FourBytes
-elementsize(::SchemaUInt64) = EightBytes
-elementsize(::SchemaFloat32) = FourBytes
-elementsize(::SchemaFloat64) = EightBytes
+elementsize(::SchemaVoid) = Capnp.Empty
+elementsize(::SchemaBool) = Capnp.Bit
+elementsize(::SchemaInt8) = Capnp.Byte
+elementsize(::SchemaInt16) = Capnp.TwoBytes
+elementsize(::SchemaInt32) = Capnp.FourBytes
+elementsize(::SchemaInt64) = Capnp.EightBytes
+elementsize(::SchemaUInt8) = Capnp.Byte
+elementsize(::SchemaUInt16) = Capnp.TwoBytes
+elementsize(::SchemaUInt32) = Capnp.FourBytes
+elementsize(::SchemaUInt64) = Capnp.EightBytes
+elementsize(::SchemaFloat32) = Capnp.FourBytes
+elementsize(::SchemaFloat64) = Capnp.EightBytes
 
 # capnp_sizeof returns the number of bytes a capnp type takes.
 # Bool variant is intentionally not defined. Bools get separate treatment because capnp fits 8 bools into a byte.
@@ -223,35 +223,35 @@ struct CodeGeneratorRequest
 end
 
 # Handcrafted reader
-function read_CapnpVersion(ptr::StructPointer)
+function read_CapnpVersion(ptr::Capnp.StructPointer)
     (capnp.schema.CapnpVersion_getMajor(ptr), capnp.schema.CapnpVersion_getMinor(ptr), capnp.schema.CapnpVersion_getMicro(ptr))
 end
 
-function read_RequestedFile(ptr::StructPointer)
+function read_RequestedFile(ptr::Capnp.StructPointer)
     id = capnp.schema.CodeGeneratorRequest_RequestedFile_getId(ptr)
     filename = capnp.schema.CodeGeneratorRequest_RequestedFile_getFilename(ptr)
     imports = [read_CodeGeneratorRequest_RequestedFile_Import(p) for p in capnp.schema.CodeGeneratorRequest_RequestedFile_getImports(ptr)]
     RequestedFile(id, filename, imports)
 end
 
-function read_CodeGeneratorRequest_RequestedFile_Import(ptr::StructPointer)
+function read_CodeGeneratorRequest_RequestedFile_Import(ptr::Capnp.StructPointer)
     id = capnp.schema.CodeGeneratorRequest_RequestedFile_Import_getId(ptr)
     name = capnp.schema.CodeGeneratorRequest_RequestedFile_Import_getName(ptr)
     Import(id, name)
 end
 
-function read_Parameter(ptr::StructPointer)
+function read_Parameter(ptr::Capnp.StructPointer)
     name = capnp.schema.Parameter_getName(ptr)
     Parameter(name)
 end
 
-function read_NestedNode(ptr::StructPointer)
+function read_NestedNode(ptr::Capnp.StructPointer)
     id = capnp.schema.Node_NestedNode_getId(ptr)
     name = capnp.schema.Node_NestedNode_getName(ptr)
     NestedNode(id, name)
 end
 
-function read_Type(ptr::StructPointer)
+function read_Type(ptr::Capnp.StructPointer)
     unionTag = capnp.schema.Type_which(ptr)
 
     result = nothing
@@ -315,7 +315,7 @@ function read_Type(ptr::StructPointer)
     result
 end
 
-function read_Value(ptr::StructPointer)
+function read_Value(ptr::Capnp.StructPointer)
     tag = capnp.schema.Value_which(ptr)
 
     result = nothing
@@ -346,15 +346,15 @@ function read_Value(ptr::StructPointer)
     elseif tag == capnp.schema.Value_union_text
         result = capnp.schema.Value_getText(ptr)
     elseif tag == capnp.schema.Value_union_data
-        p = read_list_pointer(ptr, 2, 0)
-        if p isa ListPointer && !isempty(p)
+        p = Capnp.read_list_pointer(ptr, 2, 0)
+        if p isa Capnp.ListPointer && !isempty(p)
             throw("TODO")
         else
             []
         end
     elseif tag == capnp.schema.Value_union_list
         p = capnp.schema.Value_getList(ptr)
-        if p isa ListPointer && !isempty(p)
+        if p isa Capnp.ListPointer && !isempty(p)
             throw("TODO")
         else
             []
@@ -362,8 +362,8 @@ function read_Value(ptr::StructPointer)
     elseif tag == capnp.schema.Value_union_enum
         result = capnp.schema.Value_getEnum(ptr)
     elseif tag == capnp.schema.Value_union_struct
-        p = read_struct_pointer(ptr, 2, 0)
-        if p isa StructPointer
+        p = Capnp.read_struct_pointer(ptr, 2, 0)
+        if p isa Capnp.StructPointer
             throw("TODO")
         else
             []
@@ -371,7 +371,7 @@ function read_Value(ptr::StructPointer)
     elseif tag == capnp.schema.Value_union_interface
         result = nothing
     elseif tag == capnp.schema.Value_union_anyPointer
-        ptr = read_struct_pointer(ptr, 2, 0)
+        ptr = Capnp.read_struct_pointer(ptr, 2, 0)
         if ptr === nothing
             result = []
         else
@@ -382,7 +382,7 @@ function read_Value(ptr::StructPointer)
     result
 end
 
-function read_Brand_Binding(ptr::StructPointer)
+function read_Brand_Binding(ptr::Capnp.StructPointer)
     tag = capnp.schema.Brand_Binding_which(ptr)
 
     if tag == capnp.schema.Brand_Binding_union_unbound
@@ -395,7 +395,7 @@ function read_Brand_Binding(ptr::StructPointer)
     end
 end
 
-function read_Brand_Scope(ptr::StructPointer)
+function read_Brand_Scope(ptr::Capnp.StructPointer)
     scopeId = capnp.schema.Brand_Scope_scopeId(ptr)
     tag = capnp.schema.Brand_Scope_which(ptr)
 
@@ -412,7 +412,7 @@ function read_Brand(ptr)
     Brand(scopes)
 end
 
-function read_Annotation(ptr::StructPointer)
+function read_Annotation(ptr::Capnp.StructPointer)
     id = capnp.schema.Annotation_getId(ptr)
     value = read_Value(capnp.schema.Annotation_getValue(ptr))
     brand = read_Brand(capnp.schema.Annotation_getBrand(ptr))
@@ -420,14 +420,14 @@ function read_Annotation(ptr::StructPointer)
     Annotation(id, brand, value)
 end
 
-function read_Enumerant(ptr::StructPointer)
+function read_Enumerant(ptr::Capnp.StructPointer)
     name = capnp.schema.Enumerant_getName(ptr)
     codeOrder = capnp.schema.Enumerant_getCodeOrder(ptr)
     annotations = [read_Annotation(p) for p in capnp.schema.Enumerant_getAnnotations(ptr)]
     Enumerant(name, codeOrder, annotations)
 end
 
-function read_Field(ptr::StructPointer)
+function read_Field(ptr::Capnp.StructPointer)
     name = capnp.schema.Field_getName(ptr)
     codeOrder = capnp.schema.Field_getCodeOrder(ptr)
     annotations = Annotation[read_Annotation(p) for p in capnp.schema.Field_getAnnotations(ptr)]
@@ -458,7 +458,7 @@ function read_Field(ptr::StructPointer)
     Field(name, codeOrder, annotations, discriminantValue, fieldProps, ordinal)
 end
 
-function read_Node(ptr::StructPointer)
+function read_Node(ptr::Capnp.StructPointer)
     id = capnp.schema.Node_getId(ptr)
     displayName = capnp.schema.Node_getDisplayName(ptr)
     displayNamePrefixLength = capnp.schema.Node_getDisplayNamePrefixLength(ptr)
@@ -513,7 +513,7 @@ function read_Node(ptr::StructPointer)
     Node(id, displayName, displayNamePrefixLength, scopeId, parameters, isGeneric, nestedNodes, annotations, properties, "")
 end
 
-function read_CodeGeneratorRequest(ptr::StructPointer)
+function read_CodeGeneratorRequest(ptr::Capnp.StructPointer)
     @assert ptr.data_word_count == 0 && ptr.pointer_count == 4
 
     nodes = [read_Node(p) for p in capnp.schema.CodeGeneratorRequest_getNodes(ptr)]
