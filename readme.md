@@ -4,9 +4,9 @@
 
 # Install & use
 
-Install from github as Capnp.jl is not yet in the main Julia package repository
+Install from JuliaHub:
 
-    ] add https://github.com/OndrejSlamecka/Capnp.jl.git
+    ] add Capnp
 
 Download `capnpc-jl` from this repository and generate code for a schema with
 
@@ -28,7 +28,7 @@ Capnp.AllocMessageBuilder()`, root writer initialised, e.g. `writer = initRoot_A
 should be written to a stream `writeMessageToStream(message, stdout)`.
 
 For a struct `A` with a field `xy` function `A_getXy(reader)` is generated. If `A` has a nested struct `B` with a field
-`yz` then `A_B_getYz()` is generated. 
+`yz` then `A_B_getYz()` is generated.
 
 For reading and writing lists you can use brackets `[]` but note this is 1-based as is usual in Julia. For writing lists
 you need to initialise them with `A_initBs(a_writer, number_of_items)`.
