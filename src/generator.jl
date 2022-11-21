@@ -52,19 +52,19 @@ function namespace_annotation(env::Environment, node::Node{FileNodeProps})::Vect
     end
 end
 
-schema_to_runtime_type(::SchemaVoid   ) = Capnp.CapnpVoid
-schema_to_runtime_type(::SchemaBool   ) = Capnp.CapnpBool
-schema_to_runtime_type(::SchemaInt8   ) = Capnp.CapnpInt8
-schema_to_runtime_type(::SchemaInt16  ) = Capnp.CapnpInt16
-schema_to_runtime_type(::SchemaInt32  ) = Capnp.CapnpInt32
-schema_to_runtime_type(::SchemaInt64  ) = Capnp.CapnpInt64
-schema_to_runtime_type(::SchemaUInt8  ) = Capnp.CapnpUInt8
-schema_to_runtime_type(::SchemaUInt16 ) = Capnp.CapnpUInt16
-schema_to_runtime_type(::SchemaUInt32 ) = Capnp.CapnpUInt32
-schema_to_runtime_type(::SchemaUInt64 ) = Capnp.CapnpUInt64
+schema_to_runtime_type(::SchemaVoid) = Capnp.CapnpVoid
+schema_to_runtime_type(::SchemaBool) = Capnp.CapnpBool
+schema_to_runtime_type(::SchemaInt8) = Capnp.CapnpInt8
+schema_to_runtime_type(::SchemaInt16) = Capnp.CapnpInt16
+schema_to_runtime_type(::SchemaInt32) = Capnp.CapnpInt32
+schema_to_runtime_type(::SchemaInt64) = Capnp.CapnpInt64
+schema_to_runtime_type(::SchemaUInt8) = Capnp.CapnpUInt8
+schema_to_runtime_type(::SchemaUInt16) = Capnp.CapnpUInt16
+schema_to_runtime_type(::SchemaUInt32) = Capnp.CapnpUInt32
+schema_to_runtime_type(::SchemaUInt64) = Capnp.CapnpUInt64
 schema_to_runtime_type(::SchemaFloat32) = Capnp.CapnpFloat32
 schema_to_runtime_type(::SchemaFloat64) = Capnp.CapnpFloat64
-schema_to_runtime_type(::SchemaStruct ) = Capnp.CapnpStruct
+schema_to_runtime_type(::SchemaStruct) = Capnp.CapnpStruct
 
 # Phase 1: Determine nested names of types to know all of them before the generation phase.
 function assign_node_names(env::Environment, node::Node{FileNodeProps})

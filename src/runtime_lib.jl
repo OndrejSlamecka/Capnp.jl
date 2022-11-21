@@ -305,7 +305,7 @@ struct CompositeListPointer{T} <: ListPointer where {T<:MessageTraverser}
 end
 
 # [] operator
-function Base.getindex(ptr::SimpleListPointer{ElType, Traverser}, i) where {ElType <: CapnpType, Traverser <: MessageTraverser}
+function Base.getindex(ptr::SimpleListPointer{ElType,Traverser}, i) where {ElType<:CapnpType,Traverser<:MessageTraverser}
     @assert 1 <= i <= ptr.length
     @assert is_capnp_bits(ElType)
 
@@ -315,7 +315,7 @@ function Base.getindex(ptr::SimpleListPointer{ElType, Traverser}, i) where {ElTy
     unsafe_load(Ptr{capnp_type_to_bits_type(ElType)}(pointer(ptr.traverser.segments[ptr.segment]) + position))
 end
 
-function Base.setindex!(ptr::SimpleListPointer{ElType, Traverser}, value, i) where {ElType <: CapnpType, Traverser <: MessageTraverser}
+function Base.setindex!(ptr::SimpleListPointer{ElType,Traverser}, value, i) where {ElType<:CapnpType,Traverser<:MessageTraverser}
     @assert 1 <= i <= ptr.length
     @assert is_capnp_bits(ElType)
 
