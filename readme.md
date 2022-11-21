@@ -57,4 +57,4 @@ Some things to work on:
 
 For debugging it can be useful to save a message to a file and use `xxd --bits --cols 8`. [How to Write Compiler Plugins](https://capnproto.org/otherlang.html) has other good tips, especially the bit with printing annotated schema (`capnp compile -ocapnp schema.capnp`).
 
-Finally, run tests with `julia --project test/runtests.jl` and format code with JuliaFormatter.jl.
+Finally, run tests with `julia --project test/runtests.jl` and format code (`using JuliaFormatter; format(".")`, except generated code; `git checkout src/schema.capnp.jl`).
