@@ -1,7 +1,7 @@
 # The Capnp.jl variant of the official example, https://capnproto.org/cxx.html
 #
-# First, install Capnp.jl. Currently it's not in the main repository so use
-#     ] add https://github.com/OndrejSlamecka/Capnp.jl.git
+# First, install Capnp.jl:
+#     ] add Capnp
 #
 # Generate the code for the schema (you need the `capnpc-jl` file distributed with Capnp.jl):
 #     capnpc -o./capnpc-jl example/addressbook.capnp
