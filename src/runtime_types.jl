@@ -26,25 +26,25 @@ abstract type CapnpStruct <: CapnpType end
 # although it's a bit naughty to rely on typeof here
 Base.show(io::IO, t::CapnpType) = print(io, typeof(t))
 
-capnp_sizeof(::Type{CapnpInt8   }) = 1
-capnp_sizeof(::Type{CapnpInt16  }) = 2
-capnp_sizeof(::Type{CapnpInt32  }) = 4
-capnp_sizeof(::Type{CapnpInt64  }) = 8
-capnp_sizeof(::Type{CapnpUInt8  }) = 1
-capnp_sizeof(::Type{CapnpUInt16 }) = 2
-capnp_sizeof(::Type{CapnpUInt32 }) = 4
-capnp_sizeof(::Type{CapnpUInt64 }) = 8
+capnp_sizeof(::Type{CapnpInt8}) = 1
+capnp_sizeof(::Type{CapnpInt16}) = 2
+capnp_sizeof(::Type{CapnpInt32}) = 4
+capnp_sizeof(::Type{CapnpInt64}) = 8
+capnp_sizeof(::Type{CapnpUInt8}) = 1
+capnp_sizeof(::Type{CapnpUInt16}) = 2
+capnp_sizeof(::Type{CapnpUInt32}) = 4
+capnp_sizeof(::Type{CapnpUInt64}) = 8
 capnp_sizeof(::Type{CapnpFloat32}) = 4
 capnp_sizeof(::Type{CapnpFloat64}) = 8
 
-capnp_type_to_bits_type(::Type{CapnpInt8   }) = UInt8
-capnp_type_to_bits_type(::Type{CapnpInt16  }) = UInt16
-capnp_type_to_bits_type(::Type{CapnpInt32  }) = UInt32
-capnp_type_to_bits_type(::Type{CapnpInt64  }) = UInt64
-capnp_type_to_bits_type(::Type{CapnpUInt8  }) = UInt8
-capnp_type_to_bits_type(::Type{CapnpUInt16 }) = UInt16
-capnp_type_to_bits_type(::Type{CapnpUInt32 }) = UInt32
-capnp_type_to_bits_type(::Type{CapnpUInt64 }) = UInt64
+capnp_type_to_bits_type(::Type{CapnpInt8}) = UInt8
+capnp_type_to_bits_type(::Type{CapnpInt16}) = UInt16
+capnp_type_to_bits_type(::Type{CapnpInt32}) = UInt32
+capnp_type_to_bits_type(::Type{CapnpInt64}) = UInt64
+capnp_type_to_bits_type(::Type{CapnpUInt8}) = UInt8
+capnp_type_to_bits_type(::Type{CapnpUInt16}) = UInt16
+capnp_type_to_bits_type(::Type{CapnpUInt32}) = UInt32
+capnp_type_to_bits_type(::Type{CapnpUInt64}) = UInt64
 capnp_type_to_bits_type(::Type{CapnpFloat32}) = Float32
 capnp_type_to_bits_type(::Type{CapnpFloat64}) = Float64
 capnp_type_to_bits_type(::Any) = nothing
