@@ -41,33 +41,35 @@
 
 
 using Capnp
+
 include("addressbook.capnp.jl") # the generated file
+
 
 function writeAddressBook()
     message = Capnp.AllocMessageBuilder()
 
-    addressBook = initRoot_AddressBook(message)
-    people = AddressBook_initPeople(addressBook, 2)
+    addressBook = AddressBook(message)
+    peoples = addressBook.people(2)
+    alice = peoples[1]
+    alice.id = 123
+    alice.name = "Alice"
+    alice.email = "alice@example.com"
+    alicePhones = alice.phones(1)
+    alicePhone = first(alicePhones)
+    alicePhone = "555-1212"
+    alicePhone.type = Person_PhoneNumber_Type_mobile
+    alice.school = "MIT"
 
-    alice = people[1]
-    Person_setId(alice, 123)
-    Person_setName(alice, "Alice")
-    Person_setEmail(alice, "alice@example.com")
-    alicePhones = Person_initPhones(alice, 1)
-    Person_PhoneNumber_setNumber(alicePhones[1], "555-1212")
-    Person_PhoneNumber_setType(alicePhones[1], Person_PhoneNumber_Type_mobile)
-    Person_employment_setSchool(alice, "MIT")
-
-    bob = people[2]
-    Person_setId(bob, 456)
-    Person_setName(bob, "Bob")
-    Person_setEmail(bob, "bob@example.com")
-    bobPhones = Person_initPhones(bob, 2)
-    Person_PhoneNumber_setNumber(bobPhones[1], "555-4567")
-    Person_PhoneNumber_setType(bobPhones[1], Person_PhoneNumber_Type_home)
-    Person_PhoneNumber_setNumber(bobPhones[2], "555-7654")
-    Person_PhoneNumber_setType(bobPhones[2], Person_PhoneNumber_Type_work)
-    Person_employment_setUnemployed(bob)
+    bob = peoples[2]
+    bob.id = 456
+    bob.name = "Bob"
+    bob.email = "bob@example.com"
+    bobPhones = bob.phones(2)
+    bobPhones[1].number = "555-4567"
+    bobPhones[1].type = Person_PhoneNumber_Type_home
+    bobPhones[2].number = "555-7654"
+    bobPhones[2].type = Person_PhoneNumber_Type_work
+    bob.employment.unemployed
 
     writeMessageToStream(message, stdout)
 end

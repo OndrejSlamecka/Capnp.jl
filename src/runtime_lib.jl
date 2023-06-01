@@ -6,9 +6,11 @@ abstract type MessageTraverser end
 abstract type Reader <: MessageTraverser end
 abstract type Writer <: MessageTraverser end
 
-abstract type CapnpPointer end
+abstract type CapnpPointer{T<:MessageTraverser} end
+ReaderPointer = CapnpPointer{R} where {R<:Reader}
+WriterPointer = CapnpPointer{W} where {W<:Writer}
 
-struct WirePointer <: CapnpPointer
+struct WirePointer
     segment::UInt32
     offset::UInt32
 end
@@ -221,7 +223,7 @@ function write_far_pointer(builder::Writer, pointer_location::WirePointer, landi
 end
 
 # Structs
-struct StructPointer{T} <: CapnpPointer where {T<:MessageTraverser}
+struct StructPointer{T} <: CapnpPointer{T}
     traverser::T
 
     segment::UInt32
@@ -281,9 +283,9 @@ function write_struct_pointer(pointer_location::WirePointer, ptr)
 end
 
 ## Lists
-abstract type ListPointer <: CapnpPointer end
+abstract type ListPointer{T} <: CapnpPointer{T} end
 
-struct SimpleListPointer{ElType,T} <: ListPointer where {ElType<:CapnpType,T<:MessageTraverser}
+struct SimpleListPointer{ElType<:CapnpType,T} <: ListPointer{T}
     traverser::T
 
     segment::UInt32
@@ -293,7 +295,7 @@ struct SimpleListPointer{ElType,T} <: ListPointer where {ElType<:CapnpType,T<:Me
     length::UInt32 # list size, number of elements
 end
 
-struct CompositeListPointer{T} <: ListPointer where {T<:MessageTraverser}
+struct CompositeListPointer{T} <: ListPointer{T}
     traverser::T
 
     segment::UInt32
@@ -488,3 +490,48 @@ function write_list_pointer(pointer_location::WirePointer, ptr::CompositeListPoi
 
     ptr
 end
+
+abstract type WrapPointer{T<:Union{Nothing,CapnpPointer}} end
+
+Base.getproperty(x::WrapPointer, name::Symbol) = getindex(x, Val(name))
+Base.setproperty!(x::WrapPointer, name::Symbol, value) = setindex!(x, value, Val(name))
+getptr(x::WrapPointer) = getfield(x, :ptr)
+
+macro wrapptr(name)
+    quote
+        struct $(esc(name)){T} <: WrapPointer{T}
+            ptr::T
+        end
+    end
+end
+
+struct ListBuilder{T,P} <: WrapPointer{P}
+    ptr::P
+    ListBuilder{T}(ptr::P) where {T,P} = new{T,P}(ptr)
+end
+
+struct List{T,P} <: WrapPointer{P}
+    ptr::P
+    List{T}(ptr::P) where {T,P} = new{T,P}(ptr)
+end
+
+Base.eltype(::List{T}) where {T} = T
+Base.eltype(::Type{<:List{T}}) where {T} = T
+getptr(x::List) = getfield(x, :ptr)
+
+Base.getindex(list::List{T}, i) where {T} = getptr(list)[i] |> T
+
+function Base.iterate(list::List{T}) where {T}
+    r = iterate(getptr(list))
+    isnothing(r) && return nothing
+    x, state = r
+    (T(x), state)
+end
+
+function Base.iterate(list::List{T}, state) where {T}
+    r = iterate(getptr(list), state)
+    isnothing(r) && return nothing
+    x, newstate = r
+    (T(x), newstate)
+end
+
