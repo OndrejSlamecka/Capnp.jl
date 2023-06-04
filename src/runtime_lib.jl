@@ -177,13 +177,13 @@ function resolve_pointer(ptr, byte_section_words, ptrix)::Tuple{Int64,UInt32,UIn
 
     if is_far_pointer(bytes)
         # landing pad
-        far_offset = (bytes & 0xff_ff) >> 3
+        far_offset = (bytes & 0xff_ff_ff_ff) >> 3
         segment_id = (bytes >> 32) + 1 # numbered from zero -> need +1 for Julia
         far_bytes = unsafe_load(Ptr{Int64}(pointer(ptr.traverser.segments[segment_id]) + far_offset * 8))
 
         if bytes & 0b100 == 0 # B == 0
             # far_bytes is the pointer, it tells us the absolute address within segment too (pointed_to_offset)
-            local_ptr_offset = (far_bytes & 0xff_ff) >> 2
+            local_ptr_offset = (far_bytes & 0xff_ff_ff_ff) >> 2
 
             pointed_to_offset = far_offset + local_ptr_offset + 1
 
@@ -194,7 +194,7 @@ function resolve_pointer(ptr, byte_section_words, ptrix)::Tuple{Int64,UInt32,UIn
             @assert is_far_pointer(far_bytes)
             @assert far_bytes & 0b100 == 0
 
-            far_far_offset = (far_bytes & 0xff_ff) >> 3
+            far_far_offset = (far_bytes & 0xff_ff_ff_ff) >> 3
             far_segment_id = (far_bytes >> 32) + 1 # numbered from zero -> need +1 for Julia
 
             far_bytes_struct = unsafe_load(Ptr{Int64}(pointer(ptr.traverser.segments[segment_id]) + (far_offset + 1) * 8))
@@ -204,7 +204,7 @@ function resolve_pointer(ptr, byte_section_words, ptrix)::Tuple{Int64,UInt32,UIn
             (far_bytes_struct, far_segment_id, far_far_offset)
         end
     else
-        offset = (bytes & 0xff_ff) >> 2
+        offset = (bytes & 0xff_ff_ff_ff) >> 2
         (bytes, ptr.segment, ptr.offset + byte_section_words + (ptrix + 1) + offset)
     end
 end

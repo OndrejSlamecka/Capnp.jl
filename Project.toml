@@ -1,7 +1,7 @@
 name = "Capnp"
 uuid = "4a176cb5-e787-4417-92d8-5e07a66a639e"
 authors = ["Ondrej Slamecka <ondrej@slamecka.cz>"]
-version = "0.1.0"
+version = "0.1.1"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
