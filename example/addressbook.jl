@@ -56,9 +56,9 @@ function writeAddressBook()
     alice.email = "alice@example.com"
     alicePhones = alice.phones(1)
     alicePhone = first(alicePhones)
-    alicePhone = "555-1212"
+    alicePhone.number = "555-1212"
     alicePhone.type = Person_PhoneNumber_Type_mobile
-    alice.school = "MIT"
+    alice.employment.school = "MIT"
 
     bob = peoples[2]
     bob.id = 456
@@ -76,33 +76,34 @@ end
 
 function printAddressBook()
     message = Capnp.MessageReader(stdin)
-    addressBook = root_AddressBook(message)
+    addressBook = AddressBook(message)
 
-    for person in AddressBook_getPeople(addressBook)
-        println(Person_getName(person), ": ", Person_getEmail(person))
+    for person in addressBook.people
+        println(person.name, ": ", person.email)
 
-        for phone in Person_getPhones(person)
+        for phone in person.phones
             typeName = "unknown"
-            if Person_PhoneNumber_getType(phone) == Person_PhoneNumber_Type_mobile
+            if phone.type == Person_PhoneNumber_Type_mobile
                 typeName = "mobile"
-            elseif Person_PhoneNumber_getType(phone) == Person_PhoneNumber_Type_home
+            elseif phone.type == Person_PhoneNumber_Type_home
                 typeName = "home"
-            elseif Person_PhoneNumber_getType(phone) == Person_PhoneNumber_Type_work
+            elseif phone.type == Person_PhoneNumber_Type_work
                 typeName = "work"
             end
 
-            println("  ", typeName, " phone: ", Person_PhoneNumber_getNumber(phone))
+            println("  ", typeName, " phone: ", phone.number)
         end
 
         # Support getEmployment not yet available
-        employment = Person_getEmployment(person)
-        if Person_employment_which(employment) == Person_employment_union_unemployed
+        employment = person.employment
+        employmentype = which(employment)
+        if employmentype == Person_employment_unemployed
             println("  unemployed")
-        elseif Person_employment_which(employment) == Person_employment_union_employer
-            println("  employer: ", Person_employment_getEmployer(employment))
-        elseif Person_employment_which(employment) == Person_employment_union_school
-            println("  student at: ", Person_employment_getSchool(employment))
-        elseif Person_employment_which(employment) == Person_employment_union_selfEmployed
+        elseif employmentype == Person_employment_employer
+            println("  employer: ", employment.employer)
+        elseif employmentype == Person_employment_school
+            println("  student at: ", employment.school)
+        elseif employmentype == Person_employment_selfEmployed
             println("  self-employed")
         end
     end

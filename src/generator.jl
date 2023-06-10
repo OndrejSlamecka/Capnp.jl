@@ -1,12 +1,18 @@
 # Takes an AST with CodeGeneratorRequest in its root and generates files with Julia code for manipulating data with the
 # given schema.
 
+struct NestedData
+    parentid::UInt64
+    name::String
+end
+
 mutable struct Environment
     buffer::IOBuffer # one per file
     nodes::Dict{UInt64,Node}
+    nested::Dict{UInt64,NestedData}
     indent::UInt8
 
-    Environment(buffer, nodes) = new(buffer, nodes, 0)
+    Environment(buffer, nodes, hierarchy) = new(buffer, nodes,hierarchy, 0)
 end
 
 function cprintln(env, what)
@@ -14,17 +20,32 @@ function cprintln(env, what)
     println(env.buffer, what)
 end
 
+function build_nested_dependencies(request::CodeGeneratorRequest)
+    nested = Dict{UInt64,NestedData}()
+    for node in request.nodes
+        for nestednode in node.nestedNodes
+            nested[nestednode.id] = NestedData(node.id, nestednode.name)
+        end
+        if node isa StructNode
+            for field in node.nodeProperties.fields
+                if field isa Field{GroupFieldProps}
+                    nested[field.fieldProperties.typeId] = NestedData(node.id, field.name)
+                end
+            end
+        end
+    end
+    nested
+end
+
 function generate(request::CodeGeneratorRequest)
     @assert request.capnpVersion[1] == 0 && request.capnpVersion[2] >= 6
 
     nodes = Dict(node.id => node for node in request.nodes)
+    nested = build_nested_dependencies(request)
 
     for file in request.requestedFiles
         file_node = nodes[file.id]
-        env = Environment(IOBuffer(), nodes)
-
-        # Traverse the subtree induced by Nodes to deduce names of all types ahead of generator phase.
-        assign_node_names(env, String[], file_node)
+        env = Environment(IOBuffer(), nodes, nested)
 
         # Generate recursively with file node at the root of the tree
         generateNode(env, file_node)
@@ -36,7 +57,7 @@ function generate(request::CodeGeneratorRequest)
 end
 
 # Finds $Cxx.namespace("capnp::schema"); and returns ["capnp", "schema"]
-function namespace_annotation(env::Environment, node::Node{FileNodeProps})::Vector{String}
+function namespace_annotation(env::Environment, node::FileNode)::Vector{String}
     namespace_annotations = Iterators.filter(node.annotations) do annotation
         annotation_node = env.nodes[annotation.id]
         # Capnp specification advises against parsing displayName, TODO
@@ -66,56 +87,66 @@ schema_to_runtime_type(::SchemaFloat32) = Capnp.CapnpFloat32
 schema_to_runtime_type(::SchemaFloat64) = Capnp.CapnpFloat64
 schema_to_runtime_type(::SchemaStruct) = Capnp.CapnpStruct
 
-# Phase 1: Determine nested names of types to know all of them before the generation phase.
-function assign_node_names(env::Environment, node::Node{FileNodeProps})
-    assign_node_names(env, String[], node)
-end
-
-function assign_node_names(env::Environment, path::Vector{String}, node::Node{FileNodeProps})
-    for nested_node in node.nestedNodes
-        push!(path, nested_node.name)
-        assign_node_names(env, path, env.nodes[nested_node.id])
-        pop!(path)
+function getjuliatype(env::Environment, node::Node)
+    nesteddata = get(env.nested, node.id, nothing)
+    if isnothing(nesteddata)
+        if node isa FileNode
+            ""
+        else
+            @info node typeof(node)
+            @assert node isa FileNode
+        end
+    else
+        parent = env.nodes[nesteddata.parentid]
+        prefix = getjuliatype(env, parent)
+        suffix = nesteddata.name
+        if isempty(prefix)
+            suffix
+        else
+            join((prefix, suffix), '_')
+        end
     end
 end
 
-function assign_node_names(env::Environment, path::Vector{String}, node::Node{StructNodeProps})
-    node.jlName = join(path, '_')
+function getjuliatype(::Environment, type::Capnp.CapnpType)
+    runtimetype = schema_to_runtime_type(type)
+    @assert is_capnp_bits(runtimetype)
+    capnp_type_to_bits_type(runtimetype)
+end
 
-    for nested_node in node.nestedNodes
-        push!(path, nested_node.name)
-        assign_node_names(env, path, env.nodes[nested_node.id])
-        pop!(path)
+function getjuliatype(env::Environment, type::SchemaVoid)
+    "Void"
+end
+
+function getjuliatype(env::Environment, type::SchemaEnum)
+    enum_node = env.nodes[type.typeId] # struct node
+    getjuliatype(env, enum_node)
+end
+
+function getjuliatype(env::Environment, type::SchemaList, iswriter)
+    elementschema = type.elementType
+    elementtype = if elementschema isa SchemaList
+        getjuliatype(env, elementschema, iswriter)
+    else
+        getjuliatype(env, elementschema)
     end
 
-    for field in node.nodeProperties.fields
-        assign_node_names(env, path, field)
+    if iswriter
+        "ListBuilder{$elementtype}"
+    else
+        "List{$elementtype}"
     end
 end
 
-function assign_node_names(env::Environment, path::Vector{String}, node::Node)
-    node.jlName = join(path, '_')
-
-    for nested_node in node.nestedNodes
-        push!(path, nested_node.name)
-        assign_node_names(env, path, env.nodes[nested_node.id])
-        pop!(path)
-    end
+function getjuliatype(env::Environment, type::SchemaStruct)
+    typeNode = env.nodes[type.typeId]
+    getjuliatype(env, typeNode)
 end
-
-function assign_node_names(env::Environment, path::Vector{String}, field::Field{GroupFieldProps})
-    node = env.nodes[field.fieldProperties.typeId]
-    push!(path, field.name)
-    assign_node_names(env, path, node)
-    pop!(path)
-end
-
-function assign_node_names(env::Environment, path::Vector{String}, field::Field) end
 
 # Phase 2: Generation.
-function generateNode(env::Environment, node::Node{FileNodeProps})
+function generateNode(env::Environment, node::FileNode)
     cprintln(env, "using Capnp")
-    cprintln(env, "using Capnp: @wrapptr, ReaderPointer, WriterPointer, getptr, List, ListBuilder")
+    cprintln(env, "using Capnp: @wrapptr, ReaderPointer, WriterPointer, getptr, List, ListBuilder, Void")
 
     cprintln(env, "begin")
 
@@ -145,47 +176,50 @@ function generateNode(env::Environment, node::Node{FileNodeProps})
     cprintln(env, "end")
 end
 
-function generateNode(env::Environment, node::Node{StructNodeProps})
+function generateNode(env::Environment, node::StructNode)
     # nested nodes
     for nested_node in node.nestedNodes
         generateNode(env, env.nodes[nested_node.id])
     end
 
+    nodetype = getjuliatype(env, node)
+
     # size (does not apply to groups and unions)
     if !node.nodeProperties.isGroup
-        cprintln(env, "const $(node.jlName)_data_word_count = $(node.nodeProperties.dataWordCount)")
-        cprintln(env, "const $(node.jlName)_pointer_count = $(node.nodeProperties.pointerCount)")
+        cprintln(env, "const $(nodetype)_data_word_count = $(node.nodeProperties.dataWordCount)")
+        cprintln(env, "const $(nodetype)_pointer_count = $(node.nodeProperties.pointerCount)")
     end
 
     # union
     unionFields = filter(f -> f.discriminantValue != noDiscriminant, node.nodeProperties.fields)
     if !isempty(unionFields) # or props.discriminantCount > 0 ?
-        cprintln(env, "@enum $(node.jlName)_union::UInt16 $([ "$(node.jlName)_union_$(f.name) " for f in unionFields ]...)")
-        cprintln(env, "function $(node.jlName)_which(ptr::Capnp.StructPointer)")
-        cprintln(env, "    $(node.jlName)_union(Capnp.read_bits(ptr, $(sizeof(UInt16) * node.nodeProperties.discriminantOffset), UInt16))")
+        cprintln(env, "@enum $(nodetype)_union::UInt16 $([ "$(nodetype)_$(f.name) " for f in unionFields ]...)")
+        cprintln(env, "function Base.which(x::$(nodetype))")
+        cprintln(env, "    ptr = getptr(x)")
+        cprintln(env, "    $(nodetype)_union(Capnp.read_bits(ptr, $(sizeof(UInt16) * node.nodeProperties.discriminantOffset), UInt16))")
         cprintln(env, "end")
     end
 
     # root
-    cprintln(env, "@wrapptr $(node.jlName)")
+    cprintln(env, "@wrapptr $(nodetype)")
 
     #  reader
-    cprintln(env, "function $(node.jlName)(traverser::Reader)")
+    cprintln(env, "function $(nodetype)(traverser::Reader)")
     cprintln(env, "    ptr = Capnp.StructPointer(traverser, UInt32(1), UInt32(0), UInt16(0), UInt16(1))")
     cprintln(env, "    p = Capnp.read_struct_pointer(ptr, 0, 0)")
-    generate_struct_pointer_assert(env, node.jlName, "p")
-    cprintln(env, "    $(node.jlName)(p)")
+    generate_struct_pointer_assert(env, nodetype, "p")
+    cprintln(env, "    $(nodetype)(p)")
     cprintln(env, "end")
 
     #  writer
-    cprintln(env, "function $(node.jlName)(traverser::Writer)")
+    cprintln(env, "function $(nodetype)(traverser::Writer)")
     cprintln(env, "    pointer_location = Capnp.WirePointer(1, 0)")
     cprintln(env, "    Capnp.alloc(traverser, pointer_location, 8)") # a word for the root pointer
     cprintln(env, "    pointer_location, segment, offset = Capnp.alloc(traverser, pointer_location, 8*$(node.nodeProperties.dataWordCount + node.nodeProperties.pointerCount))") # root struct
     # cprintln(env, "    @assert pointer_location.segment == 1 && pointer_location.offset == 0")
     cprintln(env, "    ptr = Capnp.StructPointer(traverser, segment, offset, UInt16($(node.nodeProperties.dataWordCount)), UInt16($(node.nodeProperties.pointerCount)))")
     cprintln(env, "    Capnp.write_root_struct_pointer(ptr)")
-    cprintln(env, "    $(node.jlName)(ptr)")
+    cprintln(env, "    $(nodetype)(ptr)")
     cprintln(env, "end")
 
     # `Field`s
@@ -194,14 +228,18 @@ function generateNode(env::Environment, node::Node{StructNodeProps})
     end
 
 end
-function generateNode(env::Environment, node::Node{ConstNodeProps})
-    cprintln(env, "const $(node.jlName) = $(node.nodeProperties.value)")
+function generateNode(env::Environment, node::ConstNode)
+    nodetype = getjuliatype(env, node)
+    cprintln(env, "const $(nodetype) = $(node.nodeProperties.value)")
 end
-function generateNode(env::Environment, node::Node{EnumNodeProps})
+function generateNode(env::Environment, node::EnumNode)
     # TODO: Use enumerant.codeOrder
-    cprintln(env, "@enum $(node.jlName)::UInt16 $([ "$(node.jlName)_$(enumerant.name) " for enumerant in node.nodeProperties.enumerants ]...)")
+    nodetype = getjuliatype(env, node)
+    cprintln(env, "@enum $(nodetype)::UInt16 $([ "$(nodetype)_$(enumerant.name) " for enumerant in node.nodeProperties.enumerants ]...)")
 end
-function generateNode(env::Environment, r::Node) end
+function generateNode(::Environment, r::Node)
+    @warn "missing generation for node" node=r
+end
 
 function generateDiscriminantSetter(env::Environment, structPtrName, strct, field)
     if field.discriminantValue != noDiscriminant
@@ -210,38 +248,38 @@ function generateDiscriminantSetter(env::Environment, structPtrName, strct, fiel
 end
 
 
-function generateField(env::Environment, node::Node{StructNodeProps}, field::Field{GroupFieldProps})
+function generateField(env::Environment, node::StructNode, field::Field{GroupFieldProps})
     group_struct = env.nodes[field.fieldProperties.typeId] # struct node
     @assert group_struct.nodeProperties.isGroup
 
-    # TODO: Note this returns `ptr` which works because groups live in the scope of their parent, however,
-    # ideally, we'd generate proper types and then emit `ptr` with a type tag of this group, providing checks for user code.
+    nodetype = getjuliatype(env, node)
+    grouptype = getjuliatype(env, group_struct)
 
-    # fieldname_ = join((node.jlName, uppercasefirst(field.name)), '_')
-    fieldname_ = group_struct.jlName
-    cprintln(env, "@wrapptr $(fieldname_)")
+    cprintln(env, "@wrapptr $(grouptype)")
 
-    cprintln(env, "function Base.getindex(x::T, v::Val{:$(field.name)}) where {S<:ReaderPointer,T<:$(node.jlName){S}}")
-    cprintln(env, "    $fieldname_(getptr(x))")
+    cprintln(env, "function Base.getindex(x::T, v::Val{:$(field.name)}) where {S<:ReaderPointer,T<:$(nodetype){S}}")
+    cprintln(env, "    ptr = getptr(x)")
+    cprintln(env, "    $(grouptype)(ptr)")
     cprintln(env, "end")
 
-    cprintln(env, "function Base.getindex(x::T, v::Val{:$(field.name)}) where {S<:WriterPointer,T<:$(node.jlName){S}}")
+    cprintln(env, "function Base.getindex(x::T, v::Val{:$(field.name)}) where {S<:WriterPointer,T<:$(nodetype){S}}")
     cprintln(env, "    ptr = getptr(x)")
     generateDiscriminantSetter(env, "ptr", node.nodeProperties, field)
-    cprintln(env, "    $fieldname_(ptr)")
+    cprintln(env, "    $(grouptype)(ptr)")
     cprintln(env, "end")
 
     generateNode(env, group_struct)
 end
 
-function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFieldProps}, type::SchemaEnum)
-    enum = env.nodes[type.typeId]
+function generateSlotField(env, node::StructNode, field::Field{SlotFieldProps}, type::SchemaEnum)
+    nodetype = getjuliatype(env, node)
+    fieldtype_ = getjuliatype(env, type)
     position = field.fieldProperties.offset * sizeof(UInt16) # "Enums are encoded the same as UInt16."
      
     # reader
-    cprintln(env, "function Base.getindex(x::T, ::Val{:$(field.name)}) where {T<:$(node.jlName)}")
+    cprintln(env, "function Base.getindex(x::T, ::Val{:$(field.name)}) where {T<:$(nodetype)}")
     cprintln(env, "    ptr = getptr(x)")
-    cprintln(env, "    value = Capnp.read_bits(ptr, $(position), $(enum.jlName))")
+    cprintln(env, "    value = Capnp.read_bits(ptr, $(position), $(fieldtype_))")
     # if field.fieldProperties.defaultValue != 0 # TODO
     #     cprintln(env, "    value = xor(value, $(field.fieldProperties.defaultValue))")
     # end
@@ -249,102 +287,103 @@ function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFi
     cprintln(env, "end")
 
     # writer
-    cprintln(env, "function Base.setindex!(x::T, ::Val{:$(field.name)}, value) where {T<:$(node.jlName)}")
+    cprintln(env, "function Base.setindex!(x::T, value, ::Val{:$(field.name)},) where {T<:$(nodetype)}")
     cprintln(env, "    ptr = getptr(x)")
-    cprintln(env, "    value = Capnp.write_bits(ptr, $(position), $(enum.jlName), value)")
+    cprintln(env, "    value = Capnp.write_bits(ptr, $(position), $(fieldtype_), value)")
     generateDiscriminantSetter(env, "ptr", node.nodeProperties, field)
     cprintln(env, "end")
 end
 
-function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFieldProps}, type::SchemaUnconstrainedPointer)
+function generateSlotField(env, node::StructNode, field::Field{SlotFieldProps}, type::SchemaUnconstrainedPointer)
+    nodetype = getjuliatype(env, node)
     position = node.nodeProperties.dataWordCount + field.fieldProperties.offset
 
-    cprintln(env, "function Base.getindex(x::T, ::Val{:$(field.name)}) where {T<:$(node.jlName)}")
+    cprintln(env, "function Base.getindex(x::T, ::Val{:$(field.name)}) where {T<:$(nodetype)}")
     cprintln(env, "    ptr = getptr(x)")
     cprintln(env, "    value = Capnp.read_bits(ptr, $(position), Int64)")
     cprintln(env, "    if value == 0")
-    cprintln(env, "        Nothing")
+    cprintln(env, "        nothing")
     cprintln(env, "    else")
     cprintln(env, "        throw(\"TODO\")")
     cprintln(env, "    end")
     cprintln(env, "end")
 end
 
-function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFieldProps}, type::SchemaList)
-    elementType = field.fieldProperties.type.elementType
-    runtimeElementType = schema_to_runtime_type(field.fieldProperties.type.elementType)
+function generateSlotField(env, node::StructNode, field::Field{SlotFieldProps}, type::SchemaList)
+    nodetype = getjuliatype(env, node)
+    fieldtype_writer = getjuliatype(env, type, true)
+    fieldtype_reader = getjuliatype(env, type, false)
+    elementType = type.elementType
+    capnptype = schema_to_runtime_type(elementType)
+    juliatype = getjuliatype(env, elementType)
 
-    fieldtype_ = join((node.jlName, uppercasefirst(field.name)), '_')
-    cprintln(env, "@wrapptr $(fieldtype_)")
+    if !(elementType isa SchemaList)
+        cprintln(env, "@wrapptr $(juliatype)")
+    end
 
-    cprintln(env, "function Base.getindex(x::T,::Val{:$(field.name)}) where {S<:ReaderPointer,T<:$(node.jlName){S}}")
+    cprintln(env, "function Base.getindex(x::T,::Val{:$(field.name)}) where {S<:ReaderPointer,T<:$(nodetype){S}}")
     cprintln(env, "    ptr = getptr(x)")
     cprintln(env, "    isnothing(ptr) && return []")
-    cprintln(env, "    p = Capnp.read_list_pointer(ptr, $(node.nodeProperties.dataWordCount), $(Int(field.fieldProperties.offset)), $(runtimeElementType))")
+    cprintln(env, "    p = Capnp.read_list_pointer(ptr, $(node.nodeProperties.dataWordCount), $(Int(field.fieldProperties.offset)), $(juliatype))")
     if elementType isa SchemaStruct
-        strct = env.nodes[elementType.typeId]
         # TODO: when checking for Capnp.SimpleListPointer we should also check that sum(sizeof(strct.fields...)) == p.element_size
         # because "a list of any element size (except C = 1, i.e. 1-bit) may be decoded as a struct list"
         cprintln(env, "    @assert isempty(p) || p isa Capnp.SimpleListPointer ||")
-        cprintln(env, "       (p isa Capnp.CompositeListPointer && p.data_word_count == $(strct.jlName)_data_word_count) && p.pointer_count == $(strct.jlName)_pointer_count")
+        cprintln(env, "       (p isa Capnp.CompositeListPointer && p.data_word_count == $(juliatype)_data_word_count) && p.pointer_count == $(juliatype)_pointer_count")
     end
-    cprintln(env, "    List{$(fieldtype_)}(p)")
+    cprintln(env, "    $(fieldtype_reader)(p)")
     cprintln(env, "end")
 
-    cprintln(env, "function Base.getindex(x::T,::Val{:$(field.name)}) where {S<:WriterPointer,T<:$(node.jlName){S}}")
+    cprintln(env, "function Base.getindex(x::T,::Val{:$(field.name)}) where {S<:WriterPointer,T<:$(nodetype){S}}")
     cprintln(env, "    ptr = getptr(x)")
-    cprintln(env, "    ListBuilder{$(fieldtype_)}(ptr)")
+    cprintln(env, "    $(fieldtype_writer)(ptr)")
     cprintln(env, "end")
 
-    if field.fieldProperties.type.elementType isa SchemaBool
+    if elementType isa SchemaBool
         throw("Lists of bools not supported yet.")
-    elseif is_capnp_bits(field.fieldProperties.type.elementType)
-        cprintln(env, "function (list::ListBuilder{$(fieldtype_)})(size)")
+    elseif is_capnp_bits(elementType)
+        cprintln(env, "function (list::$(fieldtype_writer))(size)")
         cprintln(env, "    ptr = getptr(list)")
         cprintln(env, "    pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + $(node.nodeProperties.dataWordCount + field.fieldProperties.offset))")
         cprintln(env, "    pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, $(capnp_sizeof(field.fieldProperties.type.elementType)) * size)")
-        cprintln(env, "    child_ptr = Capnp.SimpleListPointer{$(runtimeElementType), typeof(ptr.traverser)}(ptr.traverser, segment, offset, Capnp.$(elementsize(field.fieldProperties.type.elementType)), convert(UInt32, size))")
+        cprintln(env, "    child_ptr = Capnp.SimpleListPointer{$(capnptype), typeof(ptr.traverser)}(ptr.traverser, segment, offset, Capnp.$(elementsize(field.fieldProperties.type.elementType)), convert(UInt32, size))")
         cprintln(env, "    Capnp.write_list_pointer(pointer_location, child_ptr)")
         generateDiscriminantSetter(env, "ptr", node.nodeProperties, field)
-        cprintln(env, "    List{$(fieldtype_)}(child_ptr)")
+        cprintln(env, "    $(fieldtype_reader)(child_ptr)")
         cprintln(env, "end")
-    elseif field.fieldProperties.type.elementType isa SchemaStruct
+    elseif elementType isa SchemaStruct
         # TODO: maybe assert?
-        slotStructProps = env.nodes[field.fieldProperties.type.elementType.typeId].nodeProperties
-        cprintln(env, "function (list::ListBuilder{$(fieldtype_)})(size)")
+        slotStructProps = env.nodes[elementType.typeId].nodeProperties
+        cprintln(env, "function (list::$(fieldtype_writer))(size)")
         cprintln(env, "    ptr = getptr(list)")
         cprintln(env, "    pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + $(node.nodeProperties.dataWordCount + field.fieldProperties.offset))")
         cprintln(env, "    pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, 8*(1 + size * ($(slotStructProps.dataWordCount) + $(slotStructProps.pointerCount))))")
         cprintln(env, "    child_ptr = Capnp.CompositeListPointer(ptr.traverser, segment, offset, convert(UInt32, size), UInt16($(slotStructProps.dataWordCount)), UInt16($(slotStructProps.pointerCount)))")
         cprintln(env, "    Capnp.write_list_pointer(pointer_location, child_ptr)")
         generateDiscriminantSetter(env, "ptr", node.nodeProperties, field)
-        cprintln(env, "    List{$(fieldtype_)}(child_ptr)")
+        cprintln(env, "    $(fieldtype_reader)(child_ptr)")
         cprintln(env, "end")
     else
         throw("Non-simple or non-struct lists not implemented yet")
     end
 end
 
-function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFieldProps}, type::SchemaStruct)
-    typeNode = env.nodes[field.fieldProperties.type.typeId]
+function generateSlotField(env, node::StructNode, field::Field{SlotFieldProps}, type::SchemaStruct)
+    nodetype = getjuliatype(env, node)
+    fieldtype_ = getjuliatype(env, type)
+    typeNode = env.nodes[type.typeId]
     slotStructProps = typeNode.nodeProperties
 
-    # fieldtype_ = join((node.jlName, uppercasefirst(field.name)), '_')
-    fieldtype_ = typeNode.jlName
     cprintln(env, "@wrapptr $(fieldtype_)")
 
-    cprintln(env, "function Base.getindex(x::T,::Val{:$(field.name)}) where {S<:ReaderPointer,T<:$(node.jlName){S}}")
+    cprintln(env, "function Base.getindex(x::T,::Val{:$(field.name)}) where {S<:ReaderPointer,T<:$(nodetype){S}}")
     cprintln(env, "    ptr = getptr(x)")
     cprintln(env, "    p = Capnp.read_struct_pointer(ptr, $(node.nodeProperties.dataWordCount), $(field.fieldProperties.offset))")
-    generate_struct_pointer_assert(env, typeNode.jlName, "p")
+    generate_struct_pointer_assert(env, nodetype, "p")
     cprintln(env, "    $(fieldtype_)(p)")
     cprintln(env, "end")
 
-    # cprintln(env, "function $(path_name)_set$(uppercasefirst(r.name))(ptr::Capnp.StructPointer{T}) where T <: Writer")
-    # cprintln(env, "    Capnp.write_struct_pointer(ptr, $(structProps.dataWordCount * 8), $(slot.offset))")
-    # cprintln(env, "end")
-
-    cprintln(env, "function Base.getindex(x::T,::Val{:$(field.name)}) where {S<:WriterPointer,T<:$(node.jlName){S}}")
+    cprintln(env, "function Base.getindex(x::T,::Val{:$(field.name)}) where {S<:WriterPointer,T<:$(nodetype){S}}")
     cprintln(env, "    ptr = getptr(x)")
     cprintln(env, "    pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + $(node.nodeProperties.dataWordCount + field.fieldProperties.offset))")
     cprintln(env, "    pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, 8*$(slotStructProps.dataWordCount + slotStructProps.pointerCount))")
@@ -355,42 +394,49 @@ function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFi
     cprintln(env, "end")
 end
 
-function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFieldProps}, type::SchemaText)
-    cprintln(env, "function Base.getindex(x::T,::Val{:$(field.name)}) where {S<:ReaderPointer,T<:$(node.jlName){S}}")
+function generateSlotField(env, node::StructNode, field::Field{SlotFieldProps}, type::SchemaText)
+    nodetype = getjuliatype(env, node)
+    cprintln(env, "function Base.getindex(x::T,::Val{:$(field.name)}) where {S<:ReaderPointer,T<:$(nodetype){S}}")
     cprintln(env, "    ptr = getptr(x)")
     cprintln(env, "    p = Capnp.read_list_pointer(ptr, $(node.nodeProperties.dataWordCount), $(Int(field.fieldProperties.offset)))")
     cprintln(env, "    Capnp.read_text(p)")
     cprintln(env, "end")
 
     # length +1 for terminating \0
-    cprintln(env, "function Base.setindex!(x::T, txt, ::Val{:$(field.name)}) where {S<:WriterPointer,T<:$(node.jlName){S}}")
+    cprintln(env, "function Base.setindex!(x::T, txt, ::Val{:$(field.name)}) where {S<:WriterPointer,T<:$(nodetype){S}}")
     cprintln(env, "    ptr = getptr(x)")
     cprintln(env, "    pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + $(node.nodeProperties.dataWordCount + field.fieldProperties.offset))")
     cprintln(env, "    pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, length(txt) + 1)")
-    cprintln(env, "    child_ptr = Capnp.SimpleListPointer{UInt8, typeof(ptr.traverser)}(ptr.traverser, segment, offset, Capnp.Byte, UInt32(length(txt) + 1))")
+    cprintln(env, "    child_ptr = Capnp.SimpleListPointer{Capnp.CapnpUInt8, typeof(ptr.traverser)}(ptr.traverser, segment, offset, Capnp.Byte, UInt32(length(txt) + 1))")
     cprintln(env, "    Capnp.write_list_pointer(pointer_location, child_ptr)")
     generateDiscriminantSetter(env, "ptr", node.nodeProperties, field)
     cprintln(env, "    Capnp.write_text(child_ptr, txt)")
     cprintln(env, "end")
 end
 
-function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFieldProps}, type::SchemaVoid)
-    cprintln(env, "function Base.getindex(x::T,::Val{:$(field.name)}) where {S<:WriterPointer,T<:$(node.jlName){S}}")
+function generateSlotField(env, node::StructNode, field::Field{SlotFieldProps}, type::SchemaVoid)
+    nodetype = getjuliatype(env, node)
+    fieldtype_ = getjuliatype(env, type)
+    cprintln(env, "function Base.getindex(x::T,::Val{:$(field.name)}) where {S<:WriterPointer,T<:$(nodetype){S}}")
     cprintln(env, "    ptr = getptr(x)")
     generateDiscriminantSetter(env, "ptr", node.nodeProperties, field)
+    cprintln(env, "    $(fieldtype_)(ptr)")
     cprintln(env, "end")
 end
 
-function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFieldProps}, type)
-    cprintln(env, "# $(node.jlName)'s $(field.name) has type $(type) which is not supported by Capnp.jl yet")
+function generateSlotField(env, node::StructNode, field::Field{SlotFieldProps}, type)
+    nodetype = getjuliatype(env, node)
+    cprintln(env, "# $(nodetype)'s $(field.name) has type $(type) which is not supported by Capnp.jl yet")
 end
 
 # Separate generator for bools than other "plain values" because capnp fits 8 bools into 1 byte.
-function generateBoolSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFieldProps})
+function generateBoolSlotField(env, node::StructNode, field::Field{SlotFieldProps})
     @assert field.fieldProperties.type isa SchemaBool
-
+    nodetype = getjuliatype(env, node)
+    #
     # reader
-    cprintln(env, "function $(node.jlName)_get$(uppercasefirst(field.name))(ptr)")
+    cprintln(env, "function Base.getindex(x::T,::Val{:$(field.name)}) where {S<:WriterPointer,T<:$(nodetype){S}}")
+    cprintln(env, "    ptr = getptr(x)")
     cprintln(env, "    value = Capnp.read_bool(ptr, $(field.fieldProperties.offset))")
     if field.fieldProperties.defaultValue != zero(Bool)
         cprintln(env, "    value = xor(value, Bool($(field.fieldProperties.defaultValue)))")
@@ -399,21 +445,23 @@ function generateBoolSlotField(env, node::Node{StructNodeProps}, field::Field{Sl
     cprintln(env, "end")
 
     # writer
-    cprintln(env, "function $(node.jlName)_set$(uppercasefirst(field.name))(ptr, value)")
+    cprintln(env, "function Base.setindex!(x::T, value, ::Val{:$(field.name)}) where {S<:WriterPointer,T<:$(nodetype){S}}")
+    cprintln(env, "    ptr = getptr(x)")
     cprintln(env, "    Capnp.write_bool(ptr, $(field.fieldProperties.offset), value)")
     generateDiscriminantSetter(env, "ptr", node.nodeProperties, field)
     # TODO: default value
     cprintln(env, "end")
 end
 
-function generateBitsSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFieldProps})
+function generateBitsSlotField(env, node::StructNode, field::Field{SlotFieldProps})
     @assert !(field.fieldProperties.type isa SchemaBool)
+    nodetype = getjuliatype(env, node)
 
     position = field.fieldProperties.offset * capnp_sizeof(field.fieldProperties.type)
     juliaBitsType = capnp_type_to_bits_type(field.fieldProperties.type)
 
     # reader
-    cprintln(env, "function Base.getindex(x::T, ::Val{:$(field.name)}) where {S<:ReaderPointer,T<:$(node.jlName){S}}")
+    cprintln(env, "function Base.getindex(x::T, ::Val{:$(field.name)}) where {S<:ReaderPointer,T<:$(nodetype){S}}")
     cprintln(env, "    ptr = getptr(x)")
     cprintln(env, "    value = Capnp.read_bits(ptr, $(position), $(juliaBitsType))")
     if field.fieldProperties.defaultValue != zero(juliaBitsType)
@@ -423,7 +471,7 @@ function generateBitsSlotField(env, node::Node{StructNodeProps}, field::Field{Sl
     cprintln(env, "end")
 
     # writer
-    cprintln(env, "function Base.setindex!(x::T, value, ::Val{:$(field.name)}) where {S<:WriterPointer,T<:$(node.jlName){S}}")
+    cprintln(env, "function Base.setindex!(x::T, value, ::Val{:$(field.name)}) where {S<:WriterPointer,T<:$(nodetype){S}}")
     cprintln(env, "    ptr = getptr(x)")
     cprintln(env, "    Capnp.write_bits(ptr, $(position), $(juliaBitsType), value)")
     generateDiscriminantSetter(env, "ptr", node.nodeProperties, field)
@@ -431,7 +479,7 @@ function generateBitsSlotField(env, node::Node{StructNodeProps}, field::Field{Sl
     cprintln(env, "end")
 end
 
-function generateField(env, node::Node{StructNodeProps}, field::Field{SlotFieldProps})
+function generateField(env, node::StructNode, field::Field{SlotFieldProps})
     if field.fieldProperties.type isa SchemaBool
         generateBoolSlotField(env, node, field)
     elseif is_capnp_bits(field.fieldProperties.type)
