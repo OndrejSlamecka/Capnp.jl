@@ -193,10 +193,13 @@ function generateNode(env::Environment, node::StructNode)
     # union
     unionFields = filter(f -> f.discriminantValue != noDiscriminant, node.nodeProperties.fields)
     if !isempty(unionFields) # or props.discriminantCount > 0 ?
-        cprintln(env, "@enum $(nodetype)_union::UInt16 $([ "$(nodetype)_$(f.name) " for f in unionFields ]...)")
         cprintln(env, "function Base.which(x::$(nodetype))")
         cprintln(env, "    ptr = getptr(x)")
-        cprintln(env, "    $(nodetype)_union(Capnp.read_bits(ptr, $(sizeof(UInt16) * node.nodeProperties.discriminantOffset), UInt16))")
+        cprintln(env, "    discriminant = Capnp.read_bits(ptr, $(sizeof(UInt16) * node.nodeProperties.discriminantOffset), UInt16)")
+        for (i, f) in enumerate(unionFields)
+            cprintln(env, "    discriminant == UInt16($(i-1)) && return :$(f.name)")
+        end
+        cprintln(env, "    throw(ErrorException(\"unknown discriminant: \$discriminant\"))")
         cprintln(env, "end")
     end
 

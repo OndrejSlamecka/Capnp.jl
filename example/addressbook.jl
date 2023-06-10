@@ -97,13 +97,13 @@ function printAddressBook()
         # Support getEmployment not yet available
         employment = person.employment
         employmentype = which(employment)
-        if employmentype == Person_employment_unemployed
+        if employmentype == :unemployed
             println("  unemployed")
-        elseif employmentype == Person_employment_employer
+        elseif employmentype == :employer
             println("  employer: ", employment.employer)
-        elseif employmentype == Person_employment_school
+        elseif employmentype == :school
             println("  student at: ", employment.school)
-        elseif employmentype == Person_employment_selfEmployed
+        elseif employmentype == :selfEmployed
             println("  self-employed")
         end
     end
