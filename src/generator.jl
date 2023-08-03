@@ -146,7 +146,6 @@ end
 # Phase 2: Generation.
 function generateNode(env::Environment, node::FileNode)
     cprintln(env, "using Capnp")
-    cprintln(env, "using Capnp.AnonymousEnums")
     cprintln(env, "using Capnp: @wrapptr, ReaderPointer, WriterPointer, getptr, List, ListBuilder, Void")
 
     cprintln(env, "begin")
@@ -239,7 +238,7 @@ end
 function generateNode(env::Environment, node::EnumNode)
     # TODO: Use enumerant.codeOrder
     nodetype = getjuliatype(env, node)
-    cprintln(env, "@anonymousenum $(nodetype)::UInt16 $([ "$(enumerant.name) " for enumerant in node.nodeProperties.enumerants ]...)")
+    cprintln(env, "@enum $(nodetype)::UInt16 $([ "$(nodetype)_$(enumerant.name) " for enumerant in node.nodeProperties.enumerants ]...)")
 end
 function generateNode(::Environment, r::Node)
     @warn "missing generation for node" node=r
@@ -291,10 +290,9 @@ function generateSlotField(env, node::StructNode, field::Field{SlotFieldProps}, 
     cprintln(env, "end")
 
     # writer
-    cprintln(env, "function Base.setindex!(x::T, value::Symbol, ::Val{:$(field.name)},) where {T<:$(nodetype)}")
+    cprintln(env, "function Base.setindex!(x::T, value, ::Val{:$(field.name)},) where {T<:$(nodetype)}")
     cprintln(env, "    ptr = getptr(x)")
-    cprintln(env, "    enum = $(fieldtype_)(value)")
-    cprintln(env, "    Capnp.write_bits(ptr, $(position), $(fieldtype_), enum)")
+    cprintln(env, "    value = Capnp.write_bits(ptr, $(position), $(fieldtype_), value)")
     generateDiscriminantSetter(env, "ptr", node.nodeProperties, field)
     cprintln(env, "end")
 end

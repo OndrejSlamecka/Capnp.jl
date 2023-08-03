@@ -48,6 +48,3 @@ end
 struct Void{P} <: TypedPointer{P}
     ptr::P
 end
-
-isenumequal(s::Symbol, x::AnonymousEnums.AnonymousEnum) = isenumequal(x, s)
-isenumequal(x::T, s::Symbol) where {T<:AnonymousEnums.AnonymousEnum} = ==(x, T(s))

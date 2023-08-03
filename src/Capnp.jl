@@ -1,7 +1,5 @@
 module Capnp
 
-using AnonymousEnums
-
 # Exports for user code. Generated code should use `Capnp.` prefix.
 export MessageTraverser, Reader, Writer, writeMessageToStream
 
