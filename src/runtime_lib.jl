@@ -6,9 +6,11 @@ abstract type MessageTraverser end
 abstract type Reader <: MessageTraverser end
 abstract type Writer <: MessageTraverser end
 
-abstract type CapnpPointer end
+abstract type CapnpPointer{T<:MessageTraverser} end
+ReaderPointer = CapnpPointer{R} where {R<:Reader}
+WriterPointer = CapnpPointer{W} where {W<:Writer}
 
-struct WirePointer <: CapnpPointer
+struct WirePointer
     segment::UInt32
     offset::UInt32
 end
@@ -221,7 +223,7 @@ function write_far_pointer(builder::Writer, pointer_location::WirePointer, landi
 end
 
 # Structs
-struct StructPointer{T} <: CapnpPointer where {T<:MessageTraverser}
+struct StructPointer{T} <: CapnpPointer{T}
     traverser::T
 
     segment::UInt32
@@ -281,9 +283,9 @@ function write_struct_pointer(pointer_location::WirePointer, ptr)
 end
 
 ## Lists
-abstract type ListPointer <: CapnpPointer end
+abstract type ListPointer{T} <: CapnpPointer{T} end
 
-struct SimpleListPointer{ElType,T} <: ListPointer where {ElType<:CapnpType,T<:MessageTraverser}
+struct SimpleListPointer{ElType<:CapnpType,T} <: ListPointer{T}
     traverser::T
 
     segment::UInt32
@@ -293,7 +295,7 @@ struct SimpleListPointer{ElType,T} <: ListPointer where {ElType<:CapnpType,T<:Me
     length::UInt32 # list size, number of elements
 end
 
-struct CompositeListPointer{T} <: ListPointer where {T<:MessageTraverser}
+struct CompositeListPointer{T} <: ListPointer{T}
     traverser::T
 
     segment::UInt32

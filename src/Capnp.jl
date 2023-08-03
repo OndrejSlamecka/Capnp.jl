@@ -5,6 +5,7 @@ export MessageTraverser, Reader, Writer, writeMessageToStream
 
 include("runtime_types.jl")
 include("runtime_lib.jl")
+include("typed_pointers.jl")
 
 module Generator
 using ..Capnp
