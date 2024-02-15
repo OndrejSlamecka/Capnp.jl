@@ -1445,35 +1445,35 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             Capnp.write_bits(ptr, 0, UInt16, 1) # union discriminant
         end
         function Value_getInt8(ptr)
-            value = Capnp.read_bits(ptr, 2, UInt8)
+            value = Capnp.read_bits(ptr, 2, Int8)
             value
         end
         function Value_setInt8(ptr, value)
-            Capnp.write_bits(ptr, 2, UInt8, value)
+            Capnp.write_bits(ptr, 2, Int8, value)
             Capnp.write_bits(ptr, 0, UInt16, 2) # union discriminant
         end
         function Value_getInt16(ptr)
-            value = Capnp.read_bits(ptr, 2, UInt16)
+            value = Capnp.read_bits(ptr, 2, Int16)
             value
         end
         function Value_setInt16(ptr, value)
-            Capnp.write_bits(ptr, 2, UInt16, value)
+            Capnp.write_bits(ptr, 2, Int16, value)
             Capnp.write_bits(ptr, 0, UInt16, 3) # union discriminant
         end
         function Value_getInt32(ptr)
-            value = Capnp.read_bits(ptr, 4, UInt32)
+            value = Capnp.read_bits(ptr, 4, Int32)
             value
         end
         function Value_setInt32(ptr, value)
-            Capnp.write_bits(ptr, 4, UInt32, value)
+            Capnp.write_bits(ptr, 4, Int32, value)
             Capnp.write_bits(ptr, 0, UInt16, 4) # union discriminant
         end
         function Value_getInt64(ptr)
-            value = Capnp.read_bits(ptr, 8, UInt64)
+            value = Capnp.read_bits(ptr, 8, Int64)
             value
         end
         function Value_setInt64(ptr, value)
-            Capnp.write_bits(ptr, 8, UInt64, value)
+            Capnp.write_bits(ptr, 8, Int64, value)
             Capnp.write_bits(ptr, 0, UInt16, 5) # union discriminant
         end
         function Value_getUint8(ptr)

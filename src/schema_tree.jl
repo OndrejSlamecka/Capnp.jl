@@ -92,10 +92,10 @@ capnp_sizeof(::SchemaFloat32) = 4
 capnp_sizeof(::SchemaFloat64) = 8
 
 # capnp_type_to_bits_type(::SchemaTypeBool) = Bool see capnp_sizeof
-capnp_type_to_bits_type(::SchemaInt8) = UInt8
-capnp_type_to_bits_type(::SchemaInt16) = UInt16
-capnp_type_to_bits_type(::SchemaInt32) = UInt32
-capnp_type_to_bits_type(::SchemaInt64) = UInt64
+capnp_type_to_bits_type(::SchemaInt8) = Int8
+capnp_type_to_bits_type(::SchemaInt16) = Int16
+capnp_type_to_bits_type(::SchemaInt32) = Int32
+capnp_type_to_bits_type(::SchemaInt64) = Int64
 capnp_type_to_bits_type(::SchemaUInt8) = UInt8
 capnp_type_to_bits_type(::SchemaUInt16) = UInt16
 capnp_type_to_bits_type(::SchemaUInt32) = UInt32

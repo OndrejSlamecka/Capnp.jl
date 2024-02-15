@@ -145,10 +145,10 @@ function write_bool(ptr, from_bits, value)
 
     segment = ptr.traverser.segments[ptr.segment]
     # println("Writing value ", value, " at segment ", ptr.segment, ", byte ", ptr.offset * 8 + from ÷ 8)
-    byte = unsafe_load!(Ptr{type}(pointer(segment) + 8 * ptr.offset + byte_position))
+    byte = unsafe_load(Ptr{UInt8}(pointer(segment) + 8 * ptr.offset + byte_position))
     # make the desired position zero and then place `value` to it
     byte = byte & ~(UInt8(1) << in_byte_position) | (value << in_byte_position)
-    unsafe_store!(Ptr{type}(pointer(segment) + 8 * ptr.offset + byte_position), byte)
+    unsafe_store!(Ptr{UInt8}(pointer(segment) + 8 * ptr.offset + byte_position), byte)
 end
 
 # "Bits" types except for bool.
