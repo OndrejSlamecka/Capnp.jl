@@ -15,7 +15,7 @@ function cprintln(env, what)
 end
 
 function generate(request::CodeGeneratorRequest)
-    @assert request.capnpVersion[1] == 0 && request.capnpVersion[2] >= 6
+    @assert request.capnpVersion[1] == 1 || (request.capnpVersion[1] == 0 && request.capnpVersion[2] >= 6)
 
     nodes = Dict(node.id => node for node in request.nodes)
 
