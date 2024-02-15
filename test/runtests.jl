@@ -27,6 +27,36 @@ end
     @test result == expected
 end
 
+@testset "Elementary types" begin
+    run(`capnpc -o./capnpc-jl test/elementary.capnp`)
+    include("elementary.capnp.jl")
+
+    # writing part
+    message = Capnp.AllocMessageBuilder()
+    test = initRoot_Test(message)
+    Test_setBooleanFalse(test, false)
+    Test_setBooleanTrue(test, true)
+    Test_setSigned64(test, -1)
+
+    # finish writing and flush into buffer for reading
+    buffer = IOBuffer()
+    writeMessageToStream(message, buffer)
+    seek(buffer, 0)
+
+    # reading part
+    message = Capnp.MessageReader(buffer)
+    test = root_Test(message)
+
+    booleanFalse = Test_getBooleanFalse(test)
+    @test booleanFalse == false
+
+    booleanTrue = Test_getBooleanTrue(test)
+    @test booleanTrue == true
+
+    signed64 = Test_getSigned64(test)
+    @test signed64 == -1
+end
+
 @testset "Lists" begin
     run(`capnpc -o./capnpc-jl test/lists.capnp`)
     include("lists.capnp.jl")
