@@ -158,9 +158,6 @@ mutable struct Node{T<:NodeProperties}
     nestedNodes::Vector{NestedNode}
     annotations::Vector{Annotation}
     nodeProperties::T
-
-    # fields added for code generator
-    jlName::String
 end
 
 struct FileNodeProps <: NodeProperties end
@@ -196,6 +193,7 @@ struct ConstNodeProps <: NodeProperties
     value::Value
 end
 
+
 struct StructNodeProps <: NodeProperties
     dataWordCount::UInt16
     pointerCount::UInt16
@@ -205,6 +203,11 @@ struct StructNodeProps <: NodeProperties
     discriminantOffset::UInt32
     fields::Vector{Field}
 end
+
+const FileNode = Node{FileNodeProps}
+const EnumNode = Node{EnumNodeProps}
+const ConstNode = Node{ConstNodeProps}
+const StructNode = Node{StructNodeProps}
 
 struct Import
     id::UInt64
@@ -510,7 +513,7 @@ function read_Node(ptr::Capnp.StructPointer)
         )
     end
 
-    Node(id, displayName, displayNamePrefixLength, scopeId, parameters, isGeneric, nestedNodes, annotations, properties, "")
+    Node(id, displayName, displayNamePrefixLength, scopeId, parameters, isGeneric, nestedNodes, annotations, properties)
 end
 
 function read_CodeGeneratorRequest(ptr::Capnp.StructPointer)
