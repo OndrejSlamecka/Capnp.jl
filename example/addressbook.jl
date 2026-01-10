@@ -46,61 +46,61 @@ include("addressbook.capnp.jl") # the generated file
 function writeAddressBook()
     message = Capnp.AllocMessageBuilder()
 
-    addressBook = initRoot_AddressBook(message)
-    people = AddressBook_initPeople(addressBook, 2)
+    addressBook = init_root!(message, Val{:AddressBook})
+    people = init_people!(addressBook, 2, Val{:AddressBook})
 
     alice = people[1]
-    Person_setId(alice, 123)
-    Person_setName(alice, "Alice")
-    Person_setEmail(alice, "alice@example.com")
-    alicePhones = Person_initPhones(alice, 1)
-    Person_PhoneNumber_setNumber(alicePhones[1], "555-1212")
-    Person_PhoneNumber_setType(alicePhones[1], Person_PhoneNumber_Type_mobile)
-    Person_employment_setSchool(alice, "MIT")
+    set_id!(alice, 123, Val{:Person})
+    set_name!(alice, "Alice", Val{:Person})
+    set_email!(alice, "alice@example.com", Val{:Person})
+    alicePhones = init_phones!(alice, 1, Val{:Person})
+    set_number!(alicePhones[1], "555-1212", Val{:Person_PhoneNumber})
+    set_type!(alicePhones[1], Person_PhoneNumber_Type_mobile, Val{:Person_PhoneNumber})
+    set_school!(alice, "MIT", Val{:Person_employment})
 
     bob = people[2]
-    Person_setId(bob, 456)
-    Person_setName(bob, "Bob")
-    Person_setEmail(bob, "bob@example.com")
-    bobPhones = Person_initPhones(bob, 2)
-    Person_PhoneNumber_setNumber(bobPhones[1], "555-4567")
-    Person_PhoneNumber_setType(bobPhones[1], Person_PhoneNumber_Type_home)
-    Person_PhoneNumber_setNumber(bobPhones[2], "555-7654")
-    Person_PhoneNumber_setType(bobPhones[2], Person_PhoneNumber_Type_work)
-    Person_employment_setUnemployed(bob)
+    set_id!(bob, 456, Val{:Person})
+    set_name!(bob, "Bob", Val{:Person})
+    set_email!(bob, "bob@example.com", Val{:Person})
+    bobPhones = init_phones!(bob, 2, Val{:Person})
+    set_number!(bobPhones[1], "555-4567", Val{:Person_PhoneNumber})
+    set_type!(bobPhones[1], Person_PhoneNumber_Type_home, Val{:Person_PhoneNumber})
+    set_number!(bobPhones[2], "555-7654", Val{:Person_PhoneNumber})
+    set_type!(bobPhones[2], Person_PhoneNumber_Type_work, Val{:Person_PhoneNumber})
+    set_unemployed!(bob, Val{:Person_employment})
 
     writeMessageToStream(message, stdout)
 end
 
 function printAddressBook()
     message = Capnp.MessageReader(stdin)
-    addressBook = root_AddressBook(message)
+    addressBook = root(message, Val{:AddressBook})
 
-    for person in AddressBook_getPeople(addressBook)
-        println(Person_getName(person), ": ", Person_getEmail(person))
+    for person in get_people(addressBook, Val{:AddressBook})
+        println(get_name(person, Val{:Person}), ": ", get_email(person, Val{:Person}))
 
-        for phone in Person_getPhones(person)
+        for phone in get_phones(person, Val{:Person})
             typeName = "unknown"
-            if Person_PhoneNumber_getType(phone) == Person_PhoneNumber_Type_mobile
+            if get_type(phone, Val{:Person_PhoneNumber}) == Person_PhoneNumber_Type_mobile
                 typeName = "mobile"
-            elseif Person_PhoneNumber_getType(phone) == Person_PhoneNumber_Type_home
+            elseif get_type(phone, Val{:Person_PhoneNumber}) == Person_PhoneNumber_Type_home
                 typeName = "home"
-            elseif Person_PhoneNumber_getType(phone) == Person_PhoneNumber_Type_work
+            elseif get_type(phone, Val{:Person_PhoneNumber}) == Person_PhoneNumber_Type_work
                 typeName = "work"
             end
 
-            println("  ", typeName, " phone: ", Person_PhoneNumber_getNumber(phone))
+            println("  ", typeName, " phone: ", get_number(phone, Val{:Person_PhoneNumber}))
         end
 
         # Support getEmployment not yet available
-        employment = Person_getEmployment(person)
-        if Person_employment_which(employment) == Person_employment_union_unemployed
+        employment = get_employment(person, Val{:Person})
+        if which(employment, Val{:Person_employment}) == Person_employment_union_unemployed
             println("  unemployed")
-        elseif Person_employment_which(employment) == Person_employment_union_employer
-            println("  employer: ", Person_employment_getEmployer(employment))
-        elseif Person_employment_which(employment) == Person_employment_union_school
-            println("  student at: ", Person_employment_getSchool(employment))
-        elseif Person_employment_which(employment) == Person_employment_union_selfEmployed
+        elseif which(employment, Val{:Person_employment}) == Person_employment_union_employer
+            println("  employer: ", get_employer(employment, Val{:Person_employment}))
+        elseif which(employment, Val{:Person_employment}) == Person_employment_union_school
+            println("  student at: ", get_school(employment, Val{:Person_employment}))
+        elseif which(employment, Val{:Person_employment}) == Person_employment_union_selfEmployed
             println("  self-employed")
         end
     end

@@ -48,6 +48,74 @@ struct MessageReader <: Reader
     end
 end
 
+"""
+    BufferMessageReader <: Reader
+
+Zero-copy message reader that operates on pre-allocated byte buffers.
+Uses views into the provided buffer instead of copying data.
+
+# Usage
+```julia
+bytes = read("message.bin")
+reader = BufferMessageReader(bytes)
+# Access data without copying
+```
+"""
+struct BufferMessageReader <: Reader
+    segments::Vector{SubArray{UInt8, 1, Vector{UInt8}, Tuple{UnitRange{Int64}}, true}}
+    _buffer::Vector{UInt8}  # Keep reference to prevent GC
+
+    function BufferMessageReader(buffer::Vector{UInt8})
+        if length(buffer) < 8
+            # Minimum: 4 bytes header + 4 bytes segment size
+            return new([view(buffer, 1:0)], buffer)
+        end
+
+        # Parse header from buffer (same format as MessageReader)
+        # First 4 bytes: number of segments - 1
+        num_segments = reinterpret(UInt32, buffer[1:4])[1] + 1
+
+        header_size = 4 + 4 * num_segments
+        if num_segments % 2 == 0
+            header_size += 4  # padding
+        end
+
+        if length(buffer) < header_size
+            return new([view(buffer, 1:0)], buffer)
+        end
+
+        # Read segment sizes
+        segment_sizes = Vector{UInt32}(undef, num_segments)
+        for i in 1:num_segments
+            offset = 4 + (i - 1) * 4
+            segment_sizes[i] = reinterpret(UInt32, buffer[offset+1:offset+4])[1]
+        end
+
+        # Create views into buffer for each segment (zero-copy)
+        segments = Vector{SubArray{UInt8, 1, Vector{UInt8}, Tuple{UnitRange{Int64}}, true}}()
+        current_offset = header_size
+
+        for size_words in segment_sizes
+            size_bytes = 8 * size_words
+            if current_offset + size_bytes > length(buffer)
+                size_bytes = max(0, length(buffer) - current_offset)
+            end
+            push!(segments, view(buffer, (current_offset + 1):(current_offset + size_bytes)))
+            current_offset += size_bytes
+        end
+
+        new(segments, buffer)
+    end
+end
+
+"""
+    get_segments(reader::BufferMessageReader)
+
+Get the segment views from a BufferMessageReader.
+Returns views into the original buffer (zero-copy).
+"""
+get_segments(reader::BufferMessageReader) = reader.segments
+
 # Structures for writing
 mutable struct AllocMessageBuilder <: Writer
     segments::Vector{Segment}
@@ -83,6 +151,80 @@ function writeMessageToStream(builder::AllocMessageBuilder, io)
         end
     end
 end
+
+"""
+    BufferMessageBuilder <: Writer
+
+Zero-allocation message builder that writes directly to a pre-allocated buffer.
+Does not allocate new segments - all data must fit in the provided buffer.
+
+# Usage
+```julia
+buffer = zeros(UInt8, 4096)
+builder = BufferMessageBuilder(buffer)
+# ... build message ...
+bytes_written = finalize!(builder)
+# buffer[1:bytes_written] contains the message
+```
+
+# Notes
+- The buffer must be large enough to hold the entire message
+- If the message exceeds buffer capacity, an error is thrown
+- Use `finalize!(builder)` to get the number of bytes written
+"""
+mutable struct BufferMessageBuilder <: Writer
+    segments::Vector{SubArray{UInt8, 1, Vector{UInt8}, Tuple{UnitRange{Int64}}, true}}
+    _buffer::Vector{UInt8}
+    current_segment::UInt32
+    current_offset::UInt32
+    _header_size::Int
+
+    function BufferMessageBuilder(buffer::Vector{UInt8})
+        # Reserve 8 bytes for header (4 bytes num_segments + 4 bytes segment_size)
+        header_size = 8
+        if length(buffer) < header_size + 8
+            error("Buffer too small for BufferMessageBuilder (minimum $(header_size + 8) bytes)")
+        end
+
+        # Create a view for the single segment (after header)
+        segment_view = view(buffer, (header_size + 1):length(buffer))
+        segments = [segment_view]
+
+        new(segments, buffer, 1, 0, header_size)
+    end
+end
+
+"""
+    finalize!(builder::BufferMessageBuilder) -> Int
+
+Finalize the message and return the total number of bytes written.
+Writes the message header to the beginning of the buffer.
+
+# Returns
+- Number of bytes written (header + data)
+"""
+function finalize!(builder::BufferMessageBuilder)
+    buffer = builder._buffer
+    header_size = builder._header_size
+
+    # Write header: number of segments - 1
+    buffer[1:4] .= reinterpret(UInt8, [UInt32(0)])  # 1 segment, so write 0
+
+    # Write segment size in words
+    segment_size_words = builder.current_offset
+    buffer[5:8] .= reinterpret(UInt8, [UInt32(segment_size_words)])
+
+    # Total bytes = header + segment data
+    total_bytes = header_size + 8 * builder.current_offset
+    return total_bytes
+end
+
+"""
+    get_segments(builder::BufferMessageBuilder)
+
+Get the segment views from a BufferMessageBuilder.
+"""
+get_segments(builder::BufferMessageBuilder) = builder.segments
 
 function alloc(builder::Writer, pointer_location::WirePointer, size_bytes)
     # recall cld(x,y) = div(x,y,RoundUp)
@@ -487,4 +629,101 @@ function write_list_pointer(pointer_location::WirePointer, ptr::CompositeListPoi
     write_list_tag(pointer_location, ptr)
 
     ptr
+end
+
+## Capability Pointers (type 3)
+# Cap'n Proto capability pointers reference entries in a capability table.
+# These are used for RPC to pass object references between processes.
+
+"""
+    CapabilityPointer{T} <: CapnpPointer
+
+A pointer to a capability (type 3 pointer in Cap'n Proto wire format).
+Capabilities are references to remote or local objects that can be called via RPC.
+
+# Fields
+- `traverser::T`: The message traverser (reader or writer)
+- `segment::UInt32`: Segment containing the pointer
+- `offset::UInt32`: Word offset within the segment where the pointer is located
+- `cap_index::UInt32`: Index into the message's capability table
+
+# Wire Format
+- Bits 0-1: Must be 3 (capability pointer type)
+- Bits 2-31: Must be 0 (reserved)
+- Bits 32-63: Capability table index
+"""
+struct CapabilityPointer{T} <: CapnpPointer where {T<:MessageTraverser}
+    traverser::T
+    segment::UInt32
+    offset::UInt32
+    cap_index::UInt32
+end
+
+"""
+    is_capability_pointer(bytes::Int64) -> Bool
+
+Check if the pointer bytes indicate a capability pointer (type 3).
+"""
+is_capability_pointer(bytes::Int64) = bytes & 0b11 == 3
+
+"""
+    read_capability_pointer(ptr, byte_section_words, ptrix) -> Union{CapabilityPointer, Nothing}
+
+Read a capability pointer from the given struct pointer at the specified pointer index.
+
+# Arguments
+- `ptr`: Parent struct pointer
+- `byte_section_words`: Number of data section words in the parent struct
+- `ptrix`: Index within the pointer section (0-based)
+
+# Returns
+- `CapabilityPointer` if a valid capability pointer is found
+- `nothing` if the pointer is null (all zeros)
+- Throws if the pointer is not a capability pointer
+"""
+function read_capability_pointer(ptr, byte_section_words, ptrix)
+    position_bytes = 8 * (ptr.offset + byte_section_words + ptrix)
+    bytes = unsafe_load(Ptr{Int64}(pointer(ptr.traverser.segments[ptr.segment]) + position_bytes))
+
+    if bytes == 0
+        # Null capability
+        nothing
+    elseif is_capability_pointer(bytes)
+        # Bits 2-31 must be 0
+        @assert (bytes & 0x_ff_ff_ff_fc) == 0 "Invalid capability pointer: bits 2-31 must be 0"
+
+        # Capability index is in the upper 32 bits
+        cap_index = UInt32(bytes >> 32)
+
+        CapabilityPointer(ptr.traverser, ptr.segment, ptr.offset + byte_section_words + ptrix, cap_index)
+    else
+        throw("Not a capability pointer at segment $(ptr.segment), offset $(ptr.offset + byte_section_words + ptrix)")
+    end
+end
+
+"""
+    write_capability_pointer(pointer_location::WirePointer, traverser, cap_index::UInt32) -> CapabilityPointer
+
+Write a capability pointer at the specified location.
+
+# Arguments
+- `pointer_location`: Where to write the pointer
+- `traverser`: The message traverser (writer)
+- `cap_index`: Index into the capability table
+
+# Returns
+- The created `CapabilityPointer`
+"""
+function write_capability_pointer(pointer_location::WirePointer, traverser, cap_index::UInt32)
+    position_bytes = 8 * pointer_location.offset
+
+    # Type 3 pointer: lower 32 bits are 0b11, upper 32 bits are capability index
+    A = Int64(0b11)  # Capability pointer type
+    D = Int64(cap_index)
+
+    bytes = (D << 32) | A
+
+    unsafe_store!(Ptr{Int64}(pointer(traverser.segments[pointer_location.segment]) + position_bytes), bytes)
+
+    CapabilityPointer(traverser, pointer_location.segment, pointer_location.offset, cap_index)
 end

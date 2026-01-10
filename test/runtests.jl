@@ -33,10 +33,10 @@ end
 
     # writing part
     message = Capnp.AllocMessageBuilder()
-    test = initRoot_Test(message)
-    Test_setBooleanFalse(test, false)
-    Test_setBooleanTrue(test, true)
-    Test_setSigned64(test, -1)
+    test = init_root!(message, Val{:Test})
+    set_boolean_false!(test, false, Val{:Test})
+    set_boolean_true!(test, true, Val{:Test})
+    set_signed64!(test, -1, Val{:Test})
 
     # finish writing and flush into buffer for reading
     buffer = IOBuffer()
@@ -45,15 +45,15 @@ end
 
     # reading part
     message = Capnp.MessageReader(buffer)
-    test = root_Test(message)
+    test = root(message, Val{:Test})
 
-    booleanFalse = Test_getBooleanFalse(test)
+    booleanFalse = get_boolean_false(test, Val{:Test})
     @test booleanFalse == false
 
-    booleanTrue = Test_getBooleanTrue(test)
+    booleanTrue = get_boolean_true(test, Val{:Test})
     @test booleanTrue == true
 
-    signed64 = Test_getSigned64(test)
+    signed64 = get_signed64(test, Val{:Test})
     @test signed64 == -1
 end
 
@@ -63,10 +63,10 @@ end
 
     # writing part
     message = Capnp.AllocMessageBuilder()
-    listTest = initRoot_ListTest(message)
-    bytes = ListTest_initBytes(listTest, 7)
-    ints = ListTest_initInts(listTest, 7)
-    # bools = ListTest_initBools(listTest, 7)
+    listTest = init_root!(message, Val{:ListTest})
+    bytes = init_bytes!(listTest, 7, Val{:ListTest})
+    ints = init_ints!(listTest, 7, Val{:ListTest})
+    # bools = init_bools!(listTest, 7, Val{:ListTest})
     for i = 1:7
         bytes[i] = i
         ints[i] = i
@@ -80,20 +80,40 @@ end
 
     # reading part
     message = Capnp.MessageReader(buffer)
-    listTest = root_ListTest(message)
+    listTest = root(message, Val{:ListTest})
 
-    bytes = ListTest_getBytes(listTest)
+    bytes = get_bytes(listTest, Val{:ListTest})
     @test bytes[1] == 1 # tests getindex
     @test length(bytes) == 7
     @test collect(bytes) == 1:7 # tests iterate
 
-    ints = ListTest_getInts(listTest)
+    ints = get_ints(listTest, Val{:ListTest})
     @test ints[1] == 1
     @test length(ints) == 7
     @test collect(ints) == 1:7
 
-    # bools = ListTest_getBools(listTest)
+    # bools = get_bools(listTest, Val{:ListTest})
     # @test bools[1] == 1
     # @test length(bools) == 7
     # @test collect(bools) == [1,0,1,0,1,0,1]
 end
+
+# RPC capability tests
+include("rpc/capability.jl")
+
+# User Story 1: Wire Format Compliance tests
+include("defaults.jl")
+include("packed.jl")
+include("generics.jl")
+include("interop/roundtrip.jl")
+
+# User Story 2: RPC Client tests
+include("rpc/promise.jl")
+include("rpc/client.jl")
+include("rpc/calculator.jl")
+
+# User Story 3: RPC Server tests
+include("rpc/server.jl")
+
+# User Story 4: Zero-Copy Performance tests
+include("performance.jl")

@@ -1,60 +1,165 @@
-# Capnp.jl - Julia plugin for Cap'n'proto
+# Capnp.jl - Julia plugin for Cap'n Proto
 
-**This is currently a prototype.**
+A Julia implementation of the Cap'n Proto serialization format with full RPC support.
 
-# Install & use
+## Features
+
+- **Wire format compliance**: Full support for Cap'n Proto binary format including default values, packed encoding, and generic types
+- **RPC client**: Connect to Cap'n Proto RPC servers with promise pipelining support
+- **RPC server**: Host Cap'n Proto services accessible to remote clients
+- **Zero-copy performance**: Pre-allocated buffer support for minimal allocations
+- **Code generation**: Generate Julia types from Cap'n Proto schemas
+
+## Install & Use
 
 Install from JuliaHub:
 
     ] add Capnp
 
-Download `capnpc-jl` from this repository and generate code for a schema with
+Download `capnpc-jl` from this repository and generate code for a schema with:
 
     capnpc -o./capnpc-jl example/addressbook.capnp
 
-## Example
+## Quick Start
 
-See [the addressbook example](https://capnproto.org/cxx.html) in the [`example` directory](example/).
+### Reading and Writing Messages
 
-## Generated names
+```julia
+using Capnp
 
-Capnp.jl supports namespace annotations and translates them into Julia modules.  E.g. using
-`$Cxx.namespace("capnp::schema");` generates code in module `capnp.schema`. Note Julia modules can't reference each
-other in a cycle.
+# Include generated schema code
+include("addressbook.capnp.jl")
 
-To start reading a reader has to be opened with a stream, e.g. `message = Capnp.MessageReader(stdin)` and root reader
-created, e.g. for a struct `A` `reader = root_A(message)`. To write, a writer has to be created, e.g. `message =
-Capnp.AllocMessageBuilder()`, root writer initialised, e.g. `writer = initRoot_A(message)`, and finally the message
-should be written to a stream `writeMessageToStream(message, stdout)`.
+# Writing
+message = Capnp.AllocMessageBuilder()
+addressBook = init_root!(message, Val{:AddressBook})
+# ... build message ...
+writeMessageToStream(message, stdout)
 
-For a struct `A` with a field `xy` function `A_getXy(reader)` is generated. If `A` has a nested struct `B` with a field
-`yz` then `A_B_getYz()` is generated.
+# Reading
+message = Capnp.MessageReader(stdin)
+addressBook = root(message, Val{:AddressBook})
+# ... read data ...
+```
 
-For reading and writing lists you can use brackets `[]` but note this is 1-based as is usual in Julia. For writing lists
-you need to initialise them with `A_initBs(a_writer, number_of_items)`.
+### RPC Client
 
-If struct `A` has a union group `u` then `A_u_union` enum is generated as well as function `A_u_which(a_reader)`. For an
-anonymous union the names would be `A_union` and `A_which`. Sett union slot `xy` with `A_u_setXy(a_writer, value)` or
-`A_u_setXy(a_writer)` if `xy` is `Void`. For `xy` of struct type use `xy_writer = A_u_initXy(a_writer)`.
+```julia
+using Capnp
+using Capnp.RPC
 
-(If you feel there's something missing in this description then please let me know.)
+# Connect to server
+conn = RPC.connect("localhost", 55000)
+client = RPC.bootstrap(conn)
+
+# Call methods (with promise pipelining)
+result_promise = Calculator_evaluateAsync(client, params)
+result = fetch(result_promise)
+```
+
+### RPC Server
+
+```julia
+using Capnp
+using Capnp.RPC
+
+# Implement the server interface
+struct MyCalculator <: Calculator_Server end
+
+function Calculator_evaluate(impl::MyCalculator, context, params)
+    # ... implementation ...
+    RPC.set_result!(context, result)
+end
+
+# Start server
+server = RPC.Server(MyCalculator())
+RPC.listen(server, "127.0.0.1", 55000)
+RPC.serve(server)
+```
+
+### Zero-Copy Operations
+
+```julia
+using Capnp
+
+# Pre-allocated buffer reading
+buffer = read("message.bin")
+reader = Capnp.BufferMessageReader(buffer)
+
+# Pre-allocated buffer writing
+buffer = zeros(UInt8, 4096)
+builder = Capnp.BufferMessageBuilder(buffer)
+# ... build message ...
+bytes_written = Capnp.finalize!(builder)
+```
+
+## Examples
+
+See the [`example` directory](example/) for complete examples:
+
+- `addressbook.jl` - Basic serialization example
+- `calculator.capnp` - Calculator RPC interface schema
+- `calculator_client.jl` - RPC client example
+- `calculator_server.jl` - RPC server implementation
+
+## Generated API
+
+### New API (recommended)
+
+For a struct `MyStruct` with a field `my_field`:
+- Reading: `get_my_field(reader, Val{:MyStruct})`
+- Writing: `set_my_field!(writer, value, Val{:MyStruct})`
+- Init (for structs/lists): `init_my_field!(writer, Val{:MyStruct})`
+
+### Legacy API (deprecated)
+
+The old naming convention is still supported but deprecated:
+- `MyStruct_getMyField(reader)` → use `get_my_field(reader, Val{:MyStruct})`
+- `MyStruct_setMyField(writer, value)` → use `set_my_field!(writer, value, Val{:MyStruct})`
+
+### Namespace Support
+
+Capnp.jl supports namespace annotations and translates them into Julia modules:
+- Using `$Cxx.namespace("capnp::schema");` generates code in module `capnp.schema`
+- Note: Julia modules can't reference each other in a cycle
+
+### Lists
+
+Access lists with brackets `[]` (1-based indexing as is standard in Julia).
+Initialize lists with `init_items!(writer, count, Val{:MyStruct})`.
+
+### Unions
+
+For struct `A` with union group `u`:
+- Enum: `A_u_union`
+- Check variant: `A_u_which(reader)`
+- Set variant: `A_u_setXy(writer, value)`
+- Initialize struct variant: `A_u_initXy(writer)`
 
 ## Development
 
-See `src/Capnp.jl` for description of code structure. To generate the code for _the_ Capnp schema use `capnpc
--o./capnpc-jl src/schema.capnp`.
+See `src/Capnp.jl` for code structure description.
 
-Some things to work on:
+To regenerate the schema code:
 
-* Add a test like the addressbook integration test but one testing _the_ capnp schema reading/writing.
-* Emit types that make user code safer.
-* Zero allocations when reading or writing using a big enough buffer. Start by adding a test.
-* Support capnp's packing.
-* Generate smaller code.
-* Support generics.
-* Test in _some_ production environment. (Please let me know if you do.)
-* Initialisation/default values.
+    capnpc -o./capnpc-jl src/schema.capnp
 
-For debugging it can be useful to save a message to a file and use `xxd --bits --cols 8`. [How to Write Compiler Plugins](https://capnproto.org/otherlang.html) has other good tips, especially the bit with printing annotated schema (`capnp compile -ocapnp schema.capnp`).
+Run tests:
 
-Finally, run tests with `julia --project test/runtests.jl` and format code (`using JuliaFormatter; format(".")`, except generated code; `git checkout src/schema.capnp.jl`).
+    julia --project test/runtests.jl
+
+Or using Pkg:
+
+    ] test
+
+Format code (excluding generated files):
+
+```julia
+using JuliaFormatter
+format(".")
+# Restore generated files
+# git checkout src/schema.capnp.jl example/calculator.capnp.jl
+```
+
+For debugging, save messages to files and use `xxd --bits --cols 8`.
+See [How to Write Compiler Plugins](https://capnproto.org/otherlang.html) for more tips.

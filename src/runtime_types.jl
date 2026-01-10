@@ -22,6 +22,9 @@ abstract type CapnpFloat64 <: CapnpType end
 
 abstract type CapnpStruct <: CapnpType end
 
+# Capability type for RPC (type 3 pointers)
+abstract type CapnpCapability <: CapnpType end
+
 # This supports, for example, "$(CapnpVoid())" == "CapnpVoid",
 # although it's a bit naughty to rely on typeof here
 Base.show(io::IO, t::CapnpType) = print(io, typeof(t))

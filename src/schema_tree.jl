@@ -206,6 +206,37 @@ struct StructNodeProps <: NodeProperties
     fields::Vector{Field}
 end
 
+# Interface method parameter
+struct MethodParam
+    name::String
+    type::SchemaType
+    defaultValue::Value
+    annotations::Vector{Annotation}
+end
+
+# Superclass reference for interface inheritance
+struct Superclass
+    id::UInt64
+    brand::Brand
+end
+
+# Interface method
+struct Method
+    name::String
+    codeOrder::UInt16
+    implicitParameters::Vector{Parameter}
+    paramStructType::UInt64
+    paramBrand::Brand
+    resultStructType::UInt64
+    resultBrand::Brand
+    annotations::Vector{Annotation}
+end
+
+struct InterfaceNodeProps <: NodeProperties
+    methods::Vector{Method}
+    superclasses::Vector{Superclass}
+end
+
 struct Import
     id::UInt64
     name::String
@@ -296,6 +327,11 @@ function read_Type(ptr::Capnp.StructPointer)
         brand = read_Brand(capnp.schema.Type_struct_getBrand(ptr))
 
         result = SchemaStruct(typeId, brand)
+    elseif unionTag == capnp.schema.Type_union_interface
+        typeId = capnp.schema.Type_interface_getTypeId(ptr)
+        brand = read_Brand(capnp.schema.Type_interface_getBrand(ptr))
+
+        result = SchemaInterface(typeId, brand)
     elseif unionTag == capnp.schema.Type_union_anyPointer
         pointerUnionTag = capnp.schema.Type_anyPointer_which(ptr)
 
@@ -458,6 +494,25 @@ function read_Field(ptr::Capnp.StructPointer)
     Field(name, codeOrder, annotations, discriminantValue, fieldProps, ordinal)
 end
 
+function read_Method(ptr::Capnp.StructPointer)
+    name = capnp.schema.Method_getName(ptr)
+    codeOrder = capnp.schema.Method_getCodeOrder(ptr)
+    paramStructType = capnp.schema.Method_getParamStructType(ptr)
+    resultStructType = capnp.schema.Method_getResultStructType(ptr)
+    annotations = Annotation[read_Annotation(p) for p in capnp.schema.Method_getAnnotations(ptr)]
+    paramBrand = read_Brand(capnp.schema.Method_getParamBrand(ptr))
+    resultBrand = read_Brand(capnp.schema.Method_getResultBrand(ptr))
+    implicitParameters = Parameter[Parameter(read_Parameter(p)) for p in capnp.schema.Method_getImplicitParameters(ptr)]
+
+    Method(name, codeOrder, implicitParameters, paramStructType, paramBrand, resultStructType, resultBrand, annotations)
+end
+
+function read_Superclass(ptr::Capnp.StructPointer)
+    id = capnp.schema.Superclass_getId(ptr)
+    brand = read_Brand(capnp.schema.Superclass_getBrand(ptr))
+    Superclass(id, brand)
+end
+
 function read_Node(ptr::Capnp.StructPointer)
     id = capnp.schema.Node_getId(ptr)
     displayName = capnp.schema.Node_getDisplayName(ptr)
@@ -508,6 +563,10 @@ function read_Node(ptr::Capnp.StructPointer)
             capnp.schema.Node_annotation_getTargetsParam(ptr),
             capnp.schema.Node_annotation_getTargetsAnnotation(ptr),
         )
+    elseif unionTag == capnp.schema.Node_union_interface
+        methods = [read_Method(p) for p in capnp.schema.Node_interface_getMethods(ptr)]
+        superclasses = [read_Superclass(p) for p in capnp.schema.Node_interface_getSuperclasses(ptr)]
+        properties = InterfaceNodeProps(methods, superclasses)
     end
 
     Node(id, displayName, displayNamePrefixLength, scopeId, parameters, isGeneric, nestedNodes, annotations, properties, "")
