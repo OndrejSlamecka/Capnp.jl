@@ -10,6 +10,37 @@
 # - Finish: Client is done with a question
 # - Release: Client releases a capability reference
 
+# ============================================================================
+# Persistent interface constants (from persistent.capnp, Level 2 RPC)
+# ============================================================================
+
+"""
+Persistent interface ID from persistent.capnp.
+Interface ID: 0xc8cb212fcd9f5691
+"""
+const PERSISTENT_INTERFACE_ID = 0xc8cb212fcd9f5691
+
+"""
+Persistent annotation ID.
+Used to mark interfaces as always persistent.
+"""
+const PERSISTENT_ANNOTATION_ID = 0x91b79d1f17716c18
+
+"""
+Method ID for Persistent.save()
+"""
+const PERSISTENT_SAVE_METHOD_ID = UInt16(0)
+
+# SaveParams struct layout:
+# - sealFor @0 :Owner (pointer 0)
+const SaveParams_data_word_count = 0
+const SaveParams_pointer_count = 1
+
+# SaveResults struct layout:
+# - sturdyRef @0 :SturdyRef (pointer 0)
+const SaveResults_data_word_count = 0
+const SaveResults_pointer_count = 1
+
 """
 RPC Message type discriminants from rpc.capnp Message union.
 """

@@ -25,10 +25,8 @@ include("transport.jl")
 include("connection.jl")
 
 # RPC Protocol message parsing (Level 0)
+# Note: protocol.jl also includes Persistent interface constants (Level 2)
 include("protocol.jl")
-
-# Persistent capability types (Level 2)
-include("persistent.capnp.jl")
 
 # Client RPC (FR-010, FR-013)
 include("client.jl")
