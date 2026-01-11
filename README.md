@@ -1,6 +1,6 @@
 # Capnp.jl - Julia plugin for Cap'n Proto
 
-A Julia implementation of the Cap'n Proto serialization format with full RPC support.
+A Julia implementation of the Cap'n Proto serialization format with partial RPC support ([level 1 and level 2](https://capnproto.org/rpc.html#protocol-features) currently).
 
 ## Features
 
