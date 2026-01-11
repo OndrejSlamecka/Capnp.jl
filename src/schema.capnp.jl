@@ -7,7 +7,7 @@ module capnp
         function root(message, ::Type{Val{:Node_Parameter}})
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Node_Parameter_data_word_count) && p.pointer_count == Node_Parameter_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Node_Parameter_data_word_count) && p.pointer_count >= Node_Parameter_pointer_count
             p
         end
         function root_Node_Parameter(message)
@@ -50,7 +50,7 @@ module capnp
         function root(message, ::Type{Val{:Node_NestedNode}})
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Node_NestedNode_data_word_count) && p.pointer_count == Node_NestedNode_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Node_NestedNode_data_word_count) && p.pointer_count >= Node_NestedNode_pointer_count
             p
         end
         function root_Node_NestedNode(message)
@@ -108,7 +108,7 @@ module capnp
         function root(message, ::Type{Val{:Node_SourceInfo_Member}})
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Node_SourceInfo_Member_data_word_count) && p.pointer_count == Node_SourceInfo_Member_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Node_SourceInfo_Member_data_word_count) && p.pointer_count >= Node_SourceInfo_Member_pointer_count
             p
         end
         function root_Node_SourceInfo_Member(message)
@@ -151,7 +151,7 @@ module capnp
         function root(message, ::Type{Val{:Node_SourceInfo}})
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Node_SourceInfo_data_word_count) && p.pointer_count == Node_SourceInfo_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Node_SourceInfo_data_word_count) && p.pointer_count >= Node_SourceInfo_pointer_count
             p
         end
         function root_Node_SourceInfo(message)
@@ -214,7 +214,7 @@ module capnp
         function get_members(ptr, ::Type{Val{:Node_SourceInfo}})
             p = Capnp.read_list_pointer(ptr, 1, 1, Capnp.CapnpStruct)
             @assert isempty(p) || p isa Capnp.SimpleListPointer ||
-               (p isa Capnp.CompositeListPointer && p.data_word_count == Node_SourceInfo_Member_data_word_count) && p.pointer_count == Node_SourceInfo_Member_pointer_count
+               (p isa Capnp.CompositeListPointer && p.data_word_count >= Node_SourceInfo_Member_data_word_count) && p.pointer_count >= Node_SourceInfo_Member_pointer_count
             p
         end
         function Node_SourceInfo_getMembers(ptr)
@@ -245,7 +245,7 @@ module capnp
         function root(message, ::Type{Val{:Node}})
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Node_data_word_count) && p.pointer_count == Node_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Node_data_word_count) && p.pointer_count >= Node_pointer_count
             p
         end
         function root_Node(message)
@@ -338,7 +338,7 @@ module capnp
         function get_nested_nodes(ptr, ::Type{Val{:Node}})
             p = Capnp.read_list_pointer(ptr, 5, 1, Capnp.CapnpStruct)
             @assert isempty(p) || p isa Capnp.SimpleListPointer ||
-               (p isa Capnp.CompositeListPointer && p.data_word_count == Node_NestedNode_data_word_count) && p.pointer_count == Node_NestedNode_pointer_count
+               (p isa Capnp.CompositeListPointer && p.data_word_count >= Node_NestedNode_data_word_count) && p.pointer_count >= Node_NestedNode_pointer_count
             p
         end
         function Node_getNestedNodes(ptr)
@@ -366,7 +366,7 @@ module capnp
         function get_annotations(ptr, ::Type{Val{:Node}})
             p = Capnp.read_list_pointer(ptr, 5, 2, Capnp.CapnpStruct)
             @assert isempty(p) || p isa Capnp.SimpleListPointer ||
-               (p isa Capnp.CompositeListPointer && p.data_word_count == Annotation_data_word_count) && p.pointer_count == Annotation_pointer_count
+               (p isa Capnp.CompositeListPointer && p.data_word_count >= Annotation_data_word_count) && p.pointer_count >= Annotation_pointer_count
             p
         end
         function Node_getAnnotations(ptr)
@@ -409,7 +409,7 @@ module capnp
         function root(message, ::Type{Val{:Node_struct}})
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Node_struct_data_word_count) && p.pointer_count == Node_struct_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Node_struct_data_word_count) && p.pointer_count >= Node_struct_pointer_count
             p
         end
         function root_Node_struct(message)
@@ -528,7 +528,7 @@ module capnp
         function get_fields(ptr, ::Type{Val{:Node_struct}})
             p = Capnp.read_list_pointer(ptr, 5, 3, Capnp.CapnpStruct)
             @assert isempty(p) || p isa Capnp.SimpleListPointer ||
-               (p isa Capnp.CompositeListPointer && p.data_word_count == Field_data_word_count) && p.pointer_count == Field_pointer_count
+               (p isa Capnp.CompositeListPointer && p.data_word_count >= Field_data_word_count) && p.pointer_count >= Field_pointer_count
             p
         end
         function Node_struct_getFields(ptr)
@@ -564,7 +564,7 @@ module capnp
         function root(message, ::Type{Val{:Node_enum}})
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Node_enum_data_word_count) && p.pointer_count == Node_enum_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Node_enum_data_word_count) && p.pointer_count >= Node_enum_pointer_count
             p
         end
         function root_Node_enum(message)
@@ -593,7 +593,7 @@ module capnp
         function get_enumerants(ptr, ::Type{Val{:Node_enum}})
             p = Capnp.read_list_pointer(ptr, 5, 3, Capnp.CapnpStruct)
             @assert isempty(p) || p isa Capnp.SimpleListPointer ||
-               (p isa Capnp.CompositeListPointer && p.data_word_count == Enumerant_data_word_count) && p.pointer_count == Enumerant_pointer_count
+               (p isa Capnp.CompositeListPointer && p.data_word_count >= Enumerant_data_word_count) && p.pointer_count >= Enumerant_pointer_count
             p
         end
         function Node_enum_getEnumerants(ptr)
@@ -629,7 +629,7 @@ module capnp
         function root(message, ::Type{Val{:Node_interface}})
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Node_interface_data_word_count) && p.pointer_count == Node_interface_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Node_interface_data_word_count) && p.pointer_count >= Node_interface_pointer_count
             p
         end
         function root_Node_interface(message)
@@ -658,7 +658,7 @@ module capnp
         function get_methods(ptr, ::Type{Val{:Node_interface}})
             p = Capnp.read_list_pointer(ptr, 5, 3, Capnp.CapnpStruct)
             @assert isempty(p) || p isa Capnp.SimpleListPointer ||
-               (p isa Capnp.CompositeListPointer && p.data_word_count == Method_data_word_count) && p.pointer_count == Method_pointer_count
+               (p isa Capnp.CompositeListPointer && p.data_word_count >= Method_data_word_count) && p.pointer_count >= Method_pointer_count
             p
         end
         function Node_interface_getMethods(ptr)
@@ -686,7 +686,7 @@ module capnp
         function get_superclasses(ptr, ::Type{Val{:Node_interface}})
             p = Capnp.read_list_pointer(ptr, 5, 4, Capnp.CapnpStruct)
             @assert isempty(p) || p isa Capnp.SimpleListPointer ||
-               (p isa Capnp.CompositeListPointer && p.data_word_count == Superclass_data_word_count) && p.pointer_count == Superclass_pointer_count
+               (p isa Capnp.CompositeListPointer && p.data_word_count >= Superclass_data_word_count) && p.pointer_count >= Superclass_pointer_count
             p
         end
         function Node_interface_getSuperclasses(ptr)
@@ -722,7 +722,7 @@ module capnp
         function root(message, ::Type{Val{:Node_const}})
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Node_const_data_word_count) && p.pointer_count == Node_const_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Node_const_data_word_count) && p.pointer_count >= Node_const_pointer_count
             p
         end
         function root_Node_const(message)
@@ -743,7 +743,7 @@ module capnp
         end
         function get_type(ptr::Capnp.StructPointer{T}, ::Type{Val{:Node_const}}) where T <: Reader
             p = Capnp.read_struct_pointer(ptr, 5, 3)
-            @assert isnothing(p) || (p.data_word_count == Type_data_word_count) && p.pointer_count == Type_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Type_data_word_count) && p.pointer_count >= Type_pointer_count
             p
         end
         function Node_const_getType(ptr::Capnp.StructPointer{T}) where T <: Reader
@@ -763,7 +763,7 @@ module capnp
         end
         function get_value(ptr::Capnp.StructPointer{T}, ::Type{Val{:Node_const}}) where T <: Reader
             p = Capnp.read_struct_pointer(ptr, 5, 4)
-            @assert isnothing(p) || (p.data_word_count == Value_data_word_count) && p.pointer_count == Value_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Value_data_word_count) && p.pointer_count >= Value_pointer_count
             p
         end
         function Node_const_getValue(ptr::Capnp.StructPointer{T}) where T <: Reader
@@ -799,7 +799,7 @@ module capnp
         function root(message, ::Type{Val{:Node_annotation}})
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Node_annotation_data_word_count) && p.pointer_count == Node_annotation_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Node_annotation_data_word_count) && p.pointer_count >= Node_annotation_pointer_count
             p
         end
         function root_Node_annotation(message)
@@ -820,7 +820,7 @@ module capnp
         end
         function get_type(ptr::Capnp.StructPointer{T}, ::Type{Val{:Node_annotation}}) where T <: Reader
             p = Capnp.read_struct_pointer(ptr, 5, 3)
-            @assert isnothing(p) || (p.data_word_count == Type_data_word_count) && p.pointer_count == Type_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Type_data_word_count) && p.pointer_count >= Type_pointer_count
             p
         end
         function Node_annotation_getType(ptr::Capnp.StructPointer{T}) where T <: Reader
@@ -1028,7 +1028,7 @@ module capnp
         function get_parameters(ptr, ::Type{Val{:Node}})
             p = Capnp.read_list_pointer(ptr, 5, 5, Capnp.CapnpStruct)
             @assert isempty(p) || p isa Capnp.SimpleListPointer ||
-               (p isa Capnp.CompositeListPointer && p.data_word_count == Node_Parameter_data_word_count) && p.pointer_count == Node_Parameter_pointer_count
+               (p isa Capnp.CompositeListPointer && p.data_word_count >= Node_Parameter_data_word_count) && p.pointer_count >= Node_Parameter_pointer_count
             p
         end
         function Node_getParameters(ptr)
@@ -1075,7 +1075,7 @@ module capnp
         function root(message, ::Type{Val{:Field}})
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Field_data_word_count) && p.pointer_count == Field_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Field_data_word_count) && p.pointer_count >= Field_pointer_count
             p
         end
         function root_Field(message)
@@ -1138,7 +1138,7 @@ module capnp
         function get_annotations(ptr, ::Type{Val{:Field}})
             p = Capnp.read_list_pointer(ptr, 3, 1, Capnp.CapnpStruct)
             @assert isempty(p) || p isa Capnp.SimpleListPointer ||
-               (p isa Capnp.CompositeListPointer && p.data_word_count == Annotation_data_word_count) && p.pointer_count == Annotation_pointer_count
+               (p isa Capnp.CompositeListPointer && p.data_word_count >= Annotation_data_word_count) && p.pointer_count >= Annotation_pointer_count
             p
         end
         function Field_getAnnotations(ptr)
@@ -1190,7 +1190,7 @@ module capnp
         function root(message, ::Type{Val{:Field_slot}})
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Field_slot_data_word_count) && p.pointer_count == Field_slot_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Field_slot_data_word_count) && p.pointer_count >= Field_slot_pointer_count
             p
         end
         function root_Field_slot(message)
@@ -1226,7 +1226,7 @@ module capnp
         end
         function get_type(ptr::Capnp.StructPointer{T}, ::Type{Val{:Field_slot}}) where T <: Reader
             p = Capnp.read_struct_pointer(ptr, 3, 2)
-            @assert isnothing(p) || (p.data_word_count == Type_data_word_count) && p.pointer_count == Type_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Type_data_word_count) && p.pointer_count >= Type_pointer_count
             p
         end
         function Field_slot_getType(ptr::Capnp.StructPointer{T}) where T <: Reader
@@ -1246,7 +1246,7 @@ module capnp
         end
         function get_default_value(ptr::Capnp.StructPointer{T}, ::Type{Val{:Field_slot}}) where T <: Reader
             p = Capnp.read_struct_pointer(ptr, 3, 3)
-            @assert isnothing(p) || (p.data_word_count == Value_data_word_count) && p.pointer_count == Value_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Value_data_word_count) && p.pointer_count >= Value_pointer_count
             p
         end
         function Field_slot_getDefaultValue(ptr::Capnp.StructPointer{T}) where T <: Reader
@@ -1297,7 +1297,7 @@ module capnp
         function root(message, ::Type{Val{:Field_group}})
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Field_group_data_word_count) && p.pointer_count == Field_group_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Field_group_data_word_count) && p.pointer_count >= Field_group_pointer_count
             p
         end
         function root_Field_group(message)
@@ -1356,7 +1356,7 @@ module capnp
         function root(message, ::Type{Val{:Field_ordinal}})
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Field_ordinal_data_word_count) && p.pointer_count == Field_ordinal_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Field_ordinal_data_word_count) && p.pointer_count >= Field_ordinal_pointer_count
             p
         end
         function root_Field_ordinal(message)
@@ -1403,7 +1403,7 @@ module capnp
         function root(message, ::Type{Val{:Enumerant}})
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Enumerant_data_word_count) && p.pointer_count == Enumerant_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Enumerant_data_word_count) && p.pointer_count >= Enumerant_pointer_count
             p
         end
         function root_Enumerant(message)
@@ -1466,7 +1466,7 @@ module capnp
         function get_annotations(ptr, ::Type{Val{:Enumerant}})
             p = Capnp.read_list_pointer(ptr, 1, 1, Capnp.CapnpStruct)
             @assert isempty(p) || p isa Capnp.SimpleListPointer ||
-               (p isa Capnp.CompositeListPointer && p.data_word_count == Annotation_data_word_count) && p.pointer_count == Annotation_pointer_count
+               (p isa Capnp.CompositeListPointer && p.data_word_count >= Annotation_data_word_count) && p.pointer_count >= Annotation_pointer_count
             p
         end
         function Enumerant_getAnnotations(ptr)
@@ -1489,7 +1489,7 @@ module capnp
         function root(message, ::Type{Val{:Superclass}})
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Superclass_data_word_count) && p.pointer_count == Superclass_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Superclass_data_word_count) && p.pointer_count >= Superclass_pointer_count
             p
         end
         function root_Superclass(message)
@@ -1525,7 +1525,7 @@ module capnp
         end
         function get_brand(ptr::Capnp.StructPointer{T}, ::Type{Val{:Superclass}}) where T <: Reader
             p = Capnp.read_struct_pointer(ptr, 1, 0)
-            @assert isnothing(p) || (p.data_word_count == Brand_data_word_count) && p.pointer_count == Brand_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Brand_data_word_count) && p.pointer_count >= Brand_pointer_count
             p
         end
         function Superclass_getBrand(ptr::Capnp.StructPointer{T}) where T <: Reader
@@ -1548,7 +1548,7 @@ module capnp
         function root(message, ::Type{Val{:Method}})
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Method_data_word_count) && p.pointer_count == Method_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Method_data_word_count) && p.pointer_count >= Method_pointer_count
             p
         end
         function root_Method(message)
@@ -1641,7 +1641,7 @@ module capnp
         function get_annotations(ptr, ::Type{Val{:Method}})
             p = Capnp.read_list_pointer(ptr, 3, 1, Capnp.CapnpStruct)
             @assert isempty(p) || p isa Capnp.SimpleListPointer ||
-               (p isa Capnp.CompositeListPointer && p.data_word_count == Annotation_data_word_count) && p.pointer_count == Annotation_pointer_count
+               (p isa Capnp.CompositeListPointer && p.data_word_count >= Annotation_data_word_count) && p.pointer_count >= Annotation_pointer_count
             p
         end
         function Method_getAnnotations(ptr)
@@ -1661,7 +1661,7 @@ module capnp
         end
         function get_param_brand(ptr::Capnp.StructPointer{T}, ::Type{Val{:Method}}) where T <: Reader
             p = Capnp.read_struct_pointer(ptr, 3, 2)
-            @assert isnothing(p) || (p.data_word_count == Brand_data_word_count) && p.pointer_count == Brand_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Brand_data_word_count) && p.pointer_count >= Brand_pointer_count
             p
         end
         function Method_getParamBrand(ptr::Capnp.StructPointer{T}) where T <: Reader
@@ -1681,7 +1681,7 @@ module capnp
         end
         function get_result_brand(ptr::Capnp.StructPointer{T}, ::Type{Val{:Method}}) where T <: Reader
             p = Capnp.read_struct_pointer(ptr, 3, 3)
-            @assert isnothing(p) || (p.data_word_count == Brand_data_word_count) && p.pointer_count == Brand_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Brand_data_word_count) && p.pointer_count >= Brand_pointer_count
             p
         end
         function Method_getResultBrand(ptr::Capnp.StructPointer{T}) where T <: Reader
@@ -1709,7 +1709,7 @@ module capnp
         function get_implicit_parameters(ptr, ::Type{Val{:Method}})
             p = Capnp.read_list_pointer(ptr, 3, 4, Capnp.CapnpStruct)
             @assert isempty(p) || p isa Capnp.SimpleListPointer ||
-               (p isa Capnp.CompositeListPointer && p.data_word_count == Node_Parameter_data_word_count) && p.pointer_count == Node_Parameter_pointer_count
+               (p isa Capnp.CompositeListPointer && p.data_word_count >= Node_Parameter_data_word_count) && p.pointer_count >= Node_Parameter_pointer_count
             p
         end
         function Method_getImplicitParameters(ptr)
@@ -1740,7 +1740,7 @@ module capnp
         function root(message, ::Type{Val{:Type}})
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Type_data_word_count) && p.pointer_count == Type_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Type_data_word_count) && p.pointer_count >= Type_pointer_count
             p
         end
         function root_Type(message)
@@ -1875,7 +1875,7 @@ module capnp
         function root(message, ::Type{Val{:Type_list}})
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Type_list_data_word_count) && p.pointer_count == Type_list_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Type_list_data_word_count) && p.pointer_count >= Type_list_pointer_count
             p
         end
         function root_Type_list(message)
@@ -1896,7 +1896,7 @@ module capnp
         end
         function get_element_type(ptr::Capnp.StructPointer{T}, ::Type{Val{:Type_list}}) where T <: Reader
             p = Capnp.read_struct_pointer(ptr, 3, 0)
-            @assert isnothing(p) || (p.data_word_count == Type_data_word_count) && p.pointer_count == Type_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Type_data_word_count) && p.pointer_count >= Type_pointer_count
             p
         end
         function Type_list_getElementType(ptr::Capnp.StructPointer{T}) where T <: Reader
@@ -1932,7 +1932,7 @@ module capnp
         function root(message, ::Type{Val{:Type_enum}})
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Type_enum_data_word_count) && p.pointer_count == Type_enum_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Type_enum_data_word_count) && p.pointer_count >= Type_enum_pointer_count
             p
         end
         function root_Type_enum(message)
@@ -1968,7 +1968,7 @@ module capnp
         end
         function get_brand(ptr::Capnp.StructPointer{T}, ::Type{Val{:Type_enum}}) where T <: Reader
             p = Capnp.read_struct_pointer(ptr, 3, 0)
-            @assert isnothing(p) || (p.data_word_count == Brand_data_word_count) && p.pointer_count == Brand_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Brand_data_word_count) && p.pointer_count >= Brand_pointer_count
             p
         end
         function Type_enum_getBrand(ptr::Capnp.StructPointer{T}) where T <: Reader
@@ -2004,7 +2004,7 @@ module capnp
         function root(message, ::Type{Val{:Type_struct}})
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Type_struct_data_word_count) && p.pointer_count == Type_struct_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Type_struct_data_word_count) && p.pointer_count >= Type_struct_pointer_count
             p
         end
         function root_Type_struct(message)
@@ -2040,7 +2040,7 @@ module capnp
         end
         function get_brand(ptr::Capnp.StructPointer{T}, ::Type{Val{:Type_struct}}) where T <: Reader
             p = Capnp.read_struct_pointer(ptr, 3, 0)
-            @assert isnothing(p) || (p.data_word_count == Brand_data_word_count) && p.pointer_count == Brand_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Brand_data_word_count) && p.pointer_count >= Brand_pointer_count
             p
         end
         function Type_struct_getBrand(ptr::Capnp.StructPointer{T}) where T <: Reader
@@ -2076,7 +2076,7 @@ module capnp
         function root(message, ::Type{Val{:Type_interface}})
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Type_interface_data_word_count) && p.pointer_count == Type_interface_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Type_interface_data_word_count) && p.pointer_count >= Type_interface_pointer_count
             p
         end
         function root_Type_interface(message)
@@ -2112,7 +2112,7 @@ module capnp
         end
         function get_brand(ptr::Capnp.StructPointer{T}, ::Type{Val{:Type_interface}}) where T <: Reader
             p = Capnp.read_struct_pointer(ptr, 3, 0)
-            @assert isnothing(p) || (p.data_word_count == Brand_data_word_count) && p.pointer_count == Brand_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Brand_data_word_count) && p.pointer_count >= Brand_pointer_count
             p
         end
         function Type_interface_getBrand(ptr::Capnp.StructPointer{T}) where T <: Reader
@@ -2156,7 +2156,7 @@ module capnp
         function root(message, ::Type{Val{:Type_anyPointer}})
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Type_anyPointer_data_word_count) && p.pointer_count == Type_anyPointer_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Type_anyPointer_data_word_count) && p.pointer_count >= Type_anyPointer_pointer_count
             p
         end
         function root_Type_anyPointer(message)
@@ -2201,7 +2201,7 @@ module capnp
         function root(message, ::Type{Val{:Type_anyPointer_unconstrained}})
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Type_anyPointer_unconstrained_data_word_count) && p.pointer_count == Type_anyPointer_unconstrained_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Type_anyPointer_unconstrained_data_word_count) && p.pointer_count >= Type_anyPointer_unconstrained_pointer_count
             p
         end
         function root_Type_anyPointer_unconstrained(message)
@@ -2266,7 +2266,7 @@ module capnp
         function root(message, ::Type{Val{:Type_anyPointer_parameter}})
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Type_anyPointer_parameter_data_word_count) && p.pointer_count == Type_anyPointer_parameter_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Type_anyPointer_parameter_data_word_count) && p.pointer_count >= Type_anyPointer_parameter_pointer_count
             p
         end
         function root_Type_anyPointer_parameter(message)
@@ -2333,7 +2333,7 @@ module capnp
         function root(message, ::Type{Val{:Type_anyPointer_implicitMethodParameter}})
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Type_anyPointer_implicitMethodParameter_data_word_count) && p.pointer_count == Type_anyPointer_implicitMethodParameter_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Type_anyPointer_implicitMethodParameter_data_word_count) && p.pointer_count >= Type_anyPointer_implicitMethodParameter_pointer_count
             p
         end
         function root_Type_anyPointer_implicitMethodParameter(message)
@@ -2380,7 +2380,7 @@ module capnp
         function root(message, ::Type{Val{:Brand_Scope}})
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Brand_Scope_data_word_count) && p.pointer_count == Brand_Scope_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Brand_Scope_data_word_count) && p.pointer_count >= Brand_Scope_pointer_count
             p
         end
         function root_Brand_Scope(message)
@@ -2424,7 +2424,7 @@ module capnp
         function get_bind(ptr, ::Type{Val{:Brand_Scope}})
             p = Capnp.read_list_pointer(ptr, 2, 0, Capnp.CapnpStruct)
             @assert isempty(p) || p isa Capnp.SimpleListPointer ||
-               (p isa Capnp.CompositeListPointer && p.data_word_count == Brand_Binding_data_word_count) && p.pointer_count == Brand_Binding_pointer_count
+               (p isa Capnp.CompositeListPointer && p.data_word_count >= Brand_Binding_data_word_count) && p.pointer_count >= Brand_Binding_pointer_count
             p
         end
         function Brand_Scope_getBind(ptr)
@@ -2463,7 +2463,7 @@ module capnp
         function root(message, ::Type{Val{:Brand_Binding}})
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Brand_Binding_data_word_count) && p.pointer_count == Brand_Binding_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Brand_Binding_data_word_count) && p.pointer_count >= Brand_Binding_pointer_count
             p
         end
         function root_Brand_Binding(message)
@@ -2491,7 +2491,7 @@ module capnp
         end
         function get_type(ptr::Capnp.StructPointer{T}, ::Type{Val{:Brand_Binding}}) where T <: Reader
             p = Capnp.read_struct_pointer(ptr, 1, 0)
-            @assert isnothing(p) || (p.data_word_count == Type_data_word_count) && p.pointer_count == Type_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Type_data_word_count) && p.pointer_count >= Type_pointer_count
             p
         end
         function Brand_Binding_getType(ptr::Capnp.StructPointer{T}) where T <: Reader
@@ -2515,7 +2515,7 @@ module capnp
         function root(message, ::Type{Val{:Brand}})
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Brand_data_word_count) && p.pointer_count == Brand_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Brand_data_word_count) && p.pointer_count >= Brand_pointer_count
             p
         end
         function root_Brand(message)
@@ -2544,7 +2544,7 @@ module capnp
         function get_scopes(ptr, ::Type{Val{:Brand}})
             p = Capnp.read_list_pointer(ptr, 0, 0, Capnp.CapnpStruct)
             @assert isempty(p) || p isa Capnp.SimpleListPointer ||
-               (p isa Capnp.CompositeListPointer && p.data_word_count == Brand_Scope_data_word_count) && p.pointer_count == Brand_Scope_pointer_count
+               (p isa Capnp.CompositeListPointer && p.data_word_count >= Brand_Scope_data_word_count) && p.pointer_count >= Brand_Scope_pointer_count
             p
         end
         function Brand_getScopes(ptr)
@@ -2575,7 +2575,7 @@ module capnp
         function root(message, ::Type{Val{:Value}})
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Value_data_word_count) && p.pointer_count == Value_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Value_data_word_count) && p.pointer_count >= Value_pointer_count
             p
         end
         function root_Value(message)
@@ -2862,7 +2862,7 @@ module capnp
         function root(message, ::Type{Val{:Annotation}})
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Annotation_data_word_count) && p.pointer_count == Annotation_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Annotation_data_word_count) && p.pointer_count >= Annotation_pointer_count
             p
         end
         function root_Annotation(message)
@@ -2898,7 +2898,7 @@ module capnp
         end
         function get_value(ptr::Capnp.StructPointer{T}, ::Type{Val{:Annotation}}) where T <: Reader
             p = Capnp.read_struct_pointer(ptr, 1, 0)
-            @assert isnothing(p) || (p.data_word_count == Value_data_word_count) && p.pointer_count == Value_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Value_data_word_count) && p.pointer_count >= Value_pointer_count
             p
         end
         function Annotation_getValue(ptr::Capnp.StructPointer{T}) where T <: Reader
@@ -2918,7 +2918,7 @@ module capnp
         end
         function get_brand(ptr::Capnp.StructPointer{T}, ::Type{Val{:Annotation}}) where T <: Reader
             p = Capnp.read_struct_pointer(ptr, 1, 1)
-            @assert isnothing(p) || (p.data_word_count == Brand_data_word_count) && p.pointer_count == Brand_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Brand_data_word_count) && p.pointer_count >= Brand_pointer_count
             p
         end
         function Annotation_getBrand(ptr::Capnp.StructPointer{T}) where T <: Reader
@@ -2942,7 +2942,7 @@ module capnp
         function root(message, ::Type{Val{:CapnpVersion}})
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == CapnpVersion_data_word_count) && p.pointer_count == CapnpVersion_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= CapnpVersion_data_word_count) && p.pointer_count >= CapnpVersion_pointer_count
             p
         end
         function root_CapnpVersion(message)
@@ -3011,7 +3011,7 @@ module capnp
         function root(message, ::Type{Val{:CodeGeneratorRequest_RequestedFile_Import}})
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == CodeGeneratorRequest_RequestedFile_Import_data_word_count) && p.pointer_count == CodeGeneratorRequest_RequestedFile_Import_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= CodeGeneratorRequest_RequestedFile_Import_data_word_count) && p.pointer_count >= CodeGeneratorRequest_RequestedFile_Import_pointer_count
             p
         end
         function root_CodeGeneratorRequest_RequestedFile_Import(message)
@@ -3069,7 +3069,7 @@ module capnp
         function root(message, ::Type{Val{:CodeGeneratorRequest_RequestedFile}})
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == CodeGeneratorRequest_RequestedFile_data_word_count) && p.pointer_count == CodeGeneratorRequest_RequestedFile_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= CodeGeneratorRequest_RequestedFile_data_word_count) && p.pointer_count >= CodeGeneratorRequest_RequestedFile_pointer_count
             p
         end
         function root_CodeGeneratorRequest_RequestedFile(message)
@@ -3132,7 +3132,7 @@ module capnp
         function get_imports(ptr, ::Type{Val{:CodeGeneratorRequest_RequestedFile}})
             p = Capnp.read_list_pointer(ptr, 1, 1, Capnp.CapnpStruct)
             @assert isempty(p) || p isa Capnp.SimpleListPointer ||
-               (p isa Capnp.CompositeListPointer && p.data_word_count == CodeGeneratorRequest_RequestedFile_Import_data_word_count) && p.pointer_count == CodeGeneratorRequest_RequestedFile_Import_pointer_count
+               (p isa Capnp.CompositeListPointer && p.data_word_count >= CodeGeneratorRequest_RequestedFile_Import_data_word_count) && p.pointer_count >= CodeGeneratorRequest_RequestedFile_Import_pointer_count
             p
         end
         function CodeGeneratorRequest_RequestedFile_getImports(ptr)
@@ -3155,7 +3155,7 @@ module capnp
         function root(message, ::Type{Val{:CodeGeneratorRequest}})
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == CodeGeneratorRequest_data_word_count) && p.pointer_count == CodeGeneratorRequest_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= CodeGeneratorRequest_data_word_count) && p.pointer_count >= CodeGeneratorRequest_pointer_count
             p
         end
         function root_CodeGeneratorRequest(message)
@@ -3184,7 +3184,7 @@ module capnp
         function get_nodes(ptr, ::Type{Val{:CodeGeneratorRequest}})
             p = Capnp.read_list_pointer(ptr, 0, 0, Capnp.CapnpStruct)
             @assert isempty(p) || p isa Capnp.SimpleListPointer ||
-               (p isa Capnp.CompositeListPointer && p.data_word_count == Node_data_word_count) && p.pointer_count == Node_pointer_count
+               (p isa Capnp.CompositeListPointer && p.data_word_count >= Node_data_word_count) && p.pointer_count >= Node_pointer_count
             p
         end
         function CodeGeneratorRequest_getNodes(ptr)
@@ -3212,7 +3212,7 @@ module capnp
         function get_requested_files(ptr, ::Type{Val{:CodeGeneratorRequest}})
             p = Capnp.read_list_pointer(ptr, 0, 1, Capnp.CapnpStruct)
             @assert isempty(p) || p isa Capnp.SimpleListPointer ||
-               (p isa Capnp.CompositeListPointer && p.data_word_count == CodeGeneratorRequest_RequestedFile_data_word_count) && p.pointer_count == CodeGeneratorRequest_RequestedFile_pointer_count
+               (p isa Capnp.CompositeListPointer && p.data_word_count >= CodeGeneratorRequest_RequestedFile_data_word_count) && p.pointer_count >= CodeGeneratorRequest_RequestedFile_pointer_count
             p
         end
         function CodeGeneratorRequest_getRequestedFiles(ptr)
@@ -3232,7 +3232,7 @@ module capnp
         end
         function get_capnp_version(ptr::Capnp.StructPointer{T}, ::Type{Val{:CodeGeneratorRequest}}) where T <: Reader
             p = Capnp.read_struct_pointer(ptr, 0, 2)
-            @assert isnothing(p) || (p.data_word_count == CapnpVersion_data_word_count) && p.pointer_count == CapnpVersion_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= CapnpVersion_data_word_count) && p.pointer_count >= CapnpVersion_pointer_count
             p
         end
         function CodeGeneratorRequest_getCapnpVersion(ptr::Capnp.StructPointer{T}) where T <: Reader
@@ -3260,7 +3260,7 @@ module capnp
         function get_source_info(ptr, ::Type{Val{:CodeGeneratorRequest}})
             p = Capnp.read_list_pointer(ptr, 0, 3, Capnp.CapnpStruct)
             @assert isempty(p) || p isa Capnp.SimpleListPointer ||
-               (p isa Capnp.CompositeListPointer && p.data_word_count == Node_SourceInfo_data_word_count) && p.pointer_count == Node_SourceInfo_pointer_count
+               (p isa Capnp.CompositeListPointer && p.data_word_count >= Node_SourceInfo_data_word_count) && p.pointer_count >= Node_SourceInfo_pointer_count
             p
         end
         function CodeGeneratorRequest_getSourceInfo(ptr)

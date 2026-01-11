@@ -583,8 +583,9 @@ function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFi
     cprintln(env, "    p = Capnp.read_list_pointer(ptr, $(node.nodeProperties.dataWordCount), $(Int(field.fieldProperties.offset)), $(runtimeElementType))")
     if elementType isa SchemaStruct
         strct = env.nodes[elementType.typeId]
+        # Use >= for schema evolution compatibility (newer schemas may add fields)
         cprintln(env, "    @assert isempty(p) || p isa Capnp.SimpleListPointer ||")
-        cprintln(env, "       (p isa Capnp.CompositeListPointer && p.data_word_count == $(strct.jlName)_data_word_count) && p.pointer_count == $(strct.jlName)_pointer_count")
+        cprintln(env, "       (p isa Capnp.CompositeListPointer && p.data_word_count >= $(strct.jlName)_data_word_count) && p.pointer_count >= $(strct.jlName)_pointer_count")
     end
     cprintln(env, "    p")
     cprintln(env, "end")
@@ -788,5 +789,6 @@ function generateField(env, node::Node{StructNodeProps}, field::Field{SlotFieldP
 end
 
 function generate_struct_pointer_assert(env, jlName, varname)
-    cprintln(env, "    @assert isnothing($varname) || ($varname.data_word_count == $(jlName)_data_word_count) && $varname.pointer_count == $(jlName)_pointer_count")
+    # Use >= for schema evolution compatibility (newer schemas may add fields)
+    cprintln(env, "    @assert isnothing($varname) || ($varname.data_word_count >= $(jlName)_data_word_count) && $varname.pointer_count >= $(jlName)_pointer_count")
 end
