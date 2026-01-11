@@ -38,3 +38,9 @@ CLAUDE.md
 AGENTS.md
 .specify
 specs/
+
+# C++ interop test artifacts
+test/interop/cpp_client_test
+test/interop/dump_bootstrap_return
+test/interop/dump_call_return
+test/interop/home/
