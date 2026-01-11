@@ -7,14 +7,32 @@ jobs:
   test:
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         julia-version: ['1.12', '1']
         julia-arch: [x64]
-        os: [ubuntu-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
 
     steps:
-      - name: Install capnp
-        run: sudo apt-get install -y capnproto libcapnp-dev
+      - name: Install capnp (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y capnproto libcapnp-dev
+          capnp --version
+
+      - name: Install capnp (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install capnp
+          capnp --version
+
+      - name: Install capnp (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          choco install capnproto -y
+          capnp --version
+
       - uses: actions/checkout@v2
       - uses: julia-actions/setup-julia@v1
         with:

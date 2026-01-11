@@ -5,15 +5,35 @@ if endswith(pwd(), "test")
     cd("..")
 end
 
+"""
+    compile_capnp(schema_path)
+
+Cross-platform helper to compile a Cap'n Proto schema using the Julia plugin.
+On Unix, uses the shebang-based capnpc-jl script directly.
+On Windows, uses Julia's pipeline to work around shebang limitations.
+"""
+function compile_capnp(schema_path)
+    if Sys.iswindows()
+        # On Windows, shebangs don't work, so we pipe capnpc output to Julia directly
+        run(pipeline(`capnp compile -o- $schema_path`, `julia --project capnpc-jl`))
+    else
+        # On Unix, use the shebang-based script
+        run(`capnpc -o./capnpc-jl $schema_path`)
+    end
+end
+
 @testset "Addressbook integration test" begin
-    run(`capnpc -o./capnpc-jl example/addressbook.capnp`)
+    compile_capnp("example/addressbook.capnp")
 
     # Write address book and read it back while using the `capnp` tool in the middle to check the format.
+    # Uses Julia's pipeline() for cross-platform compatibility (sh -c doesn't work on Windows)
     result = read(
-        ```sh -c 'julia --project example/addressbook.jl write \
-                | capnp convert binary:text example/addressbook.capnp AddressBook \
-                | capnp convert text:binary example/addressbook.capnp AddressBook \
-                | julia --project example/addressbook.jl read'```,
+        pipeline(
+            `julia --project example/addressbook.jl write`,
+            `capnp convert binary:text example/addressbook.capnp AddressBook`,
+            `capnp convert text:binary example/addressbook.capnp AddressBook`,
+            `julia --project example/addressbook.jl read`
+        ),
         String,
     )
     expected = """Alice: alice@example.com
@@ -28,7 +48,7 @@ end
 end
 
 @testset "Elementary types" begin
-    run(`capnpc -o./capnpc-jl test/elementary.capnp`)
+    compile_capnp("test/elementary.capnp")
     include("elementary.capnp.jl")
 
     # writing part
@@ -58,7 +78,7 @@ end
 end
 
 @testset "Lists" begin
-    run(`capnpc -o./capnpc-jl test/lists.capnp`)
+    compile_capnp("test/lists.capnp")
     include("lists.capnp.jl")
 
     # writing part

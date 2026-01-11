@@ -1,7 +1,27 @@
 # Cap'n Proto RPC Transport layer (FR-010, FR-011)
 # Provides pluggable transport abstraction for TCP and Unix sockets
+# Cross-platform: Unix sockets on Linux/macOS, TCP fallback on Windows
 
 using Sockets
+
+"""
+    supports_unix_sockets() -> Bool
+
+Check if the current platform supports Unix domain sockets.
+Returns `true` on Linux and macOS, `false` on Windows.
+"""
+supports_unix_sockets() = !Sys.iswindows()
+
+"""
+    default_transport_type() -> Type{<:Transport}
+
+Returns the recommended transport type for the current platform.
+- On Linux/macOS: Returns `UnixTransport` (Unix domain sockets)
+- On Windows: Returns `TcpTransport` (TCP sockets)
+
+This enables automatic platform-appropriate transport selection.
+"""
+default_transport_type() = supports_unix_sockets() ? UnixTransport : TcpTransport
 
 """
     Transport
@@ -84,7 +104,12 @@ end
     UnixTransport
 
 Transport implementation using Unix domain sockets.
-Note: Unix domain sockets work on Linux and macOS.
+
+**Platform Support**: Unix domain sockets work on Linux and macOS only.
+On Windows, use `TcpTransport` instead, or call `default_transport_type()`
+to automatically select the appropriate transport for the current platform.
+
+See also: `supports_unix_sockets()`, `default_transport_type()`
 """
 mutable struct UnixTransport <: Transport
     socket::Any  # PipeEndpoint or similar
@@ -236,3 +261,4 @@ end
 export Transport, TcpTransport, UnixTransport, MockTransport
 export send_message, receive_message, send_raw_message
 export inject_message!, get_sent_messages, clear_sent_messages!
+export supports_unix_sockets, default_transport_type
