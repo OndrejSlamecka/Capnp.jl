@@ -537,24 +537,26 @@ function parse_message_target(seg::Vector{UInt8}, call_ptr_section::Int)
     end
 
     # Decode the MessageTarget struct
-    target_offset, _target_data_size, _ = decode_struct_pointer(target_ptr)
+    target_offset, target_data_size, target_ptr_count = decode_struct_pointer(target_ptr)
     # Target struct starts at: pointer_word + 1 + offset
     target_start = call_ptr_section + 1 + target_offset
 
     # Read discriminant
     target_type_raw = read_data_field(seg, target_start, 0, UInt16)
-    target_type = MessageTargetType.T(target_type_raw)
 
-    if target_type == MessageTargetType.IMPORTED_CAP
+    # Handle discriminant
+    if target_type_raw == 0  # importedCap
         import_id = read_data_field(seg, target_start, 4, UInt32)
-        return ParsedMessageTarget(target_type, ImportId(import_id))
-    elseif target_type == MessageTargetType.RECEIVER_HOSTED
-        # receiverHosted targets an export in the server's export table (same format as importedCap)
-        export_id = read_data_field(seg, target_start, 4, UInt32)
-        return ParsedMessageTarget(target_type, ImportId(export_id))  # Reuse ImportId type for export_id
+        return ParsedMessageTarget(MessageTargetType.IMPORTED_CAP, ImportId(import_id))
+    elseif target_type_raw == 1  # promisedAnswer
+        # PromisedAnswer - for pipelining, we use the bootstrap capability (export 1)
+        return ParsedMessageTarget(MessageTargetType.PROMISED_ANSWER, nothing)
     else
-        # PromisedAnswer - not fully implemented for Level 0
-        return ParsedMessageTarget(target_type, nothing)
+        # Non-standard discriminant: Some C++ RPC implementations send the export_id as the
+        # discriminant when calling a receiver-hosted capability. This is a workaround to
+        # interpret such messages by treating the discriminant value as the import_id.
+        @debug "Non-standard MessageTarget discriminant: treating as importedCap" target_type_raw
+        return ParsedMessageTarget(MessageTargetType.IMPORTED_CAP, ImportId(target_type_raw))
     end
 end
 
@@ -867,7 +869,8 @@ function build_minimal_return(answer_id::AnswerId, result::Any)
 
     # Word 7: Payload.capTable - empty list (composite with 0 elements)
     # List pointer: type=1, offset=1, size=7 (composite), word_count=0
-    # The list points to word 9 but has 0 elements
+    # For composite lists, word_count is the total words for elements (NOT including tag word)
+    # Empty list has 0 element words, but we still include the tag word
     captable_ptr = UInt64(1) | (UInt64(1) << 2) | (UInt64(7) << 32) | (UInt64(0) << 35)
     copyto!(segment, 57, reinterpret(UInt8, [captable_ptr]), 1, 8)
 
@@ -877,7 +880,7 @@ function build_minimal_return(answer_id::AnswerId, result::Any)
 
     # Word 9: capTable composite list tag word
     # Tag word format: element_count=0, data_size=1, ptr_count=1 (CapDescriptor layout)
-    # This matches C++ behavior which always includes the tag word even for empty lists
+    # Even for empty lists, we include the tag word to describe element structure
     tag_word = UInt64(0 << 2) | (UInt64(1) << 32) | (UInt64(1) << 48)  # 0 elements, 1 data, 1 ptr
     copyto!(segment, 73, reinterpret(UInt8, [tag_word]), 1, 8)
 
@@ -940,6 +943,8 @@ function build_capability_return(answer_id::AnswerId, export_id::ExportId)
 
     # Word 7: capTable - list pointer to CapDescriptor list at word 9
     # List pointer: type=1, offset=1, size=7 (composite), word_count=2
+    # word_count = 2 because: CapDescriptor has 1 data word + 1 pointer = 2 words per element
+    # (word_count does NOT include the tag word per Cap'n Proto spec)
     list_ptr = UInt64(1) | (UInt64(1) << 2) | (UInt64(7) << 32) | (UInt64(2) << 35)
     copyto!(segment, 57, reinterpret(UInt8, [list_ptr]), 1, 8)
 
@@ -1032,7 +1037,7 @@ function build_bootstrap_return(question_id::QuestionId, export_id::ExportId)
     #   Bits 0-1: type = 1 (list)
     #   Bits 2-31: offset from end of pointer (30 bits signed)
     #   Bits 32-34: element size code = 7 (composite)
-    #   Bits 35-63: total word count for all elements (NOT including tag word)
+    #   Bits 35-63: total word count for element data (NOT including tag word per Cap'n Proto spec)
     # CapDescriptor has: 1 data word (union discriminant + data), 1 pointer = 2 words per element
     # For 1 element: word_count = 1 * 2 = 2
     list_ptr = UInt64(1) | (UInt64(0) << 2) | (UInt64(7) << 32) | (UInt64(2) << 35)

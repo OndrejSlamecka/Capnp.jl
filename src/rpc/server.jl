@@ -345,9 +345,6 @@ function handle_call_message!(server::Server, conn::Connection, call::ParsedCall
     cap = nothing
     if call.target.kind == MessageTargetType.IMPORTED_CAP && call.target.imported_cap !== nothing
         cap = get_export(conn, ExportId(call.target.imported_cap))
-    elseif call.target.kind == MessageTargetType.RECEIVER_HOSTED && call.target.imported_cap !== nothing
-        # receiverHosted targets an export in the server's export table
-        cap = get_export(conn, ExportId(call.target.imported_cap))
     elseif call.target.kind == MessageTargetType.PROMISED_ANSWER
         # For promisedAnswer targeting the Bootstrap result, the capability is at export 1
         # (the bootstrap capability is always exported first with ID 1)
