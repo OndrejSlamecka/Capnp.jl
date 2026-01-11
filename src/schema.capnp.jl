@@ -232,7 +232,7 @@ module capnp
             Base.depwarn("Node_SourceInfo_initMembers is deprecated, use init_members!(ptr, size, Val{:Node_SourceInfo}) instead", :Node_SourceInfo_initMembers)
             init_members!(ptr, size, Val{:Node_SourceInfo})
         end
-        const Node_data_word_count = 6
+        const Node_data_word_count = 5  # Minimum accepted (capnp 1.0.x=5, 1.3.0=6)
         const Node_pointer_count = 6
         @enum Node_union::UInt16 Node_union_file Node_union_struct Node_union_enum Node_union_interface Node_union_const Node_union_annotation 
         function which(ptr::Capnp.StructPointer, ::Type{Val{:Node}})
@@ -280,7 +280,7 @@ module capnp
             set_id!(ptr, value, Val{:Node})
         end
         function get_display_name(ptr, ::Type{Val{:Node}})
-            p = Capnp.read_list_pointer(ptr, 6, 0)
+            p = Capnp.read_list_pointer(ptr, ptr.data_word_count, 0)
             Capnp.read_text(p)
         end
         function Node_getDisplayName(ptr)
@@ -336,7 +336,7 @@ module capnp
             get_nested_nodes(ptr, Val{:Node})
         end
         function get_nested_nodes(ptr, ::Type{Val{:Node}})
-            p = Capnp.read_list_pointer(ptr, 6, 1, Capnp.CapnpStruct)
+            p = Capnp.read_list_pointer(ptr, ptr.data_word_count, 1, Capnp.CapnpStruct)
             @assert isempty(p) || p isa Capnp.SimpleListPointer ||
                (p isa Capnp.CompositeListPointer && p.data_word_count >= Node_NestedNode_data_word_count) && p.pointer_count >= Node_NestedNode_pointer_count
             p
@@ -364,7 +364,7 @@ module capnp
             get_annotations(ptr, Val{:Node})
         end
         function get_annotations(ptr, ::Type{Val{:Node}})
-            p = Capnp.read_list_pointer(ptr, 6, 2, Capnp.CapnpStruct)
+            p = Capnp.read_list_pointer(ptr, ptr.data_word_count, 2, Capnp.CapnpStruct)
             @assert isempty(p) || p isa Capnp.SimpleListPointer ||
                (p isa Capnp.CompositeListPointer && p.data_word_count >= Annotation_data_word_count) && p.pointer_count >= Annotation_pointer_count
             p
@@ -526,7 +526,7 @@ module capnp
             get_fields(ptr, Val{:Node_struct})
         end
         function get_fields(ptr, ::Type{Val{:Node_struct}})
-            p = Capnp.read_list_pointer(ptr, 6, 3, Capnp.CapnpStruct)
+            p = Capnp.read_list_pointer(ptr, ptr.data_word_count, 3, Capnp.CapnpStruct)
             @assert isempty(p) || p isa Capnp.SimpleListPointer ||
                (p isa Capnp.CompositeListPointer && p.data_word_count >= Field_data_word_count) && p.pointer_count >= Field_pointer_count
             p
@@ -591,7 +591,7 @@ module capnp
             get_enumerants(ptr, Val{:Node_enum})
         end
         function get_enumerants(ptr, ::Type{Val{:Node_enum}})
-            p = Capnp.read_list_pointer(ptr, 6, 3, Capnp.CapnpStruct)
+            p = Capnp.read_list_pointer(ptr, ptr.data_word_count, 3, Capnp.CapnpStruct)
             @assert isempty(p) || p isa Capnp.SimpleListPointer ||
                (p isa Capnp.CompositeListPointer && p.data_word_count >= Enumerant_data_word_count) && p.pointer_count >= Enumerant_pointer_count
             p
@@ -656,7 +656,7 @@ module capnp
             get_methods(ptr, Val{:Node_interface})
         end
         function get_methods(ptr, ::Type{Val{:Node_interface}})
-            p = Capnp.read_list_pointer(ptr, 6, 3, Capnp.CapnpStruct)
+            p = Capnp.read_list_pointer(ptr, ptr.data_word_count, 3, Capnp.CapnpStruct)
             @assert isempty(p) || p isa Capnp.SimpleListPointer ||
                (p isa Capnp.CompositeListPointer && p.data_word_count >= Method_data_word_count) && p.pointer_count >= Method_pointer_count
             p
@@ -684,7 +684,7 @@ module capnp
             get_superclasses(ptr, Val{:Node_interface})
         end
         function get_superclasses(ptr, ::Type{Val{:Node_interface}})
-            p = Capnp.read_list_pointer(ptr, 6, 4, Capnp.CapnpStruct)
+            p = Capnp.read_list_pointer(ptr, ptr.data_word_count, 4, Capnp.CapnpStruct)
             @assert isempty(p) || p isa Capnp.SimpleListPointer ||
                (p isa Capnp.CompositeListPointer && p.data_word_count >= Superclass_data_word_count) && p.pointer_count >= Superclass_pointer_count
             p
@@ -742,7 +742,7 @@ module capnp
             init_root!(builder, Val{:Node_const})
         end
         function get_type(ptr::Capnp.StructPointer{T}, ::Type{Val{:Node_const}}) where T <: Reader
-            p = Capnp.read_struct_pointer(ptr, 6, 3)
+            p = Capnp.read_struct_pointer(ptr, ptr.data_word_count, 3)
             @assert isnothing(p) || (p.data_word_count >= Type_data_word_count) && p.pointer_count >= Type_pointer_count
             p
         end
@@ -762,7 +762,7 @@ module capnp
             init_type!(ptr, Val{:Node_const})
         end
         function get_value(ptr::Capnp.StructPointer{T}, ::Type{Val{:Node_const}}) where T <: Reader
-            p = Capnp.read_struct_pointer(ptr, 6, 4)
+            p = Capnp.read_struct_pointer(ptr, ptr.data_word_count, 4)
             @assert isnothing(p) || (p.data_word_count >= Value_data_word_count) && p.pointer_count >= Value_pointer_count
             p
         end
@@ -819,7 +819,7 @@ module capnp
             init_root!(builder, Val{:Node_annotation})
         end
         function get_type(ptr::Capnp.StructPointer{T}, ::Type{Val{:Node_annotation}}) where T <: Reader
-            p = Capnp.read_struct_pointer(ptr, 6, 3)
+            p = Capnp.read_struct_pointer(ptr, ptr.data_word_count, 3)
             @assert isnothing(p) || (p.data_word_count >= Type_data_word_count) && p.pointer_count >= Type_pointer_count
             p
         end
@@ -1026,7 +1026,7 @@ module capnp
             get_parameters(ptr, Val{:Node})
         end
         function get_parameters(ptr, ::Type{Val{:Node}})
-            p = Capnp.read_list_pointer(ptr, 6, 5, Capnp.CapnpStruct)
+            p = Capnp.read_list_pointer(ptr, ptr.data_word_count, 5, Capnp.CapnpStruct)
             @assert isempty(p) || p isa Capnp.SimpleListPointer ||
                (p isa Capnp.CompositeListPointer && p.data_word_count >= Node_Parameter_data_word_count) && p.pointer_count >= Node_Parameter_pointer_count
             p
