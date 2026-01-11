@@ -144,7 +144,7 @@ mutable struct Connection
             Dict{ExportId, LocalCapability}(),
             Dict{ImportId, RemoteCapability}(),
             QuestionId(0),
-            ExportId(0),
+            ExportId(1),  # Export IDs start at 1 (0 is reserved/invalid)
             nothing,
             ReentrantLock()
         )

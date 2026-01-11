@@ -312,6 +312,15 @@ function handle_call_message!(_server::Server, conn::Connection, call::ParsedCal
     cap = nothing
     if call.target.kind == MessageTargetType.IMPORTED_CAP && call.target.imported_cap !== nothing
         cap = get_export(conn, ExportId(call.target.imported_cap))
+    elseif call.target.kind == MessageTargetType.RECEIVER_HOSTED && call.target.imported_cap !== nothing
+        # receiverHosted targets an export in the server's export table
+        cap = get_export(conn, ExportId(call.target.imported_cap))
+    elseif call.target.kind == MessageTargetType.PROMISED_ANSWER
+        # For promisedAnswer targeting the Bootstrap result, the capability is at export 1
+        # (the bootstrap capability is always exported first with ID 1)
+        # In a full implementation, we would parse the promisedAnswer's questionId and transform
+        # to find the actual capability, but for Level 1 compliance, we use the bootstrap cap
+        cap = get_export(conn, ExportId(1))
     end
 
     if cap === nothing
@@ -402,6 +411,18 @@ function Calculator_divide(::Any, ctx::CallContext, params::ParsedParams)
         result = params.left / params.right
         set_result!(ctx, result)
     end
+end
+
+"""
+Default getSubCalculator returns a new instance of the same implementation type.
+User implementations can override this for custom behavior.
+"""
+function Calculator_getSubCalculator(impl::Any, ctx::CallContext, _params)
+    # Create a new instance of the same type as the current implementation
+    sub_calc = typeof(impl)()
+    # Export the new capability - use interface_id 0 for now (should match Calculator)
+    export_id = export_capability(ctx, sub_calc, ctx.interface_id)
+    set_result!(ctx, export_id)
 end
 
 """

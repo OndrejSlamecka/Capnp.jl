@@ -53,6 +53,7 @@ module MessageTargetType
     @enum T::UInt16 begin
         IMPORTED_CAP = 0
         PROMISED_ANSWER = 1
+        RECEIVER_HOSTED = 2  # receiverHosted targets an export in the server's export table
     end
 end
 
@@ -297,10 +298,14 @@ function parse_call(seg::Vector{UInt8}, _msg_struct_start::Int, msg_ptr_section_
     call_start = msg_ptr_section_start + 1 + call_offset
     call_ptr_section = call_start + call_data_size
 
-    # Read Call fields from data section (Cap'n Proto packs fields by size)
+    # Read Call fields from data section
+    # Call struct layout determined empirically from C++ messages:
+    # - questionId @0 :UInt32 at offset 0
+    # - methodId @3 :UInt16 at offset 4
+    # - interfaceId @2 :UInt64 at offset 8
     question_id = read_data_field(seg, call_start, 0, UInt32)
-    method_id = read_data_field(seg, call_start, 4, UInt16)  # Packed after questionId
-    interface_id = read_data_field(seg, call_start, 8, UInt64)  # Second word
+    method_id = read_data_field(seg, call_start, 4, UInt16)
+    interface_id = read_data_field(seg, call_start, 8, UInt64)
 
     # Parse target (MessageTarget at pointer 0 of Call)
     target = parse_message_target(seg, call_ptr_section)
@@ -387,6 +392,10 @@ function parse_message_target(seg::Vector{UInt8}, call_ptr_section::Int)
     if target_type == MessageTargetType.IMPORTED_CAP
         import_id = read_data_field(seg, target_start, 4, UInt32)
         return ParsedMessageTarget(target_type, ImportId(import_id))
+    elseif target_type == MessageTargetType.RECEIVER_HOSTED
+        # receiverHosted targets an export in the server's export table (same format as importedCap)
+        export_id = read_data_field(seg, target_start, 4, UInt32)
+        return ParsedMessageTarget(target_type, ImportId(export_id))  # Reuse ImportId type for export_id
     else
         # PromisedAnswer - not fully implemented for Level 0
         return ParsedMessageTarget(target_type, nothing)
@@ -460,9 +469,12 @@ function build_return_message(answer_id::AnswerId, result::Any;
     # 1. Message struct (root) with union discriminant = RETURN (3)
     # 2. Return struct pointed from Message pointer 0
 
-    # For now, create a minimal hardcoded message
-    # This is a placeholder - full implementation would use the generated schema
+    # If the result is an ExportId, return a capability using build_capability_return
+    if result isa ExportId
+        return build_capability_return(answer_id, result)
+    end
 
+    # Otherwise, build a minimal return message with Float64 result
     buffer = build_minimal_return(answer_id, result, has_exception, exception_reason)
     return buffer
 end
@@ -531,9 +543,11 @@ function build_minimal_return(answer_id::AnswerId, result::Any,
     result_value = result isa Number ? Float64(result) : 0.0
     copyto!(segment, 65, reinterpret(UInt8, [result_value]), 1, 8)
 
-    # Word 9: Empty composite list (no elements, so this is just padding)
-    # For a 0-element composite list, no tag word is needed, but we add padding
-    # to match C++ behavior
+    # Word 9: capTable composite list tag word
+    # Tag word format: element_count=0, data_size=1, ptr_count=1 (CapDescriptor layout)
+    # This matches C++ behavior which always includes the tag word even for empty lists
+    tag_word = UInt64(0 << 2) | (UInt64(1) << 32) | (UInt64(1) << 48)  # 0 elements, 1 data, 1 ptr
+    copyto!(segment, 73, reinterpret(UInt8, [tag_word]), 1, 8)
 
     used_size = 80  # 10 words (matching C++ output)
 
@@ -542,6 +556,86 @@ function build_minimal_return(answer_id::AnswerId, result::Any,
     segment_size = UInt32(used_size ÷ 8)  # 10 words
 
     message = Vector{UInt8}(undef, 8 + used_size)  # 88 bytes
+    copyto!(message, 1, reinterpret(UInt8, [num_segments]), 1, 4)
+    copyto!(message, 5, reinterpret(UInt8, [segment_size]), 1, 4)
+    copyto!(message, 9, segment, 1, used_size)
+
+    return message
+end
+
+"""
+    build_capability_return(answer_id::AnswerId, export_id::ExportId) -> Vector{UInt8}
+
+Build a Return message that returns a capability (e.g., for getSubCalculator).
+Unlike build_bootstrap_return, this creates a result struct with the capability in its pointer section.
+GetSubCalculatorResults has 0 data words and 1 pointer (the calculator capability).
+"""
+function build_capability_return(answer_id::AnswerId, export_id::ExportId)
+    # The Return contains results with a struct containing a capability pointer
+    # The capability table has one entry: senderHosted with the export_id
+
+    # Build segment (12 words = 96 bytes)
+    segment = Vector{UInt8}(undef, 96)
+    fill!(segment, 0)
+
+    # Word 0: Root pointer to Message struct at word 1
+    root_ptr = UInt64(0) | (UInt64(1) << 32) | (UInt64(1) << 48)
+    copyto!(segment, 1, reinterpret(UInt8, [root_ptr]), 1, 8)
+
+    # Word 1: Message struct data section (discriminant = RETURN = 3)
+    segment[9] = 0x03
+
+    # Word 2: Message pointer section -> Return struct at word 3
+    return_ptr = UInt64(0) | (UInt64(2) << 32) | (UInt64(1) << 48)
+    copyto!(segment, 17, reinterpret(UInt8, [return_ptr]), 1, 8)
+
+    # Word 3-4: Return struct data
+    # answerId = answer_id at offset 0
+    copyto!(segment, 25, reinterpret(UInt8, [UInt32(answer_id)]), 1, 4)
+    # releaseParamCaps = true at offset 4 (wire value 0 = true with XOR encoding)
+    segment[29] = 0x00
+    # union discriminant = 0 (results) at offset 6 (already 0 from fill)
+
+    # Word 5: Return pointer section -> Payload struct at word 6
+    payload_ptr = UInt64(0) | (UInt64(0) << 32) | (UInt64(2) << 48)
+    copyto!(segment, 41, reinterpret(UInt8, [payload_ptr]), 1, 8)
+
+    # Word 6: content - struct pointer to result struct at word 8
+    # Result struct (GetSubCalculatorResults): 0 data words, 1 pointer
+    # Offset from word 6 end to word 8 start = 1
+    content_ptr = UInt64(1 << 2) | (UInt64(0) << 32) | (UInt64(1) << 48)  # offset=1, data=0, ptrs=1
+    copyto!(segment, 49, reinterpret(UInt8, [content_ptr]), 1, 8)
+
+    # Word 7: capTable - list pointer to CapDescriptor list at word 9
+    # List pointer: type=1, offset=1, size=7 (composite), word_count=2
+    list_ptr = UInt64(1) | (UInt64(1) << 2) | (UInt64(7) << 32) | (UInt64(2) << 35)
+    copyto!(segment, 57, reinterpret(UInt8, [list_ptr]), 1, 8)
+
+    # Word 8: Result struct pointer section - capability pointer to capTable[0]
+    # Capability pointer format: type=3 (capability), index=0
+    cap_ptr = UInt64(3) | (UInt64(0) << 32)
+    copyto!(segment, 65, reinterpret(UInt8, [cap_ptr]), 1, 8)
+
+    # Word 9: Composite list tag word (element_count=1, data_size=1, ptr_count=1)
+    tag_word = UInt64(1 << 2) | (UInt64(1) << 32) | (UInt64(1) << 48)
+    copyto!(segment, 73, reinterpret(UInt8, [tag_word]), 1, 8)
+
+    # Word 10: CapDescriptor data section (1 word)
+    # union discriminant = 1 (senderHosted) at offset 0 (UInt16)
+    # senderHosted export_id (UInt32) at offset 4
+    segment[81] = 0x01  # discriminant = senderHosted
+    segment[82] = 0x00  # high byte of discriminant
+    copyto!(segment, 85, reinterpret(UInt8, [UInt32(export_id)]), 1, 4)
+
+    # Word 11: CapDescriptor pointer section (unused, 1 pointer)
+
+    used_size = 96  # 12 words
+
+    # Build message with header
+    num_segments = UInt32(0)
+    segment_size = UInt32(used_size ÷ 8)
+
+    message = Vector{UInt8}(undef, 8 + used_size)
     copyto!(message, 1, reinterpret(UInt8, [num_segments]), 1, 4)
     copyto!(message, 5, reinterpret(UInt8, [segment_size]), 1, 4)
     copyto!(message, 9, segment, 1, used_size)
@@ -587,12 +681,19 @@ function build_bootstrap_return(question_id::QuestionId, export_id::ExportId)
     copyto!(segment, 41, reinterpret(UInt8, [payload_ptr]), 1, 8)
 
     # Word 6-7: Payload struct (0 data words, 2 pointers)
-    # Payload.content: NULL (the capability is only in capTable for Bootstrap)
+    # Payload.content: capability pointer referencing capTable[0]
     # Payload.capTable: list of CapDescriptor
+    #
+    # Per rpc.capnp: "For a Return in response to Bootstrap, results.content
+    # is just a capability pointer with index 0."
 
-    # Word 6: content - NULL pointer (leave as 0)
-    # The C++ library leaves content NULL for Bootstrap Return
-    # The capability is referenced via capTable[0]
+    # Word 6: content - capability pointer to capTable[0]
+    # Capability pointer format:
+    #   Bits 0-1: type = 3 (capability/interface pointer, also called "other" pointer)
+    #   Bits 2-31: 0 (unused for capability pointers)
+    #   Bits 32-63: capability index in capTable (0 for first entry)
+    cap_ptr = UInt64(3) | (UInt64(0) << 32)  # type=3, index=0
+    copyto!(segment, 49, reinterpret(UInt8, [cap_ptr]), 1, 8)
 
     # Word 7: capTable - list pointer to CapDescriptor list at word 8
     # List pointer format:
@@ -638,4 +739,4 @@ export MessageType, ReturnType, MessageTargetType, SendResultsToType
 export ParsedBootstrap, ParsedMessageTarget, ParsedCall, ParsedFinish, ParsedRelease, ParsedMessage
 export ParsedParams
 export parse_rpc_message
-export build_return_message, build_bootstrap_return
+export build_return_message, build_capability_return, build_bootstrap_return
