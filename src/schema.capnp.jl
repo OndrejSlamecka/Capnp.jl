@@ -232,7 +232,7 @@ module capnp
             Base.depwarn("Node_SourceInfo_initMembers is deprecated, use init_members!(ptr, size, Val{:Node_SourceInfo}) instead", :Node_SourceInfo_initMembers)
             init_members!(ptr, size, Val{:Node_SourceInfo})
         end
-        const Node_data_word_count = 5
+        const Node_data_word_count = 6
         const Node_pointer_count = 6
         @enum Node_union::UInt16 Node_union_file Node_union_struct Node_union_enum Node_union_interface Node_union_const Node_union_annotation 
         function which(ptr::Capnp.StructPointer, ::Type{Val{:Node}})
@@ -255,8 +255,8 @@ module capnp
         function init_root!(builder, ::Type{Val{:Node}})
             pointer_location = Capnp.WirePointer(1, 0)
             Capnp.alloc(builder, pointer_location, 8)
-            pointer_location, segment, offset = Capnp.alloc(builder, pointer_location, 8*11)
-            ptr = Capnp.StructPointer(builder, segment, offset, UInt16(5), UInt16(6))
+            pointer_location, segment, offset = Capnp.alloc(builder, pointer_location, 8*12)
+            ptr = Capnp.StructPointer(builder, segment, offset, UInt16(6), UInt16(6))
             Capnp.write_root_struct_pointer(ptr)
             ptr
         end
@@ -280,7 +280,7 @@ module capnp
             set_id!(ptr, value, Val{:Node})
         end
         function get_display_name(ptr, ::Type{Val{:Node}})
-            p = Capnp.read_list_pointer(ptr, 5, 0)
+            p = Capnp.read_list_pointer(ptr, 6, 0)
             Capnp.read_text(p)
         end
         function Node_getDisplayName(ptr)
@@ -288,7 +288,7 @@ module capnp
             get_display_name(ptr, Val{:Node})
         end
         function set_display_name!(ptr, txt, ::Type{Val{:Node}})
-            pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + 5)
+            pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + 6)
             pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, length(txt) + 1)
             child_ptr = Capnp.SimpleListPointer{UInt8, typeof(ptr.traverser)}(ptr.traverser, segment, offset, Capnp.Byte, UInt32(length(txt) + 1))
             Capnp.write_list_pointer(pointer_location, child_ptr)
@@ -336,7 +336,7 @@ module capnp
             get_nested_nodes(ptr, Val{:Node})
         end
         function get_nested_nodes(ptr, ::Type{Val{:Node}})
-            p = Capnp.read_list_pointer(ptr, 5, 1, Capnp.CapnpStruct)
+            p = Capnp.read_list_pointer(ptr, 6, 1, Capnp.CapnpStruct)
             @assert isempty(p) || p isa Capnp.SimpleListPointer ||
                (p isa Capnp.CompositeListPointer && p.data_word_count >= Node_NestedNode_data_word_count) && p.pointer_count >= Node_NestedNode_pointer_count
             p
@@ -346,7 +346,7 @@ module capnp
             get_nested_nodes(ptr, Val{:Node})
         end
         function init_nested_nodes!(ptr, size, ::Type{Val{:Node}})
-            pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + 6)
+            pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + 7)
             pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, 8*(1 + size * (1 + 1)))
             child_ptr = Capnp.CompositeListPointer(ptr.traverser, segment, offset, convert(UInt32, size), UInt16(1), UInt16(1))
             Capnp.write_list_pointer(pointer_location, child_ptr)
@@ -364,7 +364,7 @@ module capnp
             get_annotations(ptr, Val{:Node})
         end
         function get_annotations(ptr, ::Type{Val{:Node}})
-            p = Capnp.read_list_pointer(ptr, 5, 2, Capnp.CapnpStruct)
+            p = Capnp.read_list_pointer(ptr, 6, 2, Capnp.CapnpStruct)
             @assert isempty(p) || p isa Capnp.SimpleListPointer ||
                (p isa Capnp.CompositeListPointer && p.data_word_count >= Annotation_data_word_count) && p.pointer_count >= Annotation_pointer_count
             p
@@ -374,7 +374,7 @@ module capnp
             get_annotations(ptr, Val{:Node})
         end
         function init_annotations!(ptr, size, ::Type{Val{:Node}})
-            pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + 7)
+            pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + 8)
             pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, 8*(1 + size * (1 + 2)))
             child_ptr = Capnp.CompositeListPointer(ptr.traverser, segment, offset, convert(UInt32, size), UInt16(1), UInt16(2))
             Capnp.write_list_pointer(pointer_location, child_ptr)
@@ -526,7 +526,7 @@ module capnp
             get_fields(ptr, Val{:Node_struct})
         end
         function get_fields(ptr, ::Type{Val{:Node_struct}})
-            p = Capnp.read_list_pointer(ptr, 5, 3, Capnp.CapnpStruct)
+            p = Capnp.read_list_pointer(ptr, 6, 3, Capnp.CapnpStruct)
             @assert isempty(p) || p isa Capnp.SimpleListPointer ||
                (p isa Capnp.CompositeListPointer && p.data_word_count >= Field_data_word_count) && p.pointer_count >= Field_pointer_count
             p
@@ -536,7 +536,7 @@ module capnp
             get_fields(ptr, Val{:Node_struct})
         end
         function init_fields!(ptr, size, ::Type{Val{:Node_struct}})
-            pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + 8)
+            pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + 9)
             pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, 8*(1 + size * (3 + 4)))
             child_ptr = Capnp.CompositeListPointer(ptr.traverser, segment, offset, convert(UInt32, size), UInt16(3), UInt16(4))
             Capnp.write_list_pointer(pointer_location, child_ptr)
@@ -591,7 +591,7 @@ module capnp
             get_enumerants(ptr, Val{:Node_enum})
         end
         function get_enumerants(ptr, ::Type{Val{:Node_enum}})
-            p = Capnp.read_list_pointer(ptr, 5, 3, Capnp.CapnpStruct)
+            p = Capnp.read_list_pointer(ptr, 6, 3, Capnp.CapnpStruct)
             @assert isempty(p) || p isa Capnp.SimpleListPointer ||
                (p isa Capnp.CompositeListPointer && p.data_word_count >= Enumerant_data_word_count) && p.pointer_count >= Enumerant_pointer_count
             p
@@ -601,7 +601,7 @@ module capnp
             get_enumerants(ptr, Val{:Node_enum})
         end
         function init_enumerants!(ptr, size, ::Type{Val{:Node_enum}})
-            pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + 8)
+            pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + 9)
             pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, 8*(1 + size * (1 + 2)))
             child_ptr = Capnp.CompositeListPointer(ptr.traverser, segment, offset, convert(UInt32, size), UInt16(1), UInt16(2))
             Capnp.write_list_pointer(pointer_location, child_ptr)
@@ -656,7 +656,7 @@ module capnp
             get_methods(ptr, Val{:Node_interface})
         end
         function get_methods(ptr, ::Type{Val{:Node_interface}})
-            p = Capnp.read_list_pointer(ptr, 5, 3, Capnp.CapnpStruct)
+            p = Capnp.read_list_pointer(ptr, 6, 3, Capnp.CapnpStruct)
             @assert isempty(p) || p isa Capnp.SimpleListPointer ||
                (p isa Capnp.CompositeListPointer && p.data_word_count >= Method_data_word_count) && p.pointer_count >= Method_pointer_count
             p
@@ -666,7 +666,7 @@ module capnp
             get_methods(ptr, Val{:Node_interface})
         end
         function init_methods!(ptr, size, ::Type{Val{:Node_interface}})
-            pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + 8)
+            pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + 9)
             pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, 8*(1 + size * (3 + 5)))
             child_ptr = Capnp.CompositeListPointer(ptr.traverser, segment, offset, convert(UInt32, size), UInt16(3), UInt16(5))
             Capnp.write_list_pointer(pointer_location, child_ptr)
@@ -684,7 +684,7 @@ module capnp
             get_superclasses(ptr, Val{:Node_interface})
         end
         function get_superclasses(ptr, ::Type{Val{:Node_interface}})
-            p = Capnp.read_list_pointer(ptr, 5, 4, Capnp.CapnpStruct)
+            p = Capnp.read_list_pointer(ptr, 6, 4, Capnp.CapnpStruct)
             @assert isempty(p) || p isa Capnp.SimpleListPointer ||
                (p isa Capnp.CompositeListPointer && p.data_word_count >= Superclass_data_word_count) && p.pointer_count >= Superclass_pointer_count
             p
@@ -694,7 +694,7 @@ module capnp
             get_superclasses(ptr, Val{:Node_interface})
         end
         function init_superclasses!(ptr, size, ::Type{Val{:Node_interface}})
-            pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + 9)
+            pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + 10)
             pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, 8*(1 + size * (1 + 1)))
             child_ptr = Capnp.CompositeListPointer(ptr.traverser, segment, offset, convert(UInt32, size), UInt16(1), UInt16(1))
             Capnp.write_list_pointer(pointer_location, child_ptr)
@@ -742,7 +742,7 @@ module capnp
             init_root!(builder, Val{:Node_const})
         end
         function get_type(ptr::Capnp.StructPointer{T}, ::Type{Val{:Node_const}}) where T <: Reader
-            p = Capnp.read_struct_pointer(ptr, 5, 3)
+            p = Capnp.read_struct_pointer(ptr, 6, 3)
             @assert isnothing(p) || (p.data_word_count >= Type_data_word_count) && p.pointer_count >= Type_pointer_count
             p
         end
@@ -751,7 +751,7 @@ module capnp
             get_type(ptr, Val{:Node_const})
         end
         function init_type!(ptr, ::Type{Val{:Node_const}})
-            pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + 8)
+            pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + 9)
             pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, 8*4)
             child_ptr = Capnp.StructPointer(ptr.traverser, segment, offset, UInt16(3), UInt16(1))
             Capnp.write_struct_pointer(pointer_location, child_ptr)
@@ -762,7 +762,7 @@ module capnp
             init_type!(ptr, Val{:Node_const})
         end
         function get_value(ptr::Capnp.StructPointer{T}, ::Type{Val{:Node_const}}) where T <: Reader
-            p = Capnp.read_struct_pointer(ptr, 5, 4)
+            p = Capnp.read_struct_pointer(ptr, 6, 4)
             @assert isnothing(p) || (p.data_word_count >= Value_data_word_count) && p.pointer_count >= Value_pointer_count
             p
         end
@@ -771,7 +771,7 @@ module capnp
             get_value(ptr, Val{:Node_const})
         end
         function init_value!(ptr, ::Type{Val{:Node_const}})
-            pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + 9)
+            pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + 10)
             pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, 8*3)
             child_ptr = Capnp.StructPointer(ptr.traverser, segment, offset, UInt16(2), UInt16(1))
             Capnp.write_struct_pointer(pointer_location, child_ptr)
@@ -819,7 +819,7 @@ module capnp
             init_root!(builder, Val{:Node_annotation})
         end
         function get_type(ptr::Capnp.StructPointer{T}, ::Type{Val{:Node_annotation}}) where T <: Reader
-            p = Capnp.read_struct_pointer(ptr, 5, 3)
+            p = Capnp.read_struct_pointer(ptr, 6, 3)
             @assert isnothing(p) || (p.data_word_count >= Type_data_word_count) && p.pointer_count >= Type_pointer_count
             p
         end
@@ -828,7 +828,7 @@ module capnp
             get_type(ptr, Val{:Node_annotation})
         end
         function init_type!(ptr, ::Type{Val{:Node_annotation}})
-            pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + 8)
+            pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + 9)
             pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, 8*4)
             child_ptr = Capnp.StructPointer(ptr.traverser, segment, offset, UInt16(3), UInt16(1))
             Capnp.write_struct_pointer(pointer_location, child_ptr)
@@ -1026,7 +1026,7 @@ module capnp
             get_parameters(ptr, Val{:Node})
         end
         function get_parameters(ptr, ::Type{Val{:Node}})
-            p = Capnp.read_list_pointer(ptr, 5, 5, Capnp.CapnpStruct)
+            p = Capnp.read_list_pointer(ptr, 6, 5, Capnp.CapnpStruct)
             @assert isempty(p) || p isa Capnp.SimpleListPointer ||
                (p isa Capnp.CompositeListPointer && p.data_word_count >= Node_Parameter_data_word_count) && p.pointer_count >= Node_Parameter_pointer_count
             p
@@ -1036,7 +1036,7 @@ module capnp
             get_parameters(ptr, Val{:Node})
         end
         function init_parameters!(ptr, size, ::Type{Val{:Node}})
-            pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + 10)
+            pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + 11)
             pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, 8*(1 + size * (0 + 1)))
             child_ptr = Capnp.CompositeListPointer(ptr.traverser, segment, offset, convert(UInt32, size), UInt16(0), UInt16(1))
             Capnp.write_list_pointer(pointer_location, child_ptr)

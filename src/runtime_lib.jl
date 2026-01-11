@@ -494,8 +494,43 @@ function Base.iterate(ptr::SimpleListPointer{T}, state = 0) where {T<:CapnpType}
         item = nothing
         if is_capnp_bits(T)
             item = read_bits(ptr, capnp_sizeof(T) * state, capnp_type_to_bits_type(T))
+        elseif ptr.element_size == Pointer
+            # Each element is a pointer to a struct (Cap'n Proto 1.3.0+ encoding)
+            # Read the pointer at position state (each pointer is 1 word = 8 bytes)
+            pointer_word_offset = ptr.offset + state
+            bytes = unsafe_load(Ptr{Int64}(pointer(ptr.traverser.segments[ptr.segment]) + pointer_word_offset * 8))
+
+            if bytes == 0
+                # Null pointer
+                item = nothing
+            elseif bytes & 0b11 == 0
+                # Struct pointer: decode offset, data_word_count, pointer_count
+                offset_delta = (bytes % Int32) >> 2  # signed offset in words
+                struct_offset = UInt32(pointer_word_offset + 1 + offset_delta)
+                data_words = UInt16((bytes >> 32) & 0xff)
+                ptr_words = UInt16((bytes >> 48) & 0xff)
+                item = StructPointer(ptr.traverser, ptr.segment, struct_offset, data_words, ptr_words)
+            elseif bytes & 0b11 == 2
+                # Far pointer - follow indirection
+                far_offset = (bytes >> 3) & 0x1f_ff_ff_ff_ff
+                segment_id = UInt32((bytes >> 32) + 1)  # 0-based in wire format, 1-based in Julia
+                # Read the landing pad
+                landing_bytes = unsafe_load(Ptr{Int64}(pointer(ptr.traverser.segments[segment_id]) + far_offset * 8))
+                if landing_bytes & 0b11 == 0
+                    # Struct pointer at landing pad
+                    landing_offset_delta = (landing_bytes % Int32) >> 2
+                    struct_offset = UInt32(far_offset + 1 + landing_offset_delta)
+                    data_words = UInt16((landing_bytes >> 32) & 0xff)
+                    ptr_words = UInt16((landing_bytes >> 48) & 0xff)
+                    item = StructPointer(ptr.traverser, segment_id, struct_offset, data_words, ptr_words)
+                else
+                    throw("Far pointer landing pad is not a struct pointer")
+                end
+            else
+                throw("Expected struct or far pointer in list, got type $(bytes & 0b11)")
+            end
         else
-            throw("Iteration over simple lists only supports bits types now.")
+            throw("Iteration over simple lists only supports bits types or pointer types (element_size=$(ptr.element_size)).")
         end
 
         (item, state + 1)
