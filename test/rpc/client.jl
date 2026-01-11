@@ -164,4 +164,154 @@ using Capnp.RPC
         close(conn)
         @test RPC.state(conn) == RPC.ConnectionState.DISCONNECTED
     end
+
+    @testset "Level 2: Promise tracking" begin
+        @testset "RemotePromise struct" begin
+            mock = RPC.MockTransport()
+            conn = RPC.Connection(mock)
+            promise = RPC.Promise{Any}(question_id=UInt32(1))
+
+            remote = RPC.RemotePromise(UInt32(10), promise)
+            @test remote.import_id == UInt32(10)
+            @test remote.local_promise === promise
+        end
+
+        @testset "Remote promise tracking" begin
+            mock = RPC.MockTransport()
+            conn = RPC.Connection(mock)
+            promise = RPC.Promise{Any}(question_id=UInt32(1))
+
+            # Add remote promise (takes promise directly, creates RemotePromise internally)
+            RPC.add_remote_promise!(conn, UInt32(10), promise)
+
+            # Retrieve it
+            retrieved = RPC.get_remote_promise(conn, UInt32(10))
+            @test retrieved !== nothing
+            @test retrieved.import_id == UInt32(10)
+            @test retrieved.local_promise === promise
+
+            # Remove it
+            RPC.remove_remote_promise!(conn, UInt32(10))
+            @test RPC.get_remote_promise(conn, UInt32(10)) === nothing
+        end
+    end
+
+    @testset "Level 2: handle_resolve!" begin
+        @testset "Resolve with capability" begin
+            mock = RPC.MockTransport()
+            conn = RPC.Connection(mock)
+            RPC.set_connected!(conn)
+
+            # Create a pending promise and track it
+            promise = RPC.Promise{Any}(question_id=UInt32(1))
+            RPC.add_remote_promise!(conn, UInt32(5), promise)
+
+            # Create a resolve message with SENDER_HOSTED
+            cap_descriptor = RPC.ParsedCapDescriptor(
+                RPC.CapDescriptorType.SENDER_HOSTED,
+                UInt32(100),  # export_id
+                nothing,
+                nothing,
+                nothing
+            )
+            resolve = RPC.ParsedResolve(
+                UInt32(5),           # promise_id
+                RPC.ResolveType.CAP,
+                cap_descriptor,
+                nothing,
+                nothing
+            )
+
+            # Handle the resolve
+            result = RPC.handle_resolve!(conn, resolve)
+
+            # Promise should be resolved
+            @test RPC.is_resolved(promise)
+        end
+
+        @testset "Resolve with exception" begin
+            mock = RPC.MockTransport()
+            conn = RPC.Connection(mock)
+            RPC.set_connected!(conn)
+
+            # Create a pending promise
+            promise = RPC.Promise{Any}(question_id=UInt32(2))
+            RPC.add_remote_promise!(conn, UInt32(6), promise)
+
+            # Create a resolve with exception
+            resolve = RPC.ParsedResolve(
+                UInt32(6),                 # promise_id
+                RPC.ResolveType.EXCEPTION,
+                nothing,
+                "Capability failed",
+                RPC.ExceptionType.FAILED
+            )
+
+            # Handle the resolve
+            result = RPC.handle_resolve!(conn, resolve)
+
+            # Promise should be rejected
+            @test RPC.is_rejected(promise)
+        end
+
+        @testset "Resolve unknown promise" begin
+            mock = RPC.MockTransport()
+            conn = RPC.Connection(mock)
+            RPC.set_connected!(conn)
+
+            # Resolve for unknown promise ID
+            resolve = RPC.ParsedResolve(
+                UInt32(999),
+                RPC.ResolveType.CAP,
+                RPC.ParsedCapDescriptor(RPC.CapDescriptorType.NONE, nothing, nothing, nothing, nothing),
+                nothing,
+                nothing
+            )
+
+            # Should not throw, just log warning
+            result = RPC.handle_resolve!(conn, resolve)
+            @test result === nothing
+        end
+    end
+
+    @testset "Level 2: Save capability" begin
+        @testset "NotPersistentException" begin
+            ex = RPC.NotPersistentException("capability does not support save")
+            @test ex.reason == "capability does not support save"
+            @test ex isa Exception
+        end
+
+        @testset "call_save creates message" begin
+            mock = RPC.MockTransport()
+            conn = RPC.Connection(mock)
+            RPC.set_connected!(conn)
+
+            # call_save should create a pending question
+            promise = RPC.call_save(conn, UInt32(1))
+            @test promise isa RPC.Promise
+            @test RPC.state(promise) == RPC.PromiseState.PENDING
+
+            # A question should have been added
+            @test RPC.question_count(conn) >= 1
+        end
+    end
+
+    @testset "Level 2: Restore capability" begin
+        @testset "call_restore creates message" begin
+            mock = RPC.MockTransport()
+            conn = RPC.Connection(mock)
+            RPC.set_connected!(conn)
+
+            sturdy_ref = RPC.DefaultSturdyRef("test-host", "test-object")
+            restorer_import_id = UInt32(0)  # Bootstrap capability
+
+            # call_restore should create a pending question
+            promise = RPC.call_restore(conn, restorer_import_id, sturdy_ref)
+            @test promise isa RPC.Promise
+            @test RPC.state(promise) == RPC.PromiseState.PENDING
+
+            # A question should have been added
+            @test RPC.question_count(conn) >= 1
+        end
+    end
 end

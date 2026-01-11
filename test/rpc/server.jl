@@ -246,4 +246,211 @@ using Capnp.RPC
             @test !isabstracttype(Calculator_Client)
         end
     end
+
+    @testset "Level 2: Server persistence" begin
+        @testset "Restorer configuration" begin
+            impl = "mock"
+            server = RPC.Server(impl)
+
+            # Initially no restorer
+            @test RPC.get_restorer(server) === nothing
+
+            # Set a restorer
+            restorer = RPC.DefaultRestorer("my-server")
+            RPC.set_restorer!(server, restorer)
+            @test RPC.get_restorer(server) === restorer
+        end
+
+        @testset "PersistentCapability trait detection" begin
+            # Non-persistent capability
+            regular = "RegularCapability"
+            @test RPC.is_persistent(regular) == false
+            @test RPC.can_save(regular, RPC.DefaultOwner()) == false
+
+            # SimplePersistentCapability
+            persistent = RPC.SimplePersistentCapability("PersistentCap", "cap-id")
+            @test RPC.is_persistent(persistent) == true
+            @test RPC.can_save(persistent, RPC.DefaultOwner()) == true
+        end
+
+        @testset "is_save_call detection" begin
+            # Save method has specific interface and method IDs
+            @test isdefined(RPC, :is_save_call)
+
+            # The Persistent interface ID
+            @test isdefined(RPC, :PERSISTENT_INTERFACE_ID)
+        end
+
+        @testset "ExportEntry with promise flag" begin
+            @test isdefined(RPC, :ExportEntry)
+
+            # Test creating a regular ExportEntry (uses default ref_count)
+            cap = RPC.LocalCapability(UInt64(0x1234), "impl")
+            entry = RPC.ExportEntry(cap)
+
+            @test entry.capability === cap
+            @test entry.is_promise == false
+            @test entry.ref_count == UInt32(1)
+
+            # Promise export entry
+            promise_entry = RPC.promise_export_entry(cap, UInt32(42))
+            @test promise_entry.is_promise == true
+            @test promise_entry.promise_id == UInt32(42)
+        end
+
+        @testset "PromisedExport tracking" begin
+            @test isdefined(RPC, :PromisedExport)
+
+            mock = RPC.MockTransport()
+            conn = RPC.Connection(mock)
+
+            # Add a promised export (takes promise directly, creates PromisedExport internally)
+            promise = RPC.Promise{Any}()
+            RPC.add_promised_export!(conn, UInt32(1), promise)
+
+            # Should be able to retrieve it
+            promised = RPC.get_promised_export(conn, UInt32(1))
+            @test promised !== nothing
+            @test promised.export_id == UInt32(1)
+            @test promised.promise === promise
+
+            RPC.remove_promised_export!(conn, UInt32(1))
+            @test RPC.get_promised_export(conn, UInt32(1)) === nothing
+        end
+
+        @testset "handle_save_call! with non-persistent capability" begin
+            impl = "mock"
+            server = RPC.Server(impl)
+            restorer = RPC.DefaultRestorer("server")
+            RPC.set_restorer!(server, restorer)
+
+            mock = RPC.MockTransport()
+            conn = RPC.Connection(mock)
+            RPC.set_connected!(conn)
+
+            ctx = RPC.CallContext(conn, UInt32(1), UInt64(0x1234), UInt16(0))
+
+            # Call with non-persistent capability
+            non_persistent = "RegularCap"
+            cap = RPC.LocalCapability(UInt64(0x1234), non_persistent)
+
+            RPC.handle_save_call!(server, conn, ctx, cap)
+
+            # Should set exception (capability not persistent)
+            @test ctx.has_exception == true
+        end
+
+        @testset "handle_save_call! without restorer" begin
+            impl = "mock"
+            server = RPC.Server(impl)
+            # No restorer configured
+
+            mock = RPC.MockTransport()
+            conn = RPC.Connection(mock)
+            RPC.set_connected!(conn)
+
+            ctx = RPC.CallContext(conn, UInt32(1), UInt64(0x1234), UInt16(0))
+
+            persistent = RPC.SimplePersistentCapability("PersistentCap", "cap-id")
+            cap = RPC.LocalCapability(UInt64(0x1234), persistent)
+
+            RPC.handle_save_call!(server, conn, ctx, cap)
+
+            # Should set exception (no restorer)
+            @test ctx.has_exception == true
+        end
+
+        @testset "handle_save_call! with persistent capability" begin
+            impl = "mock"
+            server = RPC.Server(impl)
+            restorer = RPC.DefaultRestorer("server")
+            RPC.set_restorer!(server, restorer)
+
+            mock = RPC.MockTransport()
+            conn = RPC.Connection(mock)
+            RPC.set_connected!(conn)
+
+            ctx = RPC.CallContext(conn, UInt32(1), UInt64(0x1234), UInt16(0))
+
+            persistent = RPC.SimplePersistentCapability("PersistentCap", "cap-id")
+            cap = RPC.LocalCapability(UInt64(0x1234), persistent)
+
+            RPC.handle_save_call!(server, conn, ctx, cap)
+
+            # Should have a result (SturdyRef data)
+            @test ctx.has_exception == false
+            @test ctx.result !== nothing
+        end
+
+        @testset "handle_restore_call!" begin
+            impl = "mock"
+            server = RPC.Server(impl)
+            restorer = RPC.DefaultRestorer("server")
+            RPC.set_restorer!(server, restorer)
+
+            # Register a capability for restoration
+            object_id = Vector{UInt8}("known-cap")
+            RPC.register!(restorer, object_id, "RestoredCapability", RPC.DefaultOwner())
+
+            mock = RPC.MockTransport()
+            conn = RPC.Connection(mock)
+            RPC.set_connected!(conn)
+
+            ctx = RPC.CallContext(conn, UInt32(1), UInt64(0x1234), UInt16(0))
+
+            # Create and serialize a SturdyRef - pass raw bytes to handle_restore_call!
+            sturdy_ref = RPC.DefaultSturdyRef("server", "known-cap")
+            sturdy_ref_data = RPC.serialize_sturdy_ref(sturdy_ref)
+
+            RPC.handle_restore_call!(server, conn, ctx, sturdy_ref_data)
+
+            # Should have exported a capability
+            @test RPC.export_count(conn) >= 1
+        end
+
+        @testset "register_persistent!" begin
+            impl = "mock"
+            server = RPC.Server(impl)
+            restorer = RPC.DefaultRestorer("server")
+            RPC.set_restorer!(server, restorer)
+
+            # register_persistent! takes object_id and capability directly
+            object_id = Vector{UInt8}("my-cap")
+            capability = "MySavedCapability"
+            sturdy_ref = RPC.register_persistent!(server, object_id, capability, RPC.DefaultOwner())
+
+            @test sturdy_ref isa RPC.DefaultSturdyRef
+            @test sturdy_ref.object_id == object_id
+
+            # Should be restorable
+            restored = RPC.restore(restorer, sturdy_ref)
+            @test restored === capability
+        end
+
+        @testset "send_resolve!" begin
+            mock = RPC.MockTransport()
+            conn = RPC.Connection(mock)
+            RPC.set_connected!(conn)
+
+            # Send a resolve message
+            RPC.send_resolve!(conn, UInt32(42), UInt32(100))
+
+            # Should have sent a message
+            sent = RPC.get_sent_messages(mock)
+            @test length(sent) >= 1
+        end
+
+        @testset "send_resolve_exception!" begin
+            mock = RPC.MockTransport()
+            conn = RPC.Connection(mock)
+            RPC.set_connected!(conn)
+
+            # Send a resolve exception message
+            RPC.send_resolve_exception!(conn, UInt32(42), "Error", RPC.ExceptionType.FAILED)
+
+            # Should have sent a message
+            sent = RPC.get_sent_messages(mock)
+            @test length(sent) >= 1
+        end
+    end
 end
