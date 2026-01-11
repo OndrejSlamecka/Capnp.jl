@@ -4,6 +4,9 @@
 using Capnp
 using Capnp.RPC
 
+# Generate the calculator schema if needed
+run(`capnpc -o./capnpc-jl example/calculator.capnp`)
+
 # Include the generated calculator schema
 # Use @__DIR__ to get the directory of this file and navigate to example/
 include(joinpath(@__DIR__, "..", "example", "calculator.capnp.jl"))
