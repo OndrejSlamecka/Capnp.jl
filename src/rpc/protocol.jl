@@ -730,10 +730,10 @@ end
 
 Build a Return message with an exception.
 
-Return struct (union discriminant = 3 for exception):
+Return struct (union discriminant = 1 for exception):
 - answerId @0: UInt32
 - releaseParamCaps @1: Bool (default true)
-- union discriminant at offset 6: 3 (exception)
+- union discriminant at offset 6: 1 (exception)
 - pointer[0]: Exception struct
 
 Exception struct (1 data word, 1 pointer):
@@ -776,8 +776,8 @@ function build_exception_return(answer_id::AnswerId, reason::String, exception_t
     copyto!(segment, 25, reinterpret(UInt8, [UInt32(answer_id)]), 1, 4)
     # - Bool at offset 4: releaseParamCaps (default true, so wire 0 = true)
     segment[29] = 0x00
-    # - UInt16 at offset 6: union discriminant = 3 (exception)
-    segment[31] = 0x03
+    # - UInt16 at offset 6: union discriminant = 1 (exception)
+    segment[31] = 0x01
 
     # Word 5: Return pointer section -> Exception struct at word 6
     # Exception: 1 data word, 1 pointer
