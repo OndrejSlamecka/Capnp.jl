@@ -108,24 +108,41 @@ int main(int argc, const char* argv[]) {
         }
     }
 
-    // Test 5: Divide by zero - skip for now as exception format needs work
-    // TODO: Implement proper Exception struct formatting in Julia server
-    // {
-    //     auto request = calculator.divideRequest();
-    //     request.setLeft(10.0);
-    //     request.setRight(0.0);
-    //     ...
-    // }
+    // Test 5: Divide by zero - should throw exception
+    {
+        auto request = calculator.divideRequest();
+        request.setLeft(10.0);
+        request.setRight(0.0);
 
-    // Test 6: Get sub-calculator - skip for now, requires capability passing fixes
-    // TODO: Fix MessageTarget parsing for receiverHosted/importedCap after capability return
+        std::cout << "Sending divide(10, 0) request (expect exception)..." << std::endl;
+
+        try {
+            auto promise = request.send();
+            auto response = promise.wait(waitScope);
+            // If we get here, the exception wasn't thrown
+            std::cout << "Divide by zero: ✗ WRONG (expected exception)" << std::endl;
+            all_passed = false;
+        } catch (const kj::Exception& e) {
+            std::cout << "Divide by zero exception: " << e.getDescription().cStr();
+            std::cout << " ✓ CORRECT (exception thrown)" << std::endl;
+        }
+    }
+
+    // Test 6: Get sub-calculator - skipped
+    // The capability is returned correctly (senderHosted with export_id), but when the C++
+    // client calls a method on the returned capability, it sends an invalid MessageTarget
+    // discriminant (2) instead of importedCap (0). This may be a Cap'n Proto level 2 feature
+    // or promise pipelining behavior that requires additional server-side support.
+    // See: https://capnproto.org/rpc.html#pipelining for more details.
     // {
-    //     std::cout << "Sending getSubCalculator() request..." << std::endl;
     //     auto getSubRequest = calculator.getSubCalculatorRequest();
-    //     auto getSubPromise = getSubRequest.send();
-    //     auto getSubResponse = getSubPromise.wait(waitScope);
+    //     auto getSubResponse = getSubRequest.send().wait(waitScope);
     //     auto subCalc = getSubResponse.getCalculator();
-    //     ...
+    //     auto addRequest = subCalc.addRequest();
+    //     addRequest.setLeft(3.0);
+    //     addRequest.setRight(4.0);
+    //     auto result = addRequest.send().wait(waitScope);
+    //     // Expected: 7.0
     // }
 
     if (all_passed) {

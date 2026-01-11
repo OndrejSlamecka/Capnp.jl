@@ -474,9 +474,104 @@ function build_return_message(answer_id::AnswerId, result::Any;
         return build_capability_return(answer_id, result)
     end
 
+    # Handle exception case
+    if has_exception
+        return build_exception_return(answer_id, exception_reason, _exception_type)
+    end
+
     # Otherwise, build a minimal return message with Float64 result
-    buffer = build_minimal_return(answer_id, result, has_exception, exception_reason)
+    buffer = build_minimal_return(answer_id, result)
     return buffer
+end
+
+"""
+    build_exception_return(answer_id::AnswerId, reason::String, exception_type::ExceptionType.T) -> Vector{UInt8}
+
+Build a Return message with an exception.
+
+Return struct (union discriminant = 3 for exception):
+- answerId @0: UInt32
+- releaseParamCaps @1: Bool (default true)
+- union discriminant at offset 6: 3 (exception)
+- pointer[0]: Exception struct
+
+Exception struct (1 data word, 1 pointer):
+- type @3: UInt16 at offset 4 (0=failed, 1=overloaded, 2=disconnected, 3=unimplemented)
+- reason @0: Text pointer
+"""
+function build_exception_return(answer_id::AnswerId, reason::String, exception_type::ExceptionType.T)
+    reason_bytes = Vector{UInt8}(reason)
+    reason_len = length(reason_bytes)
+    # Text is stored as data bytes + NUL terminator, word-aligned
+    reason_words = cld(reason_len + 1, 8)  # Include NUL terminator, round up to words
+
+    # Layout:
+    # Word 0: Root pointer to Message struct
+    # Word 1: Message data section (discriminant = RETURN = 3)
+    # Word 2: Message pointer section -> Return struct
+    # Word 3-4: Return data section (answerId, releaseParamCaps, union discriminant = 3)
+    # Word 5: Return pointer section -> Exception struct
+    # Word 6: Exception data section (type at offset 4)
+    # Word 7: Exception pointer section -> Text (reason)
+    # Word 8+: Text data (reason + NUL)
+
+    total_words = 8 + reason_words
+    segment = Vector{UInt8}(undef, total_words * 8)
+    fill!(segment, 0)
+
+    # Word 0: Root pointer to Message struct at word 1
+    root_ptr = UInt64(0) | (UInt64(1) << 32) | (UInt64(1) << 48)
+    copyto!(segment, 1, reinterpret(UInt8, [root_ptr]), 1, 8)
+
+    # Word 1: Message struct data section - discriminant = RETURN = 3
+    segment[9] = 0x03
+
+    # Word 2: Message pointer section -> Return struct at word 3
+    return_ptr = UInt64(0) | (UInt64(2) << 32) | (UInt64(1) << 48)
+    copyto!(segment, 17, reinterpret(UInt8, [return_ptr]), 1, 8)
+
+    # Word 3-4: Return struct data section
+    # - UInt32 at offset 0: answerId
+    copyto!(segment, 25, reinterpret(UInt8, [UInt32(answer_id)]), 1, 4)
+    # - Bool at offset 4: releaseParamCaps (default true, so wire 0 = true)
+    segment[29] = 0x00
+    # - UInt16 at offset 6: union discriminant = 3 (exception)
+    segment[31] = 0x03
+
+    # Word 5: Return pointer section -> Exception struct at word 6
+    # Exception: 1 data word, 1 pointer
+    exception_ptr = UInt64(0) | (UInt64(1) << 32) | (UInt64(1) << 48)
+    copyto!(segment, 41, reinterpret(UInt8, [exception_ptr]), 1, 8)
+
+    # Word 6: Exception data section
+    # - type @3 at offset 4: UInt16 enum (0=failed, 1=overloaded, 2=disconnected, 3=unimplemented)
+    type_value = UInt16(Int(exception_type))
+    copyto!(segment, 53, reinterpret(UInt8, [type_value]), 1, 2)
+
+    # Word 7: Exception pointer section -> Text (reason)
+    # Text pointer: list pointer, size=2 (byte), element_count = reason_len + 1 (for NUL)
+    # Offset from word 7 to word 8 = 0 (from end of pointer)
+    text_ptr = UInt64(1) | (UInt64(0) << 2) | (UInt64(2) << 32) | (UInt64(reason_len + 1) << 35)
+    copyto!(segment, 57, reinterpret(UInt8, [text_ptr]), 1, 8)
+
+    # Word 8+: Text data (reason bytes + NUL terminator)
+    if reason_len > 0
+        copyto!(segment, 65, reason_bytes, 1, reason_len)
+    end
+    segment[65 + reason_len] = 0x00  # NUL terminator
+
+    used_size = total_words * 8
+
+    # Build the full message with header
+    num_segments = UInt32(0)
+    segment_size = UInt32(total_words)
+
+    message = Vector{UInt8}(undef, 8 + used_size)
+    copyto!(message, 1, reinterpret(UInt8, [num_segments]), 1, 4)
+    copyto!(message, 5, reinterpret(UInt8, [segment_size]), 1, 4)
+    copyto!(message, 9, segment, 1, used_size)
+
+    return message
 end
 
 """
@@ -490,8 +585,7 @@ For a successful return with a Float64 value (like Calculator.add), we need:
 - Payload.capTable = null pointer (empty list, no capabilities)
 - Result struct (1 data word containing Float64)
 """
-function build_minimal_return(answer_id::AnswerId, result::Any,
-                             has_exception::Bool, _exception_reason::String)
+function build_minimal_return(answer_id::AnswerId, result::Any)
     # Build segment data - 10 words total (matching C++ output)
     segment = Vector{UInt8}(undef, 80)
     fill!(segment, 0)
@@ -516,11 +610,8 @@ function build_minimal_return(answer_id::AnswerId, result::Any,
     # - Bool at offset 4: releaseParamCaps (default true)
     # Default is true, so wire value 0 means true (XOR encoding)
     segment[29] = 0x00
-    # - UInt16 at offset 6: union discriminant (0=results, 1=exception)
-    if has_exception
-        segment[31] = 0x01
-    end
-    # else: leave as 0 (results)
+    # - UInt16 at offset 6: union discriminant = 0 (results)
+    # leave as 0 (results)
 
     # Word 5: Return pointer section -> Payload struct at word 6
     # Payload struct: 0 data words, 2 pointers
@@ -739,4 +830,4 @@ export MessageType, ReturnType, MessageTargetType, SendResultsToType
 export ParsedBootstrap, ParsedMessageTarget, ParsedCall, ParsedFinish, ParsedRelease, ParsedMessage
 export ParsedParams
 export parse_rpc_message
-export build_return_message, build_capability_return, build_bootstrap_return
+export build_return_message, build_capability_return, build_bootstrap_return, build_exception_return
