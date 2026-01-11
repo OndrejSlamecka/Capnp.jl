@@ -27,6 +27,9 @@ include("connection.jl")
 # RPC Protocol message parsing (Level 0)
 include("protocol.jl")
 
+# Persistent capability types (Level 2)
+include("persistent.capnp.jl")
+
 # Client RPC (FR-010, FR-013)
 include("client.jl")
 
@@ -40,12 +43,19 @@ export QuestionId, AnswerId, ExportId, ImportId, EmbargoId
 export CapDescriptorKind, CapDescriptor, CapabilityTable
 export sender_hosted, sender_promise, receiver_hosted
 export get_descriptor, add_descriptor!, add_sender_hosted!, add_receiver_hosted!, add_null!, clear!
+export DefaultSturdyRef, DefaultOwner, SaveParams, SaveResults
+export serialize_sturdy_ref, deserialize_sturdy_ref
+export Restorer, RestoreException, RestorerRegistry, DefaultRestorer
+export register!, restore, validate_owner, revoke!
+export PersistentCapability, SimplePersistentCapability
+export can_save, generate_sturdy_ref, is_persistent
 
 # Exports - Promise infrastructure
 export PromiseState, PipelineOpKind, PipelineOp, PromisedAnswer
 export Promise, PromiseAlreadySettledException
 export state, is_resolved, is_rejected, is_settled, question_id
 export resolve!, reject!, call_pipelined
+export on_resolve!, on_reject!, then
 
 # Exports - Transport layer
 export Transport, TcpTransport, UnixTransport, MockTransport
@@ -56,6 +66,7 @@ export inject_message!, get_sent_messages, clear_sent_messages!
 export ConnectionState, ExceptionType
 export DisconnectedException, ConnectionFailedException, RemoteException, InvalidCapabilityException
 export LocalCapability, RemoteCapability, PendingQuestion, PendingAnswer, Connection
+export RemotePromise, PromisedExport, PromiseTracker
 export is_connected
 export set_connected!, set_disconnecting!, set_disconnected!, set_failed!
 export question_count, import_count, export_count, answer_count
@@ -64,25 +75,42 @@ export add_question!, get_question, remove_question!
 export add_answer!, get_answer, remove_answer!
 export add_export!, get_export, remove_export!
 export add_import!, get_import, remove_import!
+export add_promised_export!, get_promised_export, remove_promised_export!
+export add_remote_promise!, get_remote_promise, remove_remote_promise!
 export incref!, decref!
 
 # Exports - Client RPC
 export connect, bootstrap, ConnectionOptions
 export handle_message!, handle_return!, handle_exception!, handle_resolve!, handle_release!
 export start_message_loop!
+export NotPersistentException, call_save, call_save_sync
+export call_restore, call_restore_sync
 
 # Exports - Server RPC
 export Server, ServerOptions, CallContext
+export ExportEntry, promise_export_entry
 export is_running, set_running!, client_count, add_client!, remove_client!
 export listen, serve, serve_async, shutdown!
-export set_result!, set_exception!, export_capability
+export set_result!, set_exception!, export_capability, export_promised_capability!
 export handle_bootstrap, handle_call!, handle_finish!, handle_server_release!
+export send_resolve!, send_resolve_exception!
+export set_restorer!, get_restorer
+export handle_save_call!, handle_restore_call!
+export register_persistent!, is_save_call
 
 # Exports - Protocol parsing
 export MessageType, ReturnType, MessageTargetType, SendResultsToType
-export ParsedBootstrap, ParsedMessageTarget, ParsedCall, ParsedFinish, ParsedRelease, ParsedMessage
+export ResolveType, CapDescriptorType, PromisedAnswerOpType
+export PromisedAnswerOp, ParsedPromisedAnswer, ParsedCapDescriptor
+export ParsedBootstrap, ParsedMessageTarget, ParsedCall, ParsedFinish, ParsedRelease, ParsedResolve, ParsedMessage
 export ParsedParams
-export parse_rpc_message
+export parse_rpc_message, parse_cap_descriptor, parse_promised_answer
 export build_return_message, build_bootstrap_return
+export build_resolve_message, build_resolve_exception
+export ParsedSaveResults, build_save_call, parse_save_results
+export ParsedRestoreResults, build_restore_call, parse_restore_results
+
+# Exports - Persistent capability types (Level 2)
+export PERSISTENT_INTERFACE_ID, PERSISTENT_ANNOTATION_ID, PERSISTENT_SAVE_METHOD_ID
 
 end # module RPC

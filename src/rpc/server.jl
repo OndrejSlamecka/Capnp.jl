@@ -4,6 +4,35 @@
 using Sockets
 
 """
+    ExportEntry
+
+Extended export table entry with promise metadata for Level 2.
+Tracks whether an export is a promise awaiting resolution.
+"""
+struct ExportEntry
+    capability::Any           # The actual capability
+    ref_count::UInt32         # Reference count from remote
+    is_promise::Bool          # True if this is a promise export
+    promise_id::Union{ExportId, Nothing}  # Link to promise if resolved from one
+end
+
+"""
+Create a regular (non-promise) export entry.
+"""
+function ExportEntry(capability::Any, ref_count::UInt32=UInt32(1))
+    ExportEntry(capability, ref_count, false, nothing)
+end
+
+"""
+Create a promise export entry.
+"""
+function promise_export_entry(capability, promise_id::ExportId)
+    ExportEntry(capability, UInt32(1), true, promise_id)
+end
+
+# Note: PromisedExport is defined in connection.jl for proper include order
+
+"""
     ServerOptions
 
 Configuration options for RPC servers.
@@ -82,6 +111,7 @@ end
     Server
 
 RPC server that listens for connections and dispatches method calls.
+Supports Level 2 persistent capabilities via an optional restorer.
 """
 mutable struct Server
     bootstrap_impl::Any
@@ -92,18 +122,20 @@ mutable struct Server
     listener_task::Union{Task, Nothing}
     tcp_server::Union{Sockets.TCPServer, Nothing}
     lock::ReentrantLock
+    # Level 2: Restorer for persistent capabilities
+    restorer::Union{DefaultRestorer, Nothing}
 
-    function Server(bootstrap_impl; options::ServerOptions = ServerOptions())
-        new(bootstrap_impl, nothing, Connection[], options, false, nothing, nothing, ReentrantLock())
+    function Server(bootstrap_impl; options::ServerOptions = ServerOptions(), restorer::Union{DefaultRestorer, Nothing}=nothing)
+        new(bootstrap_impl, nothing, Connection[], options, false, nothing, nothing, ReentrantLock(), restorer)
     end
 
-    function Server(bootstrap_impl, handler::Function; options::ServerOptions = ServerOptions())
-        new(bootstrap_impl, handler, Connection[], options, false, nothing, nothing, ReentrantLock())
+    function Server(bootstrap_impl, handler::Function; options::ServerOptions = ServerOptions(), restorer::Union{DefaultRestorer, Nothing}=nothing)
+        new(bootstrap_impl, handler, Connection[], options, false, nothing, nothing, ReentrantLock(), restorer)
     end
 
     # Support do-block syntax: Server(impl) do conn ... end
-    function Server(handler::Function, bootstrap_impl; options::ServerOptions = ServerOptions())
-        new(bootstrap_impl, handler, Connection[], options, false, nothing, nothing, ReentrantLock())
+    function Server(handler::Function, bootstrap_impl; options::ServerOptions = ServerOptions(), restorer::Union{DefaultRestorer, Nothing}=nothing)
+        new(bootstrap_impl, handler, Connection[], options, false, nothing, nothing, ReentrantLock(), restorer)
     end
 end
 
@@ -303,8 +335,9 @@ end
     handle_call_message!(server::Server, conn::Connection, call::ParsedCall)
 
 Handle a Call message - dispatch to method implementation and send Return.
+Includes Level 2 support for Persistent.save() calls.
 """
-function handle_call_message!(_server::Server, conn::Connection, call::ParsedCall)
+function handle_call_message!(server::Server, conn::Connection, call::ParsedCall)
     # Create call context
     ctx = CallContext(conn, call.question_id, call.interface_id, call.method_id)
 
@@ -326,14 +359,19 @@ function handle_call_message!(_server::Server, conn::Connection, call::ParsedCal
     if cap === nothing
         set_exception!(ctx, "Invalid capability", ExceptionType.FAILED)
     else
-        # Dispatch the call to the implementation
-        try
-            dispatch_method!(cap.impl, call.interface_id, call.method_id, ctx, call.params)
-        catch e
-            if e isa RemoteException
-                set_exception!(ctx, e.reason, e.type)
-            else
-                set_exception!(ctx, string(e), ExceptionType.FAILED)
+        # Check if this is a Persistent.save() call (Level 2)
+        if is_save_call(call)
+            handle_save_call!(server, conn, ctx, cap)
+        else
+            # Dispatch the call to the implementation
+            try
+                dispatch_method!(cap.impl, call.interface_id, call.method_id, ctx, call.params)
+            catch e
+                if e isa RemoteException
+                    set_exception!(ctx, e.reason, e.type)
+                else
+                    set_exception!(ctx, string(e), ExceptionType.FAILED)
+                end
             end
         end
     end
@@ -560,6 +598,202 @@ function handle_server_release!(conn::Connection, id::ExportId, ref_count::UInt3
 end
 
 """
+    send_resolve!(conn::Connection, promise_id::ExportId, export_id::ExportId)
+
+Send a Resolve message to notify the client that a promised capability has resolved.
+This implements the server-side of C001-RESOLVE contract.
+
+Called when:
+1. A capability was exported as senderPromise (promised export)
+2. The underlying promise resolves to an actual capability
+"""
+function send_resolve!(conn::Connection, promise_id::ExportId, export_id::ExportId)
+    # Build and send the Resolve message
+    # The resolved capability uses senderHosted to indicate it's now fully available
+    message = build_resolve_message(promise_id, CapDescriptorType.SENDER_HOSTED, export_id)
+    send_raw_message(conn.transport, message)
+end
+
+"""
+    send_resolve_exception!(conn::Connection, promise_id::ExportId, reason::String, exc_type::ExceptionType.T)
+
+Send a Resolve message with an exception when a promised capability fails to resolve.
+"""
+function send_resolve_exception!(conn::Connection, promise_id::ExportId, reason::String, exc_type::ExceptionType.T)
+    message = build_resolve_exception(promise_id, reason, exc_type)
+    send_raw_message(conn.transport, message)
+end
+
+"""
+    export_promised_capability!(ctx::CallContext, promise::Promise{Any}, interface_id::UInt64) -> ExportId
+
+Export a capability that is still a promise (not yet resolved).
+Uses senderPromise in the CapDescriptor and sets up a callback to send Resolve when it settles.
+
+This is used when a method returns a capability that isn't immediately available.
+"""
+function export_promised_capability!(ctx::CallContext, promise::Promise{Any}, interface_id::UInt64)
+    conn = ctx.connection
+    eid = next_export_id!(conn)
+
+    # Track this as a promised export
+    add_promised_export!(conn, eid, promise)
+
+    # Set up callback to send Resolve when the promise settles
+    on_resolve!(promise, function(resolved_cap)
+        # Export the resolved capability with a new ID
+        new_eid = next_export_id!(conn)
+        cap = LocalCapability(interface_id, resolved_cap)
+        add_export!(conn, new_eid, cap)
+
+        # Send Resolve to client
+        send_resolve!(conn, eid, new_eid)
+
+        # Clean up promised export tracking
+        remove_promised_export!(conn, eid)
+    end)
+
+    on_reject!(promise, function(err)
+        # Send Resolve with exception
+        reason = err isa Exception ? string(err) : string(err)
+        exc_type = err isa RemoteException ? err.type : ExceptionType.FAILED
+        send_resolve_exception!(conn, eid, reason, exc_type)
+
+        # Clean up promised export tracking
+        remove_promised_export!(conn, eid)
+    end)
+
+    return eid
+end
+
+
+# ============================================================================
+# Level 2: Server-Side Persistent Capability Handling
+# ============================================================================
+
+"""
+    set_restorer!(server::Server, restorer::DefaultRestorer)
+
+Configure the server's restorer for persistent capabilities.
+"""
+function set_restorer!(server::Server, restorer::DefaultRestorer)
+    lock(server.lock) do
+        server.restorer = restorer
+    end
+end
+
+"""
+    get_restorer(server::Server) -> Union{DefaultRestorer, Nothing}
+
+Get the server's restorer for persistent capabilities.
+"""
+function get_restorer(server::Server)
+    lock(server.lock) do
+        return server.restorer
+    end
+end
+
+"""
+    handle_save_call!(server::Server, conn::Connection, ctx::CallContext, cap)
+
+Handle a Persistent.save() call on a capability.
+This implements C004-SERVER-PERSISTENCE contract.
+
+If the capability is persistent, generates a SturdyRef and returns it.
+If not persistent, returns an UNIMPLEMENTED exception.
+"""
+function handle_save_call!(server::Server, conn::Connection, ctx::CallContext, cap)
+    # Check if we have a restorer configured
+    restorer = get_restorer(server)
+    if restorer === nothing
+        set_exception!(ctx, "Server does not support persistent capabilities", ExceptionType.UNIMPLEMENTED)
+        return
+    end
+
+    # Get the actual capability (unwrap LocalCapability if needed)
+    impl = cap isa LocalCapability ? cap.impl : cap
+
+    # Check if the capability is persistent
+    if !is_persistent(impl)
+        set_exception!(ctx, "Capability does not implement Persistent interface", ExceptionType.UNIMPLEMENTED)
+        return
+    end
+
+    # Check if the owner can save this capability
+    owner = DefaultOwner()  # TODO: Extract owner from params
+    if !can_save(impl, owner)
+        set_exception!(ctx, "Owner not authorized to save this capability", ExceptionType.FAILED)
+        return
+    end
+
+    # Generate the SturdyRef
+    try
+        sturdy_ref = generate_sturdy_ref(impl, owner, restorer)
+        # Serialize the SturdyRef as the result
+        result_data = serialize_sturdy_ref(sturdy_ref)
+        set_result!(ctx, ParsedSaveResults(result_data))
+    catch e
+        set_exception!(ctx, "Failed to generate SturdyRef: $(string(e))", ExceptionType.FAILED)
+    end
+end
+
+"""
+    handle_restore_call!(server::Server, conn::Connection, ctx::CallContext, sturdy_ref_data::Vector{UInt8})
+
+Handle a restore call from a client.
+Looks up the capability in the restorer and exports it.
+"""
+function handle_restore_call!(server::Server, conn::Connection, ctx::CallContext, sturdy_ref_data::Vector{UInt8})
+    restorer = get_restorer(server)
+    if restorer === nothing
+        set_exception!(ctx, "Server does not support persistent capabilities", ExceptionType.UNIMPLEMENTED)
+        return
+    end
+
+    # Deserialize the SturdyRef
+    try
+        sturdy_ref = deserialize_sturdy_ref(sturdy_ref_data)
+        owner = DefaultOwner()  # TODO: Extract owner from params
+
+        # Restore the capability
+        capability = restore(restorer, sturdy_ref, owner)
+
+        # Export the restored capability
+        export_id = export_capability(ctx, capability, UInt64(0))
+        set_result!(ctx, ParsedRestoreResults(true, export_id, nothing, nothing))
+    catch e
+        if e isa RestoreException
+            set_exception!(ctx, e.reason, ExceptionType.FAILED)
+        else
+            set_exception!(ctx, "Restore failed: $(string(e))", ExceptionType.FAILED)
+        end
+    end
+end
+
+"""
+    register_persistent!(server::Server, object_id::Vector{UInt8}, capability, owner::DefaultOwner) -> Union{DefaultSturdyRef, Nothing}
+
+Register a capability as persistent in the server's restorer.
+Returns the SturdyRef, or nothing if no restorer is configured.
+"""
+function register_persistent!(server::Server, object_id::Vector{UInt8}, capability, owner::DefaultOwner=DefaultOwner())
+    restorer = get_restorer(server)
+    if restorer === nothing
+        return nothing
+    end
+    return register!(restorer, object_id, capability, owner)
+end
+
+"""
+    is_save_call(call::ParsedCall) -> Bool
+
+Check if a Call message is a Persistent.save() call.
+"""
+function is_save_call(call::ParsedCall)
+    return call.interface_id == PERSISTENT_INTERFACE_ID && call.method_id == PERSISTENT_SAVE_METHOD_ID
+end
+
+"""
     shutdown!(server::Server)
 
 Gracefully shutdown the server and all client connections.
@@ -587,7 +821,14 @@ end
 
 # Exports
 export Server, ServerOptions, CallContext
+export ExportEntry, promise_export_entry
 export is_running, set_running!, client_count, add_client!, remove_client!
 export listen, serve, serve_async, shutdown!
-export set_result!, set_exception!, export_capability
+export set_result!, set_exception!, export_capability, export_promised_capability!
 export handle_bootstrap, handle_call!, handle_finish!, handle_server_release!
+export send_resolve!, send_resolve_exception!
+
+# Level 2: Server-side persistence exports
+export set_restorer!, get_restorer
+export handle_save_call!, handle_restore_call!
+export register_persistent!, is_save_call

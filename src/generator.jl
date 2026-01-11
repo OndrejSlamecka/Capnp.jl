@@ -35,6 +35,74 @@ function generate(request::CodeGeneratorRequest)
     end
 end
 
+# Persistent interface ID (from persistent.capnp)
+const PERSISTENT_INTERFACE_ID_GEN = UInt64(0xc8cb212fcd9f5691)
+
+"""
+    has_persistent_annotation(env::Environment, node::Node{InterfaceNodeProps}) -> Bool
+
+Check if an interface has the \$persistent annotation.
+This indicates the interface supports persistent capabilities.
+"""
+function has_persistent_annotation(env::Environment, node::Node{InterfaceNodeProps})
+    for annotation in node.annotations
+        annotation_node = get(env.nodes, annotation.id, nothing)
+        if annotation_node !== nothing
+            # Check for $persistent annotation by name
+            display_name = annotation_node.displayName[annotation_node.displayNamePrefixLength+1:end]
+            if display_name == "persistent" || display_name == "Persistent"
+                return true
+            end
+        end
+    end
+    return false
+end
+
+# Fallback for non-interface nodes
+function has_persistent_annotation(env::Environment, node::Node)
+    return false
+end
+
+"""
+    extends_persistent(env::Environment, node::Node{InterfaceNodeProps}) -> Bool
+
+Check if an interface extends the Persistent interface.
+"""
+function extends_persistent(env::Environment, node::Node{InterfaceNodeProps})
+    for superclass in node.nodeProperties.superclasses
+        if superclass.id == PERSISTENT_INTERFACE_ID_GEN
+            return true
+        end
+        # Check transitively
+        super_node = get(env.nodes, superclass.id, nothing)
+        if super_node !== nothing && super_node isa Node{InterfaceNodeProps}
+            if extends_persistent(env, super_node)
+                return true
+            end
+        end
+    end
+    return false
+end
+
+# Fallback for non-interface nodes
+function extends_persistent(env::Environment, node::Node)
+    return false
+end
+
+"""
+    is_persistent_interface(env::Environment, node::Node{InterfaceNodeProps}) -> Bool
+
+Check if an interface is persistent (either via annotation or by extending Persistent).
+"""
+function is_persistent_interface(env::Environment, node::Node{InterfaceNodeProps})
+    return has_persistent_annotation(env, node) || extends_persistent(env, node)
+end
+
+# Fallback for non-interface nodes
+function is_persistent_interface(env::Environment, node::Node)
+    return false
+end
+
 # Finds $Cxx.namespace("capnp::schema"); and returns ["capnp", "schema"]
 function namespace_annotation(env::Environment, node::Node{FileNodeProps})::Vector{String}
     namespace_annotations = Iterators.filter(node.annotations) do annotation
@@ -232,8 +300,17 @@ function generateNode(env::Environment, node::Node{InterfaceNodeProps})
     # Interface ID constant (explicitly typed as UInt64 for large IDs)
     cprintln(env, "const $(node.jlName)_interface_id = UInt64(0x$(string(node.id, base=16)))")
 
-    # Abstract server type for implementing the interface
-    cprintln(env, "abstract type $(node.jlName)_Server end")
+    # Check if this is a persistent interface
+    is_persistent = is_persistent_interface(env, node)
+
+    if is_persistent
+        # Abstract server type extends PersistentCapability for persistent interfaces
+        cprintln(env, "# This interface supports persistent capabilities")
+        cprintln(env, "abstract type $(node.jlName)_Server <: Capnp.RPC.PersistentCapability end")
+    else
+        # Abstract server type for implementing the interface
+        cprintln(env, "abstract type $(node.jlName)_Server end")
+    end
 
     # Client struct for calling the interface
     cprintln(env, "struct $(node.jlName)_Client")
@@ -243,6 +320,11 @@ function generateNode(env::Environment, node::Node{InterfaceNodeProps})
     # Generate method stubs for each method
     for (idx, method) in enumerate(node.nodeProperties.methods)
         generateMethod(env, node, method, UInt16(idx - 1))
+    end
+
+    # Generate persistent capability methods if applicable (T072)
+    if is_persistent
+        generatePersistentMethods(env, node)
     end
 
     # Generate method dispatch function for server-side RPC
@@ -282,6 +364,66 @@ function generateNode(env::Environment, node::Node{InterfaceNodeProps})
     cprintln(env, "        return true")
     cprintln(env, "    end")
     cprintln(env, "    return false")
+    cprintln(env, "end")
+end
+
+"""
+Generate save() client method and server trait for persistent interfaces (T072-T073).
+"""
+function generatePersistentMethods(env::Environment, node::Node{InterfaceNodeProps})
+    # Client save() method - sync version
+    cprintln(env, "\"\"\"")
+    cprintln(env, "    $(node.jlName)_save(client::$(node.jlName)_Client) -> DefaultSturdyRef")
+    cprintln(env, "")
+    cprintln(env, "Save the capability and get a SturdyRef for later restoration (blocking).")
+    cprintln(env, "This interface supports persistent capabilities.")
+    cprintln(env, "\"\"\"")
+    cprintln(env, "function $(node.jlName)_save(client::$(node.jlName)_Client)")
+    cprintln(env, "    # Call Persistent.save() on the capability")
+    cprintln(env, "    conn = client.cap.connection")
+    cprintln(env, "    import_id = client.cap.import_id")
+    cprintln(env, "    Capnp.RPC.call_save_sync(conn, import_id)")
+    cprintln(env, "end")
+
+    # Client save() method - async version
+    cprintln(env, "\"\"\"")
+    cprintln(env, "    $(node.jlName)_saveAsync(client::$(node.jlName)_Client) -> Promise{DefaultSturdyRef}")
+    cprintln(env, "")
+    cprintln(env, "Save the capability asynchronously (returns Promise).")
+    cprintln(env, "\"\"\"")
+    cprintln(env, "function $(node.jlName)_saveAsync(client::$(node.jlName)_Client)")
+    cprintln(env, "    conn = client.cap.connection")
+    cprintln(env, "    import_id = client.cap.import_id")
+    cprintln(env, "    Capnp.RPC.call_save(conn, import_id)")
+    cprintln(env, "end")
+
+    # Server trait: can_save override point
+    cprintln(env, "\"\"\"")
+    cprintln(env, "    $(node.jlName)_can_save(impl::$(node.jlName)_Server, owner) -> Bool")
+    cprintln(env, "")
+    cprintln(env, "Override this method to implement access control for save operations.")
+    cprintln(env, "Default implementation returns true (all owners can save).")
+    cprintln(env, "\"\"\"")
+    cprintln(env, "function $(node.jlName)_can_save(impl::$(node.jlName)_Server, owner)")
+    cprintln(env, "    # Default: allow save for any owner")
+    cprintln(env, "    return true")
+    cprintln(env, "end")
+
+    # Override Capnp.RPC.can_save for this server type
+    cprintln(env, "# Hook into RPC persistence system")
+    cprintln(env, "function Capnp.RPC.can_save(impl::$(node.jlName)_Server, owner)")
+    cprintln(env, "    $(node.jlName)_can_save(impl, owner)")
+    cprintln(env, "end")
+
+    # Server trait: generate_object_id override point
+    cprintln(env, "\"\"\"")
+    cprintln(env, "    $(node.jlName)_object_id(impl::$(node.jlName)_Server) -> Vector{UInt8}")
+    cprintln(env, "")
+    cprintln(env, "Override this method to provide a custom object ID for persistence.")
+    cprintln(env, "Default implementation uses Julia's objectid().")
+    cprintln(env, "\"\"\"")
+    cprintln(env, "function $(node.jlName)_object_id(impl::$(node.jlName)_Server)")
+    cprintln(env, "    Vector{UInt8}(string(objectid(impl)))")
     cprintln(env, "end")
 end
 

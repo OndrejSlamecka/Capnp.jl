@@ -43,7 +43,7 @@ end
     Promise{T}
 
 A promise representing an eventual value of type T.
-Supports Cap'n Proto RPC promise pipelining.
+Supports Cap'n Proto RPC promise pipelining and Level 2 resolution callbacks.
 """
 mutable struct Promise{T}
     state::PromiseState.T
@@ -52,9 +52,13 @@ mutable struct Promise{T}
     waiters::Vector{Condition}
     _question_id::Union{QuestionId, Nothing}
     lock::ReentrantLock
+    # Level 2: Callbacks for promise resolution
+    on_resolve_callbacks::Vector{Function}  # Called with resolved value
+    on_reject_callbacks::Vector{Function}   # Called with exception
 
     function Promise{T}(; question_id::Union{QuestionId, Nothing}=nothing) where T
-        new{T}(PromiseState.PENDING, nothing, nothing, Condition[], question_id, ReentrantLock())
+        new{T}(PromiseState.PENDING, nothing, nothing, Condition[], question_id, ReentrantLock(),
+               Function[], Function[])
     end
 end
 
@@ -102,6 +106,7 @@ question_id(p::Promise) = p._question_id
 Resolve the promise with a value.
 """
 function resolve!(p::Promise{T}, value::T) where T
+    callbacks_to_call = Function[]
     lock(p.lock) do
         if is_settled(p)
             throw(PromiseAlreadySettledException("Promise already settled"))
@@ -111,6 +116,16 @@ function resolve!(p::Promise{T}, value::T) where T
         # Wake up all waiters
         for cond in p.waiters
             notify(cond)
+        end
+        # Collect callbacks to call outside the lock
+        append!(callbacks_to_call, p.on_resolve_callbacks)
+    end
+    # Call callbacks outside the lock to avoid deadlocks
+    for cb in callbacks_to_call
+        try
+            cb(value)
+        catch e
+            @warn "Promise resolve callback threw exception" exception=e
         end
     end
     return p
@@ -126,16 +141,27 @@ end
 
 Reject the promise with an error.
 """
-function reject!(p::Promise, error::Exception)
+function reject!(p::Promise, err::Exception)
+    callbacks_to_call = Function[]
     lock(p.lock) do
         if is_settled(p)
             throw(PromiseAlreadySettledException("Promise already settled"))
         end
-        p.error = error
+        p.error = err
         p.state = PromiseState.REJECTED
         # Wake up all waiters
         for cond in p.waiters
             notify(cond)
+        end
+        # Collect callbacks to call outside the lock
+        append!(callbacks_to_call, p.on_reject_callbacks)
+    end
+    # Call callbacks outside the lock to avoid deadlocks
+    for cb in callbacks_to_call
+        try
+            cb(err)
+        catch e
+            @warn "Promise reject callback threw exception" exception=e
         end
     end
     return p
@@ -194,8 +220,79 @@ function call_pipelined(parent::Promise, ops::Vector{PipelineOp})
     return child
 end
 
+# Level 2: Callback registration functions
+
+"""
+    on_resolve!(promise::Promise, callback::Function)
+
+Register a callback to be called when the promise resolves.
+The callback receives the resolved value as its argument.
+If the promise is already resolved, the callback is called immediately.
+"""
+function on_resolve!(p::Promise, callback::Function)
+    call_now = false
+    value = nothing
+    lock(p.lock) do
+        if p.state == PromiseState.RESOLVED
+            call_now = true
+            value = p.result
+        else
+            push!(p.on_resolve_callbacks, callback)
+        end
+    end
+    if call_now
+        try
+            callback(value)
+        catch e
+            @warn "Promise resolve callback threw exception" exception=e
+        end
+    end
+    return p
+end
+
+"""
+    on_reject!(promise::Promise, callback::Function)
+
+Register a callback to be called when the promise is rejected.
+The callback receives the exception as its argument.
+If the promise is already rejected, the callback is called immediately.
+"""
+function on_reject!(p::Promise, callback::Function)
+    call_now = false
+    err = nothing
+    lock(p.lock) do
+        if p.state == PromiseState.REJECTED
+            call_now = true
+            err = p.error
+        else
+            push!(p.on_reject_callbacks, callback)
+        end
+    end
+    if call_now
+        try
+            callback(err)
+        catch e
+            @warn "Promise reject callback threw exception" exception=e
+        end
+    end
+    return p
+end
+
+"""
+    then(promise::Promise, on_resolve::Function, on_reject::Function=identity) -> Promise
+
+Register callbacks for both resolution and rejection.
+Returns the promise for chaining.
+"""
+function then(p::Promise, on_resolve_cb::Function, on_reject_cb::Function=identity)
+    on_resolve!(p, on_resolve_cb)
+    on_reject!(p, on_reject_cb)
+    return p
+end
+
 # Export everything
 export PromiseState, PipelineOpKind, PipelineOp, PromisedAnswer
 export Promise, PromiseAlreadySettledException
 export state, is_resolved, is_rejected, is_settled, question_id
 export resolve!, reject!, call_pipelined
+export on_resolve!, on_reject!, then

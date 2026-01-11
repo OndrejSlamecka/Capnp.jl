@@ -240,4 +240,124 @@ using Capnp
         # (actual network round-trip would add latency)
         @test median_time < 0.001  # < 1ms
     end
+
+    @testset "Persistent capability save performance (SC-001)" begin
+        using Capnp.RPC
+
+        # Test save() operation latency
+        # SC-001 requires save() to complete in < 100ms
+
+        # Create a DefaultRestorer
+        restorer = RPC.DefaultRestorer("test-host")
+
+        # Create a simple persistent capability wrapper
+        mock_cap = "TestCapability"
+        object_id = Vector{UInt8}("test-object-id")
+
+        # Warm up
+        for i in 1:10
+            warm_id = Vector{UInt8}("warmup-$i")
+            RPC.register!(restorer, warm_id, mock_cap, RPC.DefaultOwner())
+        end
+
+        # Measure save (register) operation timing
+        times = Float64[]
+        for i in 1:100
+            unique_id = Vector{UInt8}("perf-test-$i")
+            t = @elapsed begin
+                sturdy_ref = RPC.register!(restorer, unique_id, mock_cap, RPC.DefaultOwner())
+                # Also test serialization as part of save workflow
+                serialized = RPC.serialize_sturdy_ref(sturdy_ref)
+            end
+            push!(times, t)
+        end
+
+        median_time = sort(times)[50]
+        # Target: save() should complete in < 100ms (SC-001)
+        @test median_time < 0.1  # < 100ms
+        # In practice, should be much faster (< 1ms for local operations)
+        @test median_time < 0.001  # Stretch goal: < 1ms
+    end
+
+    @testset "Persistent capability restore performance (SC-002)" begin
+        using Capnp.RPC
+
+        # Test restore() operation latency
+        # SC-002 requires restore() to complete in < 200ms
+
+        # Create a DefaultRestorer with pre-registered capabilities
+        restorer = RPC.DefaultRestorer("test-host")
+
+        # Register many capabilities for realistic lookup
+        sturdy_refs = RPC.DefaultSturdyRef[]
+        for i in 1:100
+            object_id = Vector{UInt8}("restore-test-$i")
+            ref = RPC.register!(restorer, object_id, "Capability-$i", RPC.DefaultOwner())
+            push!(sturdy_refs, ref)
+        end
+
+        # Warm up
+        for _ in 1:10
+            ref = sturdy_refs[rand(1:100)]
+            RPC.restore(restorer, ref)
+        end
+
+        # Measure restore operation timing
+        times = Float64[]
+        for i in 1:100
+            ref = sturdy_refs[i]
+            t = @elapsed begin
+                # Simulate full restore workflow: deserialize + restore
+                serialized = RPC.serialize_sturdy_ref(ref)
+                deserialized = RPC.deserialize_sturdy_ref(serialized)
+                cap = RPC.restore(restorer, deserialized)
+            end
+            push!(times, t)
+        end
+
+        median_time = sort(times)[50]
+        # Target: restore() should complete in < 200ms (SC-002)
+        @test median_time < 0.2  # < 200ms
+        # In practice, should be much faster (< 1ms for local operations)
+        @test median_time < 0.001  # Stretch goal: < 1ms
+    end
+
+    @testset "SturdyRef serialization performance" begin
+        using Capnp.RPC
+
+        # Test SturdyRef serialization/deserialization performance
+        ref = RPC.DefaultSturdyRef("test-host-id", "test-object-identifier-12345")
+
+        # Warm up
+        for _ in 1:10
+            serialized = RPC.serialize_sturdy_ref(ref)
+            RPC.deserialize_sturdy_ref(serialized)
+        end
+
+        # Measure serialization
+        serialize_times = Float64[]
+        for _ in 1:100
+            t = @elapsed begin
+                RPC.serialize_sturdy_ref(ref)
+            end
+            push!(serialize_times, t)
+        end
+
+        # Measure deserialization
+        serialized = RPC.serialize_sturdy_ref(ref)
+        deserialize_times = Float64[]
+        for _ in 1:100
+            t = @elapsed begin
+                RPC.deserialize_sturdy_ref(serialized)
+            end
+            push!(deserialize_times, t)
+        end
+
+        median_serialize = sort(serialize_times)[50]
+        median_deserialize = sort(deserialize_times)[50]
+
+        # Both operations should be very fast (< 100μs)
+        @test median_serialize < 0.0001
+        @test median_deserialize < 0.0001
+    end
 end

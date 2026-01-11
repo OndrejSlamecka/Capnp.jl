@@ -1,6 +1,8 @@
 # Cap'n Proto RPC Client (FR-010, FR-013)
 # Provides client-side RPC functionality
 
+# Note: RemotePromise is defined in connection.jl for proper include order
+
 """
     connect(host::AbstractString, port::Integer) -> Connection
 
@@ -98,13 +100,41 @@ end
     handle_message!(conn::Connection, message::MessageReader)
 
 Process an incoming RPC message.
+Dispatches to appropriate handler based on message type.
 """
 function handle_message!(conn::Connection, message::Capnp.MessageReader)
-    # In a full implementation, this would:
-    # 1. Parse the RPC message type
-    # 2. Dispatch to appropriate handler (Return, Resolve, Release, etc.)
+    # Parse the RPC message
+    parsed = parse_rpc_message(message)
 
-    # Placeholder for now
+    # Dispatch based on message type
+    if parsed.type == MessageType.RETURN
+        # Handle Return message (contains answer_id, results or exception)
+        # TODO: Full implementation needs to parse Return details
+        return nothing
+    elseif parsed.type == MessageType.RESOLVE
+        # Handle Resolve message (Level 2 promise resolution)
+        if parsed.resolve !== nothing
+            handle_resolve!(conn, parsed.resolve)
+        end
+    elseif parsed.type == MessageType.RELEASE
+        # Handle Release message
+        if parsed.release !== nothing
+            handle_release!(conn, parsed.release.id, parsed.release.reference_count)
+        end
+    elseif parsed.type == MessageType.FINISH
+        # Handle Finish message (server telling us a question is done)
+        if parsed.finish !== nothing
+            # Remove the pending answer
+            remove_answer!(conn, parsed.finish.question_id)
+        end
+    elseif parsed.type == MessageType.ABORT
+        # Connection is being aborted
+        set_failed!(conn, "Connection aborted by remote")
+    else
+        # Unhandled message type
+        @warn "Unhandled RPC message type" type=parsed.type
+    end
+
     return nothing
 end
 
@@ -135,13 +165,89 @@ function handle_exception!(conn::Connection, answer_id::AnswerId, reason::String
 end
 
 """
-    handle_resolve!(conn::Connection, promise_id::UInt32, cap)
+    handle_resolve!(conn::Connection, resolve::ParsedResolve)
 
-Handle a Resolve message - promise was replaced with a capability.
+Handle a Resolve message - promise was replaced with a capability or exception.
+This implements the client-side of C001-RESOLVE contract.
+
+When a capability was received as senderPromise (promised export), the server
+sends a Resolve message when the promise resolves. This function:
+1. Looks up the RemotePromise by promise_id (which is the import_id)
+2. Resolves/rejects the local promise accordingly
+3. Creates a RemoteCapability if resolved to a capability
 """
-function handle_resolve!(conn::Connection, promise_id::UInt32, cap)
-    # Update the import table with the resolved capability
-    # This is used when a capability was originally received as a promise
+function handle_resolve!(conn::Connection, resolve::ParsedResolve)
+    import_id = ImportId(resolve.promise_id)
+
+    # Look up the remote promise
+    remote = get_remote_promise(conn, import_id)
+
+    if remote === nothing
+        # Unknown promise ID - might be a bug or late message
+        @warn "Received Resolve for unknown promise" promise_id=resolve.promise_id
+        return nothing
+    end
+
+    if resolve.kind == ResolveType.CAP
+        # Promise resolved to a capability
+        cap_desc = resolve.cap_descriptor
+
+        if cap_desc === nothing
+            reject!(remote.local_promise, InvalidCapabilityException("Resolve.cap is null"))
+        elseif cap_desc.kind == CapDescriptorType.SENDER_HOSTED
+            # Resolved to a regular hosted capability
+            new_import_id = cap_desc.sender_hosted
+            if new_import_id !== nothing
+                # Create or reference the remote capability
+                remote_cap = RemoteCapability(new_import_id, UInt64(0), conn)
+                add_import!(conn, new_import_id, remote_cap)
+                resolve!(remote.local_promise, remote_cap)
+            else
+                reject!(remote.local_promise, InvalidCapabilityException("senderHosted ID is null"))
+            end
+        elseif cap_desc.kind == CapDescriptorType.SENDER_PROMISE
+            # Resolved to another promise - chain the promises
+            new_import_id = cap_desc.sender_promise
+            if new_import_id !== nothing
+                # Create a new remote promise for the chained promise
+                chained_promise = Promise{Any}()
+                add_remote_promise!(conn, new_import_id, chained_promise)
+                # The original promise will resolve when the chained one does
+                on_resolve!(chained_promise, value -> resolve!(remote.local_promise, value))
+                on_reject!(chained_promise, err -> reject!(remote.local_promise, err))
+            else
+                reject!(remote.local_promise, InvalidCapabilityException("senderPromise ID is null"))
+            end
+        elseif cap_desc.kind == CapDescriptorType.RECEIVER_HOSTED
+            # Resolved to a capability we host - this is unusual but valid
+            receiver_id = cap_desc.receiver_hosted
+            if receiver_id !== nothing
+                local_cap = get_export(conn, ExportId(receiver_id))
+                if local_cap !== nothing
+                    resolve!(remote.local_promise, local_cap)
+                else
+                    reject!(remote.local_promise, InvalidCapabilityException("receiverHosted ID not found in exports"))
+                end
+            else
+                reject!(remote.local_promise, InvalidCapabilityException("receiverHosted ID is null"))
+            end
+        elseif cap_desc.kind == CapDescriptorType.NONE
+            # Resolved to null capability
+            resolve!(remote.local_promise, nothing)
+        else
+            # Third-party hosted or other - not implemented
+            reject!(remote.local_promise, InvalidCapabilityException("Unsupported CapDescriptor kind: $(cap_desc.kind)"))
+        end
+    else
+        # Promise resolved to an exception
+        exc_type = resolve.exception_type !== nothing ? resolve.exception_type : ExceptionType.FAILED
+        exc_reason = resolve.exception_reason !== nothing ? resolve.exception_reason : "Unknown error"
+        reject!(remote.local_promise, RemoteException(exc_reason, exc_type))
+    end
+
+    # Remove the remote promise from tracking (it's now resolved/rejected)
+    remove_remote_promise!(conn, import_id)
+
     return nothing
 end
 
@@ -187,7 +293,222 @@ function start_message_loop!(conn::Connection)
     end
 end
 
+# ============================================================================
+# Level 2: Persistent Capability Client Methods
+# ============================================================================
+
+"""
+    NotPersistentException
+
+Exception thrown when trying to save a non-persistent capability.
+"""
+struct NotPersistentException <: Exception
+    reason::String
+end
+
+"""
+    call_save(conn::Connection, import_id::ImportId) -> Promise{DefaultSturdyRef}
+
+Call Persistent.save() on a remote capability.
+Returns a Promise that resolves to a DefaultSturdyRef when the save completes.
+
+This implements C002-SAVE contract for clients.
+
+# Arguments
+- `conn`: The RPC connection
+- `import_id`: The import ID of the capability to save
+
+# Returns
+- A Promise that resolves to a DefaultSturdyRef
+
+# Throws
+- `NotPersistentException` if the capability doesn't implement Persistent
+- `RemoteException` if the server returns an error
+"""
+function call_save(conn::Connection, import_id::ImportId)
+    # Get next question ID
+    qid = next_question_id!(conn)
+
+    # Build the save call message
+    message = build_save_call(qid, import_id)
+
+    # Create a promise for the result
+    promise = Promise{Any}(question_id=qid)
+
+    # Track the question
+    question = PendingQuestion(qid, promise, ExportId[])
+    add_question!(conn, question)
+
+    # Send the message
+    send_raw_message(conn.transport, message)
+
+    # Return a typed promise that will convert the result
+    result_promise = Promise{DefaultSturdyRef}()
+
+    on_resolve!(promise, function(value)
+        # Value should be ParsedSaveResults
+        if value isa ParsedSaveResults
+            if !isempty(value.sturdy_ref_data)
+                sturdy_ref = deserialize_sturdy_ref(value.sturdy_ref_data)
+                resolve!(result_promise, sturdy_ref)
+            else
+                reject!(result_promise, RemoteException("Empty SturdyRef returned", ExceptionType.FAILED))
+            end
+        else
+            reject!(result_promise, RemoteException("Unexpected save result type", ExceptionType.FAILED))
+        end
+    end)
+
+    on_reject!(promise, function(err)
+        # Check if it's a "not implemented" error (capability doesn't support Persistent)
+        if err isa RemoteException && err.type == ExceptionType.UNIMPLEMENTED
+            reject!(result_promise, NotPersistentException("Capability does not implement Persistent interface"))
+        else
+            reject!(result_promise, err)
+        end
+    end)
+
+    return result_promise
+end
+
+"""
+    call_save_sync(conn::Connection, import_id::ImportId; timeout_ms::Int=5000) -> DefaultSturdyRef
+
+Synchronously call Persistent.save() on a remote capability.
+Blocks until the save completes or times out.
+
+# Arguments
+- `conn`: The RPC connection
+- `import_id`: The import ID of the capability to save
+- `timeout_ms`: Maximum time to wait in milliseconds (default 5000)
+
+# Returns
+- A DefaultSturdyRef
+
+# Throws
+- `NotPersistentException` if the capability doesn't implement Persistent
+- `RemoteException` if the server returns an error
+- Timeout-related error if the operation times out
+"""
+function call_save_sync(conn::Connection, import_id::ImportId; timeout_ms::Int=5000)
+    promise = call_save(conn, import_id)
+
+    # Wait for the promise to settle (with timeout would require additional infrastructure)
+    wait(promise)
+
+    return fetch(promise)
+end
+
+"""
+    call_restore(conn::Connection, restorer_import_id::ImportId, sturdy_ref::DefaultSturdyRef) -> Promise{RemoteCapability}
+
+Call restore on a restorer capability to get back a previously saved capability.
+Returns a Promise that resolves to the restored RemoteCapability.
+
+This implements C003-RESTORE contract for clients.
+
+# Arguments
+- `conn`: The RPC connection
+- `restorer_import_id`: The import ID of the restorer capability (usually from bootstrap)
+- `sturdy_ref`: The SturdyRef obtained from a previous save() call
+
+# Returns
+- A Promise that resolves to a RemoteCapability
+
+# Throws
+- `RestoreException(:not_found, ...)` if the capability was not found
+- `RestoreException(:unauthorized, ...)` if the owner doesn't match
+- `RestoreException(:expired, ...)` if the capability has expired
+- `RemoteException` for other server errors
+"""
+function call_restore(conn::Connection, restorer_import_id::ImportId, sturdy_ref::DefaultSturdyRef)
+    # Get next question ID
+    qid = next_question_id!(conn)
+
+    # Serialize the sturdy ref
+    sturdy_ref_data = serialize_sturdy_ref(sturdy_ref)
+
+    # Build the restore call message
+    message = build_restore_call(qid, restorer_import_id, sturdy_ref_data)
+
+    # Create a promise for the result
+    promise = Promise{Any}(question_id=qid)
+
+    # Track the question
+    question = PendingQuestion(qid, promise, ExportId[])
+    add_question!(conn, question)
+
+    # Send the message
+    send_raw_message(conn.transport, message)
+
+    # Return a typed promise that will convert the result
+    result_promise = Promise{RemoteCapability}()
+
+    on_resolve!(promise, function(value)
+        if value isa ParsedRestoreResults
+            if value.success && value.import_id !== nothing
+                # Create a RemoteCapability for the restored capability
+                remote_cap = RemoteCapability(value.import_id, UInt64(0), conn)
+                add_import!(conn, value.import_id, remote_cap)
+                resolve!(result_promise, remote_cap)
+            else
+                # Restoration failed
+                error_type = value.error_type !== nothing ? value.error_type : :failed
+                error_reason = value.error_reason !== nothing ? value.error_reason : "Unknown error"
+                reject!(result_promise, RestoreException(error_reason, error_type))
+            end
+        else
+            reject!(result_promise, RemoteException("Unexpected restore result type", ExceptionType.FAILED))
+        end
+    end)
+
+    on_reject!(promise, function(err)
+        # Map remote exceptions to RestoreException where appropriate
+        if err isa RemoteException
+            if err.type == ExceptionType.UNIMPLEMENTED
+                reject!(result_promise, RestoreException("Restorer does not support this SturdyRef", :not_found))
+            else
+                reject!(result_promise, err)
+            end
+        else
+            reject!(result_promise, err)
+        end
+    end)
+
+    return result_promise
+end
+
+"""
+    call_restore_sync(conn::Connection, restorer_import_id::ImportId, sturdy_ref::DefaultSturdyRef; timeout_ms::Int=5000) -> RemoteCapability
+
+Synchronously restore a capability from a SturdyRef.
+Blocks until the restore completes or times out.
+
+# Arguments
+- `conn`: The RPC connection
+- `restorer_import_id`: The import ID of the restorer capability
+- `sturdy_ref`: The SturdyRef obtained from a previous save() call
+- `timeout_ms`: Maximum time to wait in milliseconds (default 5000)
+
+# Returns
+- A RemoteCapability
+
+# Throws
+- `RestoreException` for restore-related errors
+- `RemoteException` for other server errors
+"""
+function call_restore_sync(conn::Connection, restorer_import_id::ImportId, sturdy_ref::DefaultSturdyRef; timeout_ms::Int=5000)
+    promise = call_restore(conn, restorer_import_id, sturdy_ref)
+
+    # Wait for the promise to settle
+    wait(promise)
+
+    return fetch(promise)
+end
+
 # Exports
 export connect, bootstrap, ConnectionOptions
 export handle_message!, handle_return!, handle_exception!, handle_resolve!, handle_release!
 export start_message_loop!
+export NotPersistentException, call_save, call_save_sync
+export call_restore, call_restore_sync

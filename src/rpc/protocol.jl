@@ -69,6 +69,79 @@ module SendResultsToType
 end
 
 """
+Resolve union type discriminants from rpc.capnp Resolve struct.
+Level 2: Promise resolution message types.
+"""
+module ResolveType
+    @enum T::UInt16 begin
+        CAP = 0        # Resolved to a capability
+        EXCEPTION = 1  # Resolved to an exception
+    end
+end
+
+"""
+CapDescriptor union type discriminants from rpc.capnp.
+Describes how a capability is represented in a message's capability table.
+"""
+module CapDescriptorType
+    @enum T::UInt16 begin
+        NONE = 0
+        SENDER_HOSTED = 1
+        SENDER_PROMISE = 2
+        RECEIVER_HOSTED = 3
+        RECEIVER_ANSWER = 4
+        THIRD_PARTY_HOSTED = 5
+    end
+end
+
+"""
+PromisedAnswer.Op union type discriminants.
+Operations for navigating a promised answer.
+"""
+module PromisedAnswerOpType
+    @enum T::UInt16 begin
+        NOOP = 0
+        GET_POINTER_FIELD = 1
+    end
+end
+
+"""
+    PromisedAnswerOp
+
+Operation for navigating a promised answer (getPointerField).
+"""
+struct PromisedAnswerOp
+    kind::PromisedAnswerOpType.T
+    get_pointer_field::Union{UInt16, Nothing}  # For GET_POINTER_FIELD kind
+end
+
+"""
+    ParsedPromisedAnswer
+
+Reference to a promised answer for capability addressing.
+Used in MessageTarget.promisedAnswer and CapDescriptor.receiverAnswer.
+"""
+struct ParsedPromisedAnswer
+    question_id::QuestionId
+    transform::Vector{PromisedAnswerOp}
+end
+
+"""
+    ParsedCapDescriptor
+
+Parsed CapDescriptor from a message's capability table.
+Describes how a capability is represented.
+"""
+struct ParsedCapDescriptor
+    kind::CapDescriptorType.T
+    sender_hosted::Union{ExportId, Nothing}      # kind = SENDER_HOSTED
+    sender_promise::Union{ExportId, Nothing}     # kind = SENDER_PROMISE
+    receiver_hosted::Union{ImportId, Nothing}    # kind = RECEIVER_HOSTED
+    receiver_answer::Union{ParsedPromisedAnswer, Nothing}  # kind = RECEIVER_ANSWER
+    # third_party_hosted not implemented for Level 2
+end
+
+"""
     ParsedBootstrap
 
 Parsed Bootstrap message data.
@@ -132,6 +205,20 @@ struct ParsedRelease
 end
 
 """
+    ParsedResolve
+
+Parsed Resolve message data (Level 2).
+Resolve notifies the receiver that a promised capability has resolved.
+"""
+struct ParsedResolve
+    promise_id::ExportId           # ID of the promise being resolved
+    kind::ResolveType.T            # cap or exception
+    cap_descriptor::Union{ParsedCapDescriptor, Nothing}  # If kind == CAP
+    exception_reason::Union{String, Nothing}             # If kind == EXCEPTION
+    exception_type::Union{ExceptionType.T, Nothing}      # If kind == EXCEPTION
+end
+
+"""
     ParsedMessage
 
 Union type for parsed RPC messages.
@@ -142,6 +229,7 @@ struct ParsedMessage
     call::Union{ParsedCall, Nothing}
     finish::Union{ParsedFinish, Nothing}
     release::Union{ParsedRelease, Nothing}
+    resolve::Union{ParsedResolve, Nothing}  # Level 2
 end
 
 """
@@ -185,9 +273,11 @@ function parse_rpc_message(reader::Capnp.MessageReader)
         return parse_finish(seg, struct_start)
     elseif msg_type == MessageType.RELEASE
         return parse_release(seg, ptr_section_start)
+    elseif msg_type == MessageType.RESOLVE
+        return parse_resolve(seg, ptr_section_start)
     else
         # Return an unimplemented message for unsupported types
-        return ParsedMessage(msg_type, nothing, nothing, nothing, nothing)
+        return ParsedMessage(msg_type, nothing, nothing, nothing, nothing, nothing)
     end
 end
 
@@ -270,7 +360,7 @@ function parse_bootstrap(seg::Vector{UInt8}, ptr_section_start::Int)
     question_id = read_data_field(seg, boot_start, 0, UInt32)
 
     bootstrap = ParsedBootstrap(QuestionId(question_id))
-    return ParsedMessage(MessageType.BOOTSTRAP, bootstrap, nothing, nothing, nothing)
+    return ParsedMessage(MessageType.BOOTSTRAP, bootstrap, nothing, nothing, nothing, nothing)
 end
 
 """
@@ -321,7 +411,7 @@ function parse_call(seg::Vector{UInt8}, _msg_struct_start::Int, msg_ptr_section_
         params
     )
 
-    return ParsedMessage(MessageType.CALL, nothing, call, nothing, nothing)
+    return ParsedMessage(MessageType.CALL, nothing, call, nothing, nothing, nothing)
 end
 
 """
@@ -362,6 +452,72 @@ function parse_params(seg::Vector{UInt8}, payload_ptr_word::Int)
     right = read_data_field(seg, params_start, 8, Float64)
 
     return ParsedParams(left, right)
+end
+
+"""
+    parse_cap_descriptor(seg, cap_desc_start, cap_desc_data_size) -> ParsedCapDescriptor
+
+Parse a CapDescriptor struct from the capability table.
+CapDescriptor layout:
+- discriminant: UInt16 at data offset 0
+- senderHosted/senderPromise/receiverHosted: UInt32 at data offset 4
+- receiverAnswer: pointer in pointer section
+"""
+function parse_cap_descriptor(seg::Vector{UInt8}, cap_desc_start::Int, cap_desc_data_size::Int)
+    # Read discriminant
+    kind_raw = read_data_field(seg, cap_desc_start, 0, UInt16)
+    kind = CapDescriptorType.T(kind_raw)
+
+    if kind == CapDescriptorType.NONE
+        return ParsedCapDescriptor(kind, nothing, nothing, nothing, nothing)
+    elseif kind == CapDescriptorType.SENDER_HOSTED
+        export_id = read_data_field(seg, cap_desc_start, 4, UInt32)
+        return ParsedCapDescriptor(kind, ExportId(export_id), nothing, nothing, nothing)
+    elseif kind == CapDescriptorType.SENDER_PROMISE
+        export_id = read_data_field(seg, cap_desc_start, 4, UInt32)
+        return ParsedCapDescriptor(kind, nothing, ExportId(export_id), nothing, nothing)
+    elseif kind == CapDescriptorType.RECEIVER_HOSTED
+        import_id = read_data_field(seg, cap_desc_start, 4, UInt32)
+        return ParsedCapDescriptor(kind, nothing, nothing, ImportId(import_id), nothing)
+    elseif kind == CapDescriptorType.RECEIVER_ANSWER
+        # Parse PromisedAnswer from pointer section
+        ptr_section_start = cap_desc_start + cap_desc_data_size
+        promised_answer = parse_promised_answer(seg, ptr_section_start)
+        return ParsedCapDescriptor(kind, nothing, nothing, nothing, promised_answer)
+    else
+        # THIRD_PARTY_HOSTED - not implemented
+        return ParsedCapDescriptor(kind, nothing, nothing, nothing, nothing)
+    end
+end
+
+"""
+    parse_promised_answer(seg, ptr_section_start) -> ParsedPromisedAnswer
+
+Parse a PromisedAnswer struct from a pointer.
+PromisedAnswer layout:
+- questionId: UInt32 at data offset 0
+- transform: List(Op) at pointer 0
+"""
+function parse_promised_answer(seg::Vector{UInt8}, ptr_section_start::Int)
+    # Get the PromisedAnswer pointer
+    pa_ptr = get_struct_pointer(seg, ptr_section_start)
+
+    if pa_ptr === nothing || pa_ptr == 0
+        return ParsedPromisedAnswer(QuestionId(0), PromisedAnswerOp[])
+    end
+
+    # Decode the PromisedAnswer struct
+    pa_offset, pa_data_size, _ = decode_struct_pointer(pa_ptr)
+    pa_start = ptr_section_start + 1 + pa_offset
+
+    # Read questionId
+    question_id = read_data_field(seg, pa_start, 0, UInt32)
+
+    # Parse transform list (at pointer 0)
+    # For now, return empty transform - can be extended later
+    transform = PromisedAnswerOp[]
+
+    return ParsedPromisedAnswer(QuestionId(question_id), transform)
 end
 
 """
@@ -415,7 +571,7 @@ function parse_finish(_seg::Vector{UInt8}, _msg_struct_start::Int)
     # TODO: Need to properly locate the Finish struct pointer
     # For now, assume it's at Message pointer 0
     finish = ParsedFinish(QuestionId(0), true)
-    return ParsedMessage(MessageType.FINISH, nothing, nothing, finish, nothing)
+    return ParsedMessage(MessageType.FINISH, nothing, nothing, finish, nothing, nothing)
 end
 
 """
@@ -442,7 +598,92 @@ function parse_release(seg::Vector{UInt8}, ptr_section_start::Int)
     ref_count = read_data_field(seg, rel_start, 4, UInt32)
 
     release = ParsedRelease(ImportId(id), ref_count)
-    return ParsedMessage(MessageType.RELEASE, nothing, nothing, nothing, release)
+    return ParsedMessage(MessageType.RELEASE, nothing, nothing, nothing, release, nothing)
+end
+
+"""
+Parse a Resolve message.
+Resolve struct layout (per rpc.capnp):
+- promiseId @0: ExportId (UInt32 at data offset 0)
+- union discriminant: UInt16 at data offset 4
+  - cap @1: CapDescriptor at pointer 0
+  - exception @2: Exception at pointer 0
+"""
+function parse_resolve(seg::Vector{UInt8}, ptr_section_start::Int)
+    # Get the Resolve struct pointer
+    resolve_ptr = get_struct_pointer(seg, ptr_section_start)
+
+    if resolve_ptr === nothing || resolve_ptr == 0
+        throw(RemoteException("Invalid Resolve message: null pointer", ExceptionType.FAILED))
+    end
+
+    # Decode the Resolve struct
+    res_offset, res_data_size, _ = decode_struct_pointer(resolve_ptr)
+    res_start = ptr_section_start + 1 + res_offset
+    res_ptr_section = res_start + res_data_size
+
+    # Read promiseId (UInt32 at data offset 0)
+    promise_id = read_data_field(seg, res_start, 0, UInt32)
+
+    # Read union discriminant (UInt16 at data offset 4)
+    kind_raw = read_data_field(seg, res_start, 4, UInt16)
+    kind = ResolveType.T(kind_raw)
+
+    if kind == ResolveType.CAP
+        # Parse CapDescriptor at pointer 0
+        cap_desc_ptr = get_struct_pointer(seg, res_ptr_section)
+        if cap_desc_ptr === nothing || cap_desc_ptr == 0
+            # Empty capability descriptor
+            cap_desc = ParsedCapDescriptor(CapDescriptorType.NONE, nothing, nothing, nothing, nothing)
+        else
+            cap_offset, cap_data_size, _ = decode_struct_pointer(cap_desc_ptr)
+            cap_start = res_ptr_section + 1 + cap_offset
+            cap_desc = parse_cap_descriptor(seg, cap_start, cap_data_size)
+        end
+        resolve = ParsedResolve(ExportId(promise_id), kind, cap_desc, nothing, nothing)
+    else
+        # Parse Exception at pointer 0
+        # Exception struct: reason @0 :Text, type @3 :UInt16 at offset 4
+        exc_ptr = get_struct_pointer(seg, res_ptr_section)
+        exception_reason = ""
+        exception_type = ExceptionType.FAILED
+
+        if exc_ptr !== nothing && exc_ptr != 0
+            exc_offset, exc_data_size, _ = decode_struct_pointer(exc_ptr)
+            exc_start = res_ptr_section + 1 + exc_offset
+            exc_ptr_section = exc_start + exc_data_size
+
+            # Read exception type (UInt16 at data offset 4)
+            type_raw = read_data_field(seg, exc_start, 4, UInt16)
+            if type_raw <= 3
+                exception_type = ExceptionType.T(type_raw)
+            end
+
+            # Parse reason text at pointer 0
+            text_ptr = get_struct_pointer(seg, exc_ptr_section)
+            if text_ptr !== nothing && text_ptr != 0
+                # Text list pointer
+                list_type = text_ptr & 0x3
+                if list_type == 1  # List pointer
+                    list_offset = Int((text_ptr >> 2) & 0x3FFFFFFF)
+                    # Sign extend
+                    if list_offset & 0x20000000 != 0
+                        list_offset -= 0x40000000
+                    end
+                    elem_count = Int((text_ptr >> 35) & 0x1FFFFFFF)
+                    text_start = (exc_ptr_section + list_offset) * 8 + 1
+                    # Read bytes (elem_count includes NUL terminator)
+                    if text_start > 0 && text_start + elem_count - 1 <= length(seg)
+                        text_bytes = seg[text_start:text_start + elem_count - 2]  # Exclude NUL
+                        exception_reason = String(text_bytes)
+                    end
+                end
+            end
+        end
+        resolve = ParsedResolve(ExportId(promise_id), kind, nothing, exception_reason, exception_type)
+    end
+
+    return ParsedMessage(MessageType.RESOLVE, nothing, nothing, nothing, nothing, resolve)
 end
 
 
@@ -825,9 +1066,460 @@ function build_bootstrap_return(question_id::QuestionId, export_id::ExportId)
     return message
 end
 
+
+# ============================================================================
+# Resolve Message Builder (Level 2)
+# ============================================================================
+
+"""
+    build_resolve_message(promise_id::ExportId, cap_kind::CapDescriptorType.T, export_id::ExportId) -> Vector{UInt8}
+
+Build a Resolve message that resolves a promised capability to an actual capability.
+The capability is described using a CapDescriptor in the Resolve.cap field.
+
+Resolve struct layout (per rpc.capnp):
+- Message: 1 data word (discriminant = RESOLVE = 5), 1 pointer
+- Resolve: 1 data word (promiseId + union discriminant = 0 for cap), 1 pointer
+- CapDescriptor: 1 data word (kind + export_id), 1 pointer
+"""
+function build_resolve_message(promise_id::ExportId, cap_kind::CapDescriptorType.T, export_id::ExportId)
+    # Layout:
+    # Word 0: Root pointer to Message struct
+    # Word 1: Message data section (discriminant = RESOLVE = 5)
+    # Word 2: Message pointer section -> Resolve struct
+    # Word 3: Resolve data section (promiseId, union discriminant = 0 for cap)
+    # Word 4: Resolve pointer section -> CapDescriptor
+    # Word 5: CapDescriptor data section (kind + export_id)
+    # Word 6: CapDescriptor pointer section (unused)
+
+    segment = Vector{UInt8}(undef, 56)  # 7 words
+    fill!(segment, 0)
+
+    # Word 0: Root pointer to Message struct at word 1
+    root_ptr = UInt64(0) | (UInt64(1) << 32) | (UInt64(1) << 48)
+    copyto!(segment, 1, reinterpret(UInt8, [root_ptr]), 1, 8)
+
+    # Word 1: Message struct data section - discriminant = RESOLVE = 5
+    segment[9] = 0x05
+
+    # Word 2: Message pointer section -> Resolve struct at word 3
+    # Resolve: 1 data word, 1 pointer
+    resolve_ptr = UInt64(0) | (UInt64(1) << 32) | (UInt64(1) << 48)
+    copyto!(segment, 17, reinterpret(UInt8, [resolve_ptr]), 1, 8)
+
+    # Word 3: Resolve data section
+    # - promiseId (UInt32 at offset 0)
+    copyto!(segment, 25, reinterpret(UInt8, [UInt32(promise_id)]), 1, 4)
+    # - union discriminant = 0 (cap) at offset 4
+    segment[29] = 0x00
+
+    # Word 4: Resolve pointer section -> CapDescriptor at word 5
+    # CapDescriptor: 1 data word, 1 pointer
+    cap_desc_ptr = UInt64(0) | (UInt64(1) << 32) | (UInt64(1) << 48)
+    copyto!(segment, 33, reinterpret(UInt8, [cap_desc_ptr]), 1, 8)
+
+    # Word 5: CapDescriptor data section
+    # - kind (UInt16 at offset 0)
+    copyto!(segment, 41, reinterpret(UInt8, [UInt16(Int(cap_kind))]), 1, 2)
+    # - export_id (UInt32 at offset 4) for senderHosted/senderPromise
+    copyto!(segment, 45, reinterpret(UInt8, [UInt32(export_id)]), 1, 4)
+
+    # Word 6: CapDescriptor pointer section (unused)
+
+    used_size = 56  # 7 words
+
+    # Build message with header
+    num_segments = UInt32(0)
+    segment_size = UInt32(used_size ÷ 8)
+
+    message = Vector{UInt8}(undef, 8 + used_size)
+    copyto!(message, 1, reinterpret(UInt8, [num_segments]), 1, 4)
+    copyto!(message, 5, reinterpret(UInt8, [segment_size]), 1, 4)
+    copyto!(message, 9, segment, 1, used_size)
+
+    return message
+end
+
+"""
+    build_resolve_exception(promise_id::ExportId, reason::String, exception_type::ExceptionType.T) -> Vector{UInt8}
+
+Build a Resolve message that resolves a promised capability to an exception.
+This is used when the promise fails to resolve to a valid capability.
+
+Layout:
+- Message: 1 data word (RESOLVE), 1 pointer
+- Resolve: 1 data word (promiseId, discriminant=1 for exception), 1 pointer
+- Exception: 1 data word (type at offset 4), 1 pointer (reason text)
+- Text: reason bytes + NUL
+"""
+function build_resolve_exception(promise_id::ExportId, reason::String, exception_type::ExceptionType.T)
+    reason_bytes = Vector{UInt8}(reason)
+    reason_len = length(reason_bytes)
+    reason_words = cld(reason_len + 1, 8)  # Include NUL terminator
+
+    # Layout:
+    # Word 0: Root pointer to Message
+    # Word 1: Message data (discriminant = RESOLVE = 5)
+    # Word 2: Message pointer -> Resolve
+    # Word 3: Resolve data (promiseId, discriminant = 1 for exception)
+    # Word 4: Resolve pointer -> Exception
+    # Word 5: Exception data (type at offset 4)
+    # Word 6: Exception pointer -> Text
+    # Word 7+: Text data
+
+    total_words = 7 + reason_words
+    segment = Vector{UInt8}(undef, total_words * 8)
+    fill!(segment, 0)
+
+    # Word 0: Root pointer
+    root_ptr = UInt64(0) | (UInt64(1) << 32) | (UInt64(1) << 48)
+    copyto!(segment, 1, reinterpret(UInt8, [root_ptr]), 1, 8)
+
+    # Word 1: Message discriminant = RESOLVE = 5
+    segment[9] = 0x05
+
+    # Word 2: Message pointer -> Resolve (1 data, 1 ptr)
+    resolve_ptr = UInt64(0) | (UInt64(1) << 32) | (UInt64(1) << 48)
+    copyto!(segment, 17, reinterpret(UInt8, [resolve_ptr]), 1, 8)
+
+    # Word 3: Resolve data
+    copyto!(segment, 25, reinterpret(UInt8, [UInt32(promise_id)]), 1, 4)
+    segment[29] = 0x01  # discriminant = exception
+
+    # Word 4: Resolve pointer -> Exception (1 data, 1 ptr)
+    exc_ptr = UInt64(0) | (UInt64(1) << 32) | (UInt64(1) << 48)
+    copyto!(segment, 33, reinterpret(UInt8, [exc_ptr]), 1, 8)
+
+    # Word 5: Exception data (type at offset 4)
+    type_value = UInt16(Int(exception_type))
+    copyto!(segment, 45, reinterpret(UInt8, [type_value]), 1, 2)
+
+    # Word 6: Exception pointer -> Text
+    # Text list pointer: type=1, offset=0, size=2 (byte), count=reason_len+1
+    text_ptr = UInt64(1) | (UInt64(0) << 2) | (UInt64(2) << 32) | (UInt64(reason_len + 1) << 35)
+    copyto!(segment, 49, reinterpret(UInt8, [text_ptr]), 1, 8)
+
+    # Word 7+: Text data
+    if reason_len > 0
+        copyto!(segment, 57, reason_bytes, 1, reason_len)
+    end
+    segment[57 + reason_len] = 0x00  # NUL terminator
+
+    used_size = total_words * 8
+
+    # Build message with header
+    num_segments = UInt32(0)
+    segment_size = UInt32(total_words)
+
+    message = Vector{UInt8}(undef, 8 + used_size)
+    copyto!(message, 1, reinterpret(UInt8, [num_segments]), 1, 4)
+    copyto!(message, 5, reinterpret(UInt8, [segment_size]), 1, 4)
+    copyto!(message, 9, segment, 1, used_size)
+
+    return message
+end
+
+
+# ============================================================================
+# Save/Restore Message Builders (Level 2 Persistent Capabilities)
+# ============================================================================
+
+"""
+    build_save_call(question_id::QuestionId, target_import_id::ImportId) -> Vector{UInt8}
+
+Build a Call message to invoke Persistent.save() on a capability.
+This calls method 0 on the Persistent interface.
+
+The Persistent interface ID is 0xc8cb212fcd9f5691.
+"""
+function build_save_call(question_id::QuestionId, target_import_id::ImportId)
+    # Persistent interface constants
+    persistent_interface_id = 0xc8cb212fcd9f5691
+    save_method_id = UInt16(0)
+
+    # Build a Call message:
+    # - Message: discriminant = CALL (2), 1 data word, 1 pointer
+    # - Call: questionId, target, interfaceId, methodId, params
+    # - Target: importedCap with target_import_id
+
+    # Layout:
+    # Word 0: Root pointer to Message
+    # Word 1: Message data (discriminant = CALL = 2)
+    # Word 2: Message pointer -> Call
+    # Word 3-5: Call data (questionId, methodId, interfaceId)
+    # Word 6: Call pointers [target, params]
+    # Word 7: Target struct pointer -> Target data
+    # Word 8: Params struct pointer (null/empty for save with no owner)
+    # Word 9: Target data (discriminant = importedCap, import_id)
+
+    segment = Vector{UInt8}(undef, 80)  # 10 words
+    fill!(segment, 0)
+
+    # Word 0: Root pointer to Message at word 1
+    root_ptr = UInt64(0) | (UInt64(1) << 32) | (UInt64(1) << 48)
+    copyto!(segment, 1, reinterpret(UInt8, [root_ptr]), 1, 8)
+
+    # Word 1: Message discriminant = CALL = 2
+    segment[9] = 0x02
+
+    # Word 2: Message pointer -> Call (3 data words, 2 pointers)
+    call_ptr = UInt64(0) | (UInt64(3) << 32) | (UInt64(2) << 48)
+    copyto!(segment, 17, reinterpret(UInt8, [call_ptr]), 1, 8)
+
+    # Word 3-5: Call data section
+    # questionId at offset 0
+    copyto!(segment, 25, reinterpret(UInt8, [UInt32(question_id)]), 1, 4)
+    # methodId at offset 4
+    copyto!(segment, 29, reinterpret(UInt8, [save_method_id]), 1, 2)
+    # interfaceId at offset 8
+    copyto!(segment, 33, reinterpret(UInt8, [persistent_interface_id]), 1, 8)
+
+    # Word 6-7: Call pointer section
+    # Pointer 0: target -> Target struct at word 8
+    target_ptr = UInt64(1 << 2) | (UInt64(1) << 32) | (UInt64(0) << 48)  # offset=1, 1 data, 0 ptrs
+    copyto!(segment, 49, reinterpret(UInt8, [target_ptr]), 1, 8)
+
+    # Pointer 1: params -> null (empty params for save without owner)
+    # Leave as 0 (null pointer)
+
+    # Word 8-9: Target struct (importedCap)
+    # discriminant = 0 (importedCap) at offset 0
+    segment[65] = 0x00
+    # importedCap ID at offset 4
+    copyto!(segment, 69, reinterpret(UInt8, [UInt32(target_import_id)]), 1, 4)
+
+    used_size = 80
+
+    # Build message with header
+    num_segments = UInt32(0)
+    segment_size = UInt32(used_size ÷ 8)
+
+    message = Vector{UInt8}(undef, 8 + used_size)
+    copyto!(message, 1, reinterpret(UInt8, [num_segments]), 1, 4)
+    copyto!(message, 5, reinterpret(UInt8, [segment_size]), 1, 4)
+    copyto!(message, 9, segment, 1, used_size)
+
+    return message
+end
+
+"""
+    ParsedSaveResults
+
+Parsed results from a Persistent.save() call.
+Contains the sturdy reference data.
+"""
+struct ParsedSaveResults
+    sturdy_ref_data::Vector{UInt8}  # Raw sturdy ref bytes
+end
+
+"""
+    parse_save_results(seg::Vector{UInt8}, results_start::Int) -> ParsedSaveResults
+
+Parse SaveResults from a Return message's results payload.
+SaveResults contains a SturdyRef which we extract as raw bytes.
+"""
+function parse_save_results(seg::Vector{UInt8}, results_start::Int)
+    # SaveResults has 0 data words, 1 pointer (sturdyRef)
+    # Get the sturdyRef pointer
+    ref_ptr = get_struct_pointer(seg, results_start)
+
+    if ref_ptr === nothing || ref_ptr == 0
+        return ParsedSaveResults(UInt8[])
+    end
+
+    # For DefaultSturdyRef format:
+    # Struct with 0 data words, 2 pointers (hostId: Data, objectId: Data)
+    ref_offset, _ref_data_size, _ref_ptr_count = decode_struct_pointer(ref_ptr)
+    ref_start = results_start + 1 + ref_offset
+
+    # Read hostId data pointer at pointer 0
+    host_ptr = get_struct_pointer(seg, ref_start)
+    # Read objectId data pointer at pointer 1
+    object_ptr = get_struct_pointer(seg, ref_start + 1)
+
+    # Extract the data bytes
+    host_bytes = extract_data_bytes(seg, ref_start, host_ptr)
+    object_bytes = extract_data_bytes(seg, ref_start + 1, object_ptr)
+
+    # Serialize as DefaultSturdyRef format
+    buffer = IOBuffer()
+    write(buffer, UInt32(length(host_bytes)))
+    write(buffer, host_bytes)
+    write(buffer, UInt32(length(object_bytes)))
+    write(buffer, object_bytes)
+
+    return ParsedSaveResults(take!(buffer))
+end
+
+"""
+Extract raw bytes from a data list pointer.
+"""
+function extract_data_bytes(seg::Vector{UInt8}, ptr_word::Int, ptr::UInt64)
+    if ptr == 0
+        return UInt8[]
+    end
+
+    # Check if it's a list pointer (type = 1)
+    if (ptr & 0x3) != 1
+        return UInt8[]
+    end
+
+    offset = Int((ptr >> 2) & 0x3FFFFFFF)
+    if offset & 0x20000000 != 0
+        offset -= 0x40000000
+    end
+
+    elem_size = Int((ptr >> 32) & 0x7)
+    elem_count = Int((ptr >> 35) & 0x1FFFFFFF)
+
+    if elem_size != 2  # Size code 2 = byte elements
+        return UInt8[]
+    end
+
+    data_start = (ptr_word + 1 + offset - 1) * 8 + 1
+    if data_start > 0 && data_start + elem_count - 1 <= length(seg)
+        return seg[data_start:data_start + elem_count - 1]
+    end
+
+    return UInt8[]
+end
+
+"""
+    build_restore_call(question_id::QuestionId, restorer_import_id::ImportId, sturdy_ref_data::Vector{UInt8}) -> Vector{UInt8}
+
+Build a Call message to invoke Persistent.Restore on the bootstrap restorer.
+This is used to restore a capability from a SturdyRef on a new connection.
+
+Note: In Cap'n Proto, restore is typically done via the bootstrap capability
+which acts as a restorer. The sturdy_ref contains the data needed to find the capability.
+"""
+function build_restore_call(question_id::QuestionId, restorer_import_id::ImportId, sturdy_ref_data::Vector{UInt8})
+    # Build a Call message with the sturdyRef as params
+    # The restorer interface exposes a method that takes a SturdyRef and returns the capability
+
+    # For simplicity, we use a minimal Call structure
+    # In a full implementation, this would match the actual Persistent schema
+
+    ref_words = cld(length(sturdy_ref_data), 8)
+
+    # Layout:
+    # Word 0: Root pointer to Message
+    # Word 1: Message data (discriminant = CALL = 2)
+    # Word 2: Message pointer -> Call
+    # Word 3-5: Call data (questionId, methodId, interfaceId)
+    # Word 6-7: Call pointer section [target, params]
+    # Word 8: Target struct (importedCap)
+    # Word 9: Params (Payload with SturdyRef data)
+    # Word 10+: SturdyRef data
+
+    base_words = 10
+    total_words = base_words + ref_words
+    segment = Vector{UInt8}(undef, total_words * 8)
+    fill!(segment, 0)
+
+    # Word 0: Root pointer
+    root_ptr = UInt64(0) | (UInt64(1) << 32) | (UInt64(1) << 48)
+    copyto!(segment, 1, reinterpret(UInt8, [root_ptr]), 1, 8)
+
+    # Word 1: Message discriminant = CALL = 2
+    segment[9] = 0x02
+
+    # Word 2: Message pointer -> Call (3 data words, 2 pointers)
+    call_ptr = UInt64(0) | (UInt64(3) << 32) | (UInt64(2) << 48)
+    copyto!(segment, 17, reinterpret(UInt8, [call_ptr]), 1, 8)
+
+    # Word 3-5: Call data
+    copyto!(segment, 25, reinterpret(UInt8, [UInt32(question_id)]), 1, 4)
+    # method 0 = restore
+    # interfaceId for RealmGateway or similar restorer
+    # Using a generic restorer interface ID (could be customized)
+    restorer_interface_id = UInt64(0)  # Generic/custom restorer
+
+    copyto!(segment, 33, reinterpret(UInt8, [restorer_interface_id]), 1, 8)
+
+    # Word 6-7: Call pointer section
+    # target -> Target at word 8
+    target_ptr = UInt64(1 << 2) | (UInt64(1) << 32) | (UInt64(0) << 48)
+    copyto!(segment, 49, reinterpret(UInt8, [target_ptr]), 1, 8)
+
+    # params -> Payload at word 9
+    params_ptr = UInt64(1 << 2) | (UInt64(0) << 32) | (UInt64(2) << 48)  # 0 data, 2 ptrs
+    copyto!(segment, 57, reinterpret(UInt8, [params_ptr]), 1, 8)
+
+    # Word 8: Target (importedCap)
+    segment[65] = 0x00  # discriminant = importedCap
+    copyto!(segment, 69, reinterpret(UInt8, [UInt32(restorer_import_id)]), 1, 4)
+
+    # Word 9: Payload pointer section (content, capTable)
+    # content -> Data list at word 10
+    if !isempty(sturdy_ref_data)
+        content_ptr = UInt64(1) | (UInt64(0) << 2) | (UInt64(2) << 32) | (UInt64(length(sturdy_ref_data)) << 35)
+        copyto!(segment, 73, reinterpret(UInt8, [content_ptr]), 1, 8)
+        # Write sturdy ref data at word 10
+        copyto!(segment, 81, sturdy_ref_data, 1, length(sturdy_ref_data))
+    end
+
+    used_size = total_words * 8
+
+    # Build message with header
+    num_segments = UInt32(0)
+    segment_size = UInt32(total_words)
+
+    message = Vector{UInt8}(undef, 8 + used_size)
+    copyto!(message, 1, reinterpret(UInt8, [num_segments]), 1, 4)
+    copyto!(message, 5, reinterpret(UInt8, [segment_size]), 1, 4)
+    copyto!(message, 9, segment, 1, used_size)
+
+    return message
+end
+
+"""
+    ParsedRestoreResults
+
+Parsed results from a restore call.
+Contains either a capability import ID or an error.
+"""
+struct ParsedRestoreResults
+    success::Bool
+    import_id::Union{ImportId, Nothing}  # The restored capability
+    error_type::Union{Symbol, Nothing}   # :not_found, :unauthorized, :expired
+    error_reason::Union{String, Nothing}
+end
+
+"""
+    parse_restore_results(seg::Vector{UInt8}, results_start::Int) -> ParsedRestoreResults
+
+Parse results from a restore call.
+The result contains a capability pointer or an exception.
+"""
+function parse_restore_results(seg::Vector{UInt8}, results_start::Int)
+    # Results should contain a capability pointer
+    cap_ptr = get_struct_pointer(seg, results_start)
+
+    if cap_ptr === nothing || cap_ptr == 0
+        return ParsedRestoreResults(false, nothing, :failed, "Empty restore result")
+    end
+
+    # Check if it's a capability pointer (type 3)
+    ptr_type = cap_ptr & 0x3
+    if ptr_type == 3
+        # Capability pointer - extract index
+        cap_index = UInt32((cap_ptr >> 32) & 0xFFFFFFFF)
+        return ParsedRestoreResults(true, ImportId(cap_index), nothing, nothing)
+    end
+
+    # Not a capability pointer - might be an error struct
+    return ParsedRestoreResults(false, nothing, :failed, "Invalid restore result format")
+end
+
 # Exports
 export MessageType, ReturnType, MessageTargetType, SendResultsToType
-export ParsedBootstrap, ParsedMessageTarget, ParsedCall, ParsedFinish, ParsedRelease, ParsedMessage
+export ResolveType, CapDescriptorType, PromisedAnswerOpType
+export PromisedAnswerOp, ParsedPromisedAnswer, ParsedCapDescriptor
+export ParsedBootstrap, ParsedMessageTarget, ParsedCall, ParsedFinish, ParsedRelease, ParsedResolve, ParsedMessage
 export ParsedParams
-export parse_rpc_message
+export parse_rpc_message, parse_cap_descriptor, parse_promised_answer
 export build_return_message, build_capability_return, build_bootstrap_return, build_exception_return
+export build_resolve_message, build_resolve_exception
+export ParsedSaveResults, build_save_call, parse_save_results
+export ParsedRestoreResults, build_restore_call, parse_restore_results

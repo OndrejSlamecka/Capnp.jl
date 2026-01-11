@@ -119,6 +119,53 @@ mutable struct PendingAnswer
 end
 
 """
+    RemotePromise
+
+Tracks a remote promise awaiting a Resolve message.
+Used for Level 2 promise resolution on the client side.
+"""
+struct RemotePromise
+    import_id::ImportId           # The promised import (from senderPromise)
+    local_promise::Promise{Any}   # Local promise to fulfill on Resolve
+end
+
+"""
+    PromisedExport
+
+Tracks a promised export that requires an eventual Resolve message.
+Used for Level 2 promise resolution on the server side.
+"""
+struct PromisedExport
+    export_id::ExportId
+    promise::Promise{Any}  # The underlying promise that will resolve
+    resolved::Bool         # Whether Resolve has been sent
+end
+
+"""
+Create a new promised export that hasn't been resolved yet.
+"""
+PromisedExport(export_id::ExportId, promise::Promise{Any}) =
+    PromisedExport(export_id, promise, false)
+
+"""
+    PromiseTracker
+
+Level 2 promise tracking state for a connection.
+Tracks promised exports (server-side) and remote promises (client-side).
+"""
+mutable struct PromiseTracker
+    # Server-side: promises exported that require Resolve messages
+    promised_exports::Dict{ExportId, PromisedExport}
+    # Client-side: remote promises awaiting Resolve
+    remote_promises::Dict{ImportId, RemotePromise}
+
+    PromiseTracker() = new(
+        Dict{ExportId, PromisedExport}(),
+        Dict{ImportId, RemotePromise}()
+    )
+end
+
+"""
     Connection
 
 Manages an RPC connection with questions, answers, exports, and imports tables.
@@ -134,6 +181,8 @@ mutable struct Connection
     next_export_id::ExportId
     error_reason::Union{String, Nothing}
     lock::ReentrantLock
+    # Level 2: Promise tracking
+    promise_tracker::PromiseTracker
 
     function Connection(transport::Transport)
         new(
@@ -146,7 +195,8 @@ mutable struct Connection
             QuestionId(0),
             ExportId(1),  # Export IDs start at 1 (0 is reserved/invalid)
             nothing,
-            ReentrantLock()
+            ReentrantLock(),
+            PromiseTracker()
         )
     end
 end
@@ -302,10 +352,79 @@ function Base.close(conn::Connection)
     end
 end
 
+# Level 2: Promise tracking functions
+
+"""
+    add_promised_export!(conn, export_id, promise)
+
+Track a promised export that requires a Resolve message.
+"""
+function add_promised_export!(conn::Connection, export_id::ExportId, promise::Promise{Any})
+    lock(conn.lock) do
+        conn.promise_tracker.promised_exports[export_id] = PromisedExport(export_id, promise)
+    end
+end
+
+"""
+    get_promised_export(conn, export_id)
+
+Get a promised export by ID.
+"""
+function get_promised_export(conn::Connection, export_id::ExportId)
+    lock(conn.lock) do
+        get(conn.promise_tracker.promised_exports, export_id, nothing)
+    end
+end
+
+"""
+    remove_promised_export!(conn, export_id)
+
+Remove a promised export after resolution.
+"""
+function remove_promised_export!(conn::Connection, export_id::ExportId)
+    lock(conn.lock) do
+        delete!(conn.promise_tracker.promised_exports, export_id)
+    end
+end
+
+"""
+    add_remote_promise!(conn, import_id, promise)
+
+Track a remote promise awaiting a Resolve message.
+"""
+function add_remote_promise!(conn::Connection, import_id::ImportId, promise::Promise{Any})
+    lock(conn.lock) do
+        conn.promise_tracker.remote_promises[import_id] = RemotePromise(import_id, promise)
+    end
+end
+
+"""
+    get_remote_promise(conn, import_id)
+
+Get a remote promise by ID.
+"""
+function get_remote_promise(conn::Connection, import_id::ImportId)
+    lock(conn.lock) do
+        get(conn.promise_tracker.remote_promises, import_id, nothing)
+    end
+end
+
+"""
+    remove_remote_promise!(conn, import_id)
+
+Remove a remote promise after resolution.
+"""
+function remove_remote_promise!(conn::Connection, import_id::ImportId)
+    lock(conn.lock) do
+        delete!(conn.promise_tracker.remote_promises, import_id)
+    end
+end
+
 # Exports
 export ConnectionState, ExceptionType
 export DisconnectedException, ConnectionFailedException, RemoteException, InvalidCapabilityException
 export LocalCapability, RemoteCapability, PendingQuestion, PendingAnswer, Connection
+export RemotePromise, PromisedExport, PromiseTracker
 export state, is_connected
 export set_connected!, set_disconnecting!, set_disconnected!, set_failed!
 export question_count, import_count, export_count, answer_count
@@ -314,4 +433,6 @@ export add_question!, get_question, remove_question!
 export add_answer!, get_answer, remove_answer!
 export add_export!, get_export, remove_export!
 export add_import!, get_import, remove_import!
+export add_promised_export!, get_promised_export, remove_promised_export!
+export add_remote_promise!, get_remote_promise, remove_remote_promise!
 export incref!, decref!
