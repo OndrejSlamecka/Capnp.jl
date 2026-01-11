@@ -78,7 +78,7 @@ Without this workaround, calling methods on capabilities returned from functions
 ## Reporting New Issues
 
 If you encounter a new issue, please report it at:
-https://github.com/anthropics/claude-code/issues
+https://github.com/s-celles/Capnp.jl/issues
 
 Include:
 - Julia version
