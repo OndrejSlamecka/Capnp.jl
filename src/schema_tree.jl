@@ -199,7 +199,9 @@ end
 struct StructNodeProps <: NodeProperties
     dataWordCount::UInt16
     pointerCount::UInt16
-    preferredListEncoding::capnp.schema.ElementSize
+    # Note: Using UInt16 instead of capnp.schema.ElementSize to avoid world age issues
+    # ElementSize is an enum with underlying type UInt16
+    preferredListEncoding::UInt16
     isGroup::Bool
     discriminantCount::UInt16
     discriminantOffset::UInt32
@@ -530,7 +532,8 @@ function read_Node(ptr::Capnp.StructPointer)
     elseif unionTag == capnp.schema.Node_union_struct
         dataWordCount = capnp.schema.Node_struct_getDataWordCount(ptr)
         pointerCount = capnp.schema.Node_struct_getPointerCount(ptr)
-        preferredListEncoding = capnp.schema.Node_struct_getPreferredListEncoding(ptr)
+        # Convert ElementSize enum to UInt16 to avoid world age issues
+        preferredListEncoding = UInt16(capnp.schema.Node_struct_getPreferredListEncoding(ptr))
         isGroup = capnp.schema.Node_struct_getIsGroup(ptr)
         discriminantCount = capnp.schema.Node_struct_getDiscriminantCount(ptr)
         discriminantOffset = capnp.schema.Node_struct_getDiscriminantOffset(ptr)

@@ -191,15 +191,14 @@ function assign_node_names(env::Environment, path::Vector{String}, field::Field)
 
 # Phase 2: Generation.
 function generateNode(env::Environment, node::Node{FileNodeProps})
-    cprintln(env, "begin")
-
     # Namespaces come from "namespace" annotation and are translated into Julia modules
     nested_namespaces = namespace_annotation(env, node)
+
+    # Use direct module definitions to avoid world age issues in Julia 1.12+
+    # Note: This means each schema file creates its own modules. If you need to merge
+    # multiple schema files into a shared namespace, include them in a wrapper module.
     for namespace in nested_namespaces
-        # Code is added into a module which might be created if it wasn't before.
-        # N.B. just "module $namespace ..." would overwrite a module if it existed.
-        cprintln(env, "if !@isdefined($namespace); eval(:(module $namespace end)); end")
-        cprintln(env, "@eval $namespace begin")
+        cprintln(env, "module $namespace")
         env.indent += 1
     end
 
@@ -212,12 +211,10 @@ function generateNode(env::Environment, node::Node{FileNodeProps})
     end
 
     # Close namespaces/modules
-    for _ = 1:length(nested_namespaces)
+    for i = length(nested_namespaces):-1:1
         env.indent -= 1
-        cprintln(env, "end")
+        cprintln(env, "end # module $(nested_namespaces[i])")
     end
-
-    cprintln(env, "end")
 end
 
 function generateNode(env::Environment, node::Node{StructNodeProps})

@@ -1,8 +1,5 @@
-begin
-if !@isdefined(capnp); eval(:(module capnp end)); end
-@eval capnp begin
-    if !@isdefined(schema); eval(:(module schema end)); end
-    @eval schema begin
+module capnp
+    module schema
         # Generated from src/schema.capnp
         using Capnp
         const Node_Parameter_data_word_count = 0
@@ -3281,7 +3278,6 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             Base.depwarn("CodeGeneratorRequest_initSourceInfo is deprecated, use init_source_info!(ptr, size, Val{:CodeGeneratorRequest}) instead", :CodeGeneratorRequest_initSourceInfo)
             init_source_info!(ptr, size, Val{:CodeGeneratorRequest})
         end
-    end
-end
-end
+    end # module schema
+end # module capnp
 
