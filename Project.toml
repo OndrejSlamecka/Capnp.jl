@@ -1,7 +1,7 @@
 name = "Capnp"
 uuid = "4a176cb5-e787-4417-92d8-5e07a66a639e"
-authors = ["Ondrej Slamecka <ondrej@slamecka.cz>"]
-version = "0.1.2"
+authors = ["Ondrej Slamecka <ondrej@slamecka.cz>", "Sébastien Celles <s.celles@gmail.com>"]
+version = "0.2.0"
 
 [deps]
 Sockets = "6462fe0b-24de-5631-8697-dd941f90decc"
