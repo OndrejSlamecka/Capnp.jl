@@ -128,22 +128,33 @@ int main(int argc, const char* argv[]) {
         }
     }
 
-    // Test 6: Get sub-calculator - skipped
-    // The capability is returned correctly (senderHosted with export_id), but when the C++
-    // client calls a method on the returned capability, it sends an invalid MessageTarget
-    // discriminant (2) instead of importedCap (0). This may be a Cap'n Proto level 2 feature
-    // or promise pipelining behavior that requires additional server-side support.
-    // See: https://capnproto.org/rpc.html#pipelining for more details.
-    // {
-    //     auto getSubRequest = calculator.getSubCalculatorRequest();
-    //     auto getSubResponse = getSubRequest.send().wait(waitScope);
-    //     auto subCalc = getSubResponse.getCalculator();
-    //     auto addRequest = subCalc.addRequest();
-    //     addRequest.setLeft(3.0);
-    //     addRequest.setRight(4.0);
-    //     auto result = addRequest.send().wait(waitScope);
-    //     // Expected: 7.0
-    // }
+    // Test 6: Get sub-calculator (T017 - Level 2 Promise Resolution)
+    // With Level 2 Resolve message handling, this should now work
+    {
+        std::cout << "Sending getSubCalculator() request..." << std::endl;
+
+        auto getSubRequest = calculator.getSubCalculatorRequest();
+        auto getSubPromise = getSubRequest.send();
+        auto getSubResponse = getSubPromise.wait(waitScope);
+        auto subCalc = getSubResponse.getCalculator();
+
+        std::cout << "Got sub-calculator, calling add(3, 4)..." << std::endl;
+
+        auto addRequest = subCalc.addRequest();
+        addRequest.setLeft(3.0);
+        addRequest.setRight(4.0);
+        auto addPromise = addRequest.send();
+        auto addResponse = addPromise.wait(waitScope);
+        auto result = addResponse.getValue();
+
+        std::cout << "Sub-calculator add result: " << result;
+        if (result == 7.0) {
+            std::cout << " ✓ CORRECT" << std::endl;
+        } else {
+            std::cout << " ✗ WRONG (expected 7.0)" << std::endl;
+            all_passed = false;
+        }
+    }
 
     if (all_passed) {
         std::cout << "SUCCESS: All tests passed!" << std::endl;
