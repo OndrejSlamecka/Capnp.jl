@@ -248,7 +248,7 @@ function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFi
     position = node.nodeProperties.dataWordCount + field.fieldProperties.offset
 
     cprintln(env, "function $(node.jlName)_get$(uppercasefirst(field.name))(ptr)")
-    cprintln(env, "    value = Capnp.read_bits(ptr, $(position), Int64)")
+    cprintln(env, "    value = Capnp.read_bits(ptr, 8 * (ptr.data_word_count + $(Int(field.fieldProperties.offset))), Int64)")
     cprintln(env, "    if value == 0")
     cprintln(env, "        Nothing")
     cprintln(env, "    else")
@@ -266,13 +266,16 @@ function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFi
     cprintln(env, "end")
 
     cprintln(env, "function $(node.jlName)_get$(uppercasefirst(field.name))(ptr)")
-    cprintln(env, "    p = Capnp.read_list_pointer(ptr, $(node.nodeProperties.dataWordCount), $(Int(field.fieldProperties.offset)), $(runtimeElementType))")
+    # ptr.data_word_count (the size that came with the message) and not the schema's dataWordCount
+    # because a struct written with a newer schema version may have grown
+    cprintln(env, "    p = Capnp.read_list_pointer(ptr, ptr.data_word_count, $(Int(field.fieldProperties.offset)), $(runtimeElementType))")
     if elementType isa SchemaStruct
         strct = env.nodes[elementType.typeId]
         # TODO: when checking for Capnp.SimpleListPointer we should also check that sum(sizeof(strct.fields...)) == p.element_size
         # because "a list of any element size (except C = 1, i.e. 1-bit) may be decoded as a struct list"
+        # >= and not == because a struct written with a newer schema version may have grown
         cprintln(env, "    @assert isempty(p) || p isa Capnp.SimpleListPointer ||")
-        cprintln(env, "       (p isa Capnp.CompositeListPointer && p.data_word_count == $(strct.jlName)_data_word_count) && p.pointer_count == $(strct.jlName)_pointer_count")
+        cprintln(env, "       (p isa Capnp.CompositeListPointer && p.data_word_count >= $(strct.jlName)_data_word_count) && p.pointer_count >= $(strct.jlName)_pointer_count")
     end
     cprintln(env, "    p")
     cprintln(env, "end")
@@ -309,7 +312,7 @@ function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFi
     slotStructProps = typeNode.nodeProperties
 
     cprintln(env, "function $(node.jlName)_get$(uppercasefirst(field.name))(ptr::Capnp.StructPointer{T}) where T <: Reader")
-    cprintln(env, "    p = Capnp.read_struct_pointer(ptr, $(node.nodeProperties.dataWordCount), $(field.fieldProperties.offset))")
+    cprintln(env, "    p = Capnp.read_struct_pointer(ptr, ptr.data_word_count, $(field.fieldProperties.offset))")
     generate_struct_pointer_assert(env, typeNode.jlName, "p")
     cprintln(env, "    p")
     cprintln(env, "end")
@@ -330,7 +333,7 @@ end
 
 function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFieldProps}, type::SchemaText)
     cprintln(env, "function $(node.jlName)_get$(uppercasefirst(field.name))(ptr)")
-    cprintln(env, "    p = Capnp.read_list_pointer(ptr, $(node.nodeProperties.dataWordCount), $(Int(field.fieldProperties.offset)))")
+    cprintln(env, "    p = Capnp.read_list_pointer(ptr, ptr.data_word_count, $(Int(field.fieldProperties.offset)))")
     cprintln(env, "    Capnp.read_text(p)")
     cprintln(env, "end")
 
@@ -410,5 +413,6 @@ function generateField(env, node::Node{StructNodeProps}, field::Field{SlotFieldP
 end
 
 function generate_struct_pointer_assert(env, jlName, varname)
-    cprintln(env, "    @assert isnothing($varname) || ($varname.data_word_count == $(jlName)_data_word_count) && $varname.pointer_count == $(jlName)_pointer_count")
+    # >= and not == because a struct written with a newer schema version may have grown
+    cprintln(env, "    @assert isnothing($varname) || ($varname.data_word_count >= $(jlName)_data_word_count) && $varname.pointer_count >= $(jlName)_pointer_count")
 end

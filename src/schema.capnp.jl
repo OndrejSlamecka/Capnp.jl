@@ -10,7 +10,7 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         function root_Node_Parameter(message)
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Node_Parameter_data_word_count) && p.pointer_count == Node_Parameter_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Node_Parameter_data_word_count) && p.pointer_count >= Node_Parameter_pointer_count
             p
         end
         function initRoot_Node_Parameter(builder)
@@ -22,7 +22,7 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             ptr
         end
         function Node_Parameter_getName(ptr)
-            p = Capnp.read_list_pointer(ptr, 0, 0)
+            p = Capnp.read_list_pointer(ptr, ptr.data_word_count, 0)
             Capnp.read_text(p)
         end
         function Node_Parameter_setName(ptr, txt)
@@ -37,7 +37,7 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         function root_Node_NestedNode(message)
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Node_NestedNode_data_word_count) && p.pointer_count == Node_NestedNode_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Node_NestedNode_data_word_count) && p.pointer_count >= Node_NestedNode_pointer_count
             p
         end
         function initRoot_Node_NestedNode(builder)
@@ -49,7 +49,7 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             ptr
         end
         function Node_NestedNode_getName(ptr)
-            p = Capnp.read_list_pointer(ptr, 1, 0)
+            p = Capnp.read_list_pointer(ptr, ptr.data_word_count, 0)
             Capnp.read_text(p)
         end
         function Node_NestedNode_setName(ptr, txt)
@@ -71,7 +71,7 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         function root_Node_SourceInfo_Member(message)
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Node_SourceInfo_Member_data_word_count) && p.pointer_count == Node_SourceInfo_Member_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Node_SourceInfo_Member_data_word_count) && p.pointer_count >= Node_SourceInfo_Member_pointer_count
             p
         end
         function initRoot_Node_SourceInfo_Member(builder)
@@ -83,7 +83,7 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             ptr
         end
         function Node_SourceInfo_Member_getDocComment(ptr)
-            p = Capnp.read_list_pointer(ptr, 0, 0)
+            p = Capnp.read_list_pointer(ptr, ptr.data_word_count, 0)
             Capnp.read_text(p)
         end
         function Node_SourceInfo_Member_setDocComment(ptr, txt)
@@ -98,7 +98,7 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         function root_Node_SourceInfo(message)
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Node_SourceInfo_data_word_count) && p.pointer_count == Node_SourceInfo_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Node_SourceInfo_data_word_count) && p.pointer_count >= Node_SourceInfo_pointer_count
             p
         end
         function initRoot_Node_SourceInfo(builder)
@@ -117,7 +117,7 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             Capnp.write_bits(ptr, 0, UInt64, value)
         end
         function Node_SourceInfo_getDocComment(ptr)
-            p = Capnp.read_list_pointer(ptr, 1, 0)
+            p = Capnp.read_list_pointer(ptr, ptr.data_word_count, 0)
             Capnp.read_text(p)
         end
         function Node_SourceInfo_setDocComment(ptr, txt)
@@ -131,9 +131,9 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             []
         end
         function Node_SourceInfo_getMembers(ptr)
-            p = Capnp.read_list_pointer(ptr, 1, 1, Capnp.CapnpStruct)
+            p = Capnp.read_list_pointer(ptr, ptr.data_word_count, 1, Capnp.CapnpStruct)
             @assert isempty(p) || p isa Capnp.SimpleListPointer ||
-               (p isa Capnp.CompositeListPointer && p.data_word_count == Node_SourceInfo_Member_data_word_count) && p.pointer_count == Node_SourceInfo_Member_pointer_count
+               (p isa Capnp.CompositeListPointer && p.data_word_count >= Node_SourceInfo_Member_data_word_count) && p.pointer_count >= Node_SourceInfo_Member_pointer_count
             p
         end
         function Node_SourceInfo_initMembers(ptr, size)
@@ -152,7 +152,7 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         function root_Node(message)
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Node_data_word_count) && p.pointer_count == Node_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Node_data_word_count) && p.pointer_count >= Node_pointer_count
             p
         end
         function initRoot_Node(builder)
@@ -171,7 +171,7 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             Capnp.write_bits(ptr, 0, UInt64, value)
         end
         function Node_getDisplayName(ptr)
-            p = Capnp.read_list_pointer(ptr, 5, 0)
+            p = Capnp.read_list_pointer(ptr, ptr.data_word_count, 0)
             Capnp.read_text(p)
         end
         function Node_setDisplayName(ptr, txt)
@@ -199,9 +199,9 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             []
         end
         function Node_getNestedNodes(ptr)
-            p = Capnp.read_list_pointer(ptr, 5, 1, Capnp.CapnpStruct)
+            p = Capnp.read_list_pointer(ptr, ptr.data_word_count, 1, Capnp.CapnpStruct)
             @assert isempty(p) || p isa Capnp.SimpleListPointer ||
-               (p isa Capnp.CompositeListPointer && p.data_word_count == Node_NestedNode_data_word_count) && p.pointer_count == Node_NestedNode_pointer_count
+               (p isa Capnp.CompositeListPointer && p.data_word_count >= Node_NestedNode_data_word_count) && p.pointer_count >= Node_NestedNode_pointer_count
             p
         end
         function Node_initNestedNodes(ptr, size)
@@ -215,9 +215,9 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             []
         end
         function Node_getAnnotations(ptr)
-            p = Capnp.read_list_pointer(ptr, 5, 2, Capnp.CapnpStruct)
+            p = Capnp.read_list_pointer(ptr, ptr.data_word_count, 2, Capnp.CapnpStruct)
             @assert isempty(p) || p isa Capnp.SimpleListPointer ||
-               (p isa Capnp.CompositeListPointer && p.data_word_count == Annotation_data_word_count) && p.pointer_count == Annotation_pointer_count
+               (p isa Capnp.CompositeListPointer && p.data_word_count >= Annotation_data_word_count) && p.pointer_count >= Annotation_pointer_count
             p
         end
         function Node_initAnnotations(ptr, size)
@@ -240,7 +240,7 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         function root_Node_struct(message)
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Node_struct_data_word_count) && p.pointer_count == Node_struct_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Node_struct_data_word_count) && p.pointer_count >= Node_struct_pointer_count
             p
         end
         function initRoot_Node_struct(builder)
@@ -297,9 +297,9 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             []
         end
         function Node_struct_getFields(ptr)
-            p = Capnp.read_list_pointer(ptr, 5, 3, Capnp.CapnpStruct)
+            p = Capnp.read_list_pointer(ptr, ptr.data_word_count, 3, Capnp.CapnpStruct)
             @assert isempty(p) || p isa Capnp.SimpleListPointer ||
-               (p isa Capnp.CompositeListPointer && p.data_word_count == Field_data_word_count) && p.pointer_count == Field_pointer_count
+               (p isa Capnp.CompositeListPointer && p.data_word_count >= Field_data_word_count) && p.pointer_count >= Field_pointer_count
             p
         end
         function Node_struct_initFields(ptr, size)
@@ -319,7 +319,7 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         function root_Node_enum(message)
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Node_enum_data_word_count) && p.pointer_count == Node_enum_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Node_enum_data_word_count) && p.pointer_count >= Node_enum_pointer_count
             p
         end
         function initRoot_Node_enum(builder)
@@ -334,9 +334,9 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             []
         end
         function Node_enum_getEnumerants(ptr)
-            p = Capnp.read_list_pointer(ptr, 5, 3, Capnp.CapnpStruct)
+            p = Capnp.read_list_pointer(ptr, ptr.data_word_count, 3, Capnp.CapnpStruct)
             @assert isempty(p) || p isa Capnp.SimpleListPointer ||
-               (p isa Capnp.CompositeListPointer && p.data_word_count == Enumerant_data_word_count) && p.pointer_count == Enumerant_pointer_count
+               (p isa Capnp.CompositeListPointer && p.data_word_count >= Enumerant_data_word_count) && p.pointer_count >= Enumerant_pointer_count
             p
         end
         function Node_enum_initEnumerants(ptr, size)
@@ -356,7 +356,7 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         function root_Node_interface(message)
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Node_interface_data_word_count) && p.pointer_count == Node_interface_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Node_interface_data_word_count) && p.pointer_count >= Node_interface_pointer_count
             p
         end
         function initRoot_Node_interface(builder)
@@ -371,9 +371,9 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             []
         end
         function Node_interface_getMethods(ptr)
-            p = Capnp.read_list_pointer(ptr, 5, 3, Capnp.CapnpStruct)
+            p = Capnp.read_list_pointer(ptr, ptr.data_word_count, 3, Capnp.CapnpStruct)
             @assert isempty(p) || p isa Capnp.SimpleListPointer ||
-               (p isa Capnp.CompositeListPointer && p.data_word_count == Method_data_word_count) && p.pointer_count == Method_pointer_count
+               (p isa Capnp.CompositeListPointer && p.data_word_count >= Method_data_word_count) && p.pointer_count >= Method_pointer_count
             p
         end
         function Node_interface_initMethods(ptr, size)
@@ -387,9 +387,9 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             []
         end
         function Node_interface_getSuperclasses(ptr)
-            p = Capnp.read_list_pointer(ptr, 5, 4, Capnp.CapnpStruct)
+            p = Capnp.read_list_pointer(ptr, ptr.data_word_count, 4, Capnp.CapnpStruct)
             @assert isempty(p) || p isa Capnp.SimpleListPointer ||
-               (p isa Capnp.CompositeListPointer && p.data_word_count == Superclass_data_word_count) && p.pointer_count == Superclass_pointer_count
+               (p isa Capnp.CompositeListPointer && p.data_word_count >= Superclass_data_word_count) && p.pointer_count >= Superclass_pointer_count
             p
         end
         function Node_interface_initSuperclasses(ptr, size)
@@ -409,7 +409,7 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         function root_Node_const(message)
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Node_const_data_word_count) && p.pointer_count == Node_const_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Node_const_data_word_count) && p.pointer_count >= Node_const_pointer_count
             p
         end
         function initRoot_Node_const(builder)
@@ -421,8 +421,8 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             ptr
         end
         function Node_const_getType(ptr::Capnp.StructPointer{T}) where T <: Reader
-            p = Capnp.read_struct_pointer(ptr, 5, 3)
-            @assert isnothing(p) || (p.data_word_count == Type_data_word_count) && p.pointer_count == Type_pointer_count
+            p = Capnp.read_struct_pointer(ptr, ptr.data_word_count, 3)
+            @assert isnothing(p) || (p.data_word_count >= Type_data_word_count) && p.pointer_count >= Type_pointer_count
             p
         end
         function Node_const_initType(ptr)
@@ -433,8 +433,8 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             child_ptr
         end
         function Node_const_getValue(ptr::Capnp.StructPointer{T}) where T <: Reader
-            p = Capnp.read_struct_pointer(ptr, 5, 4)
-            @assert isnothing(p) || (p.data_word_count == Value_data_word_count) && p.pointer_count == Value_pointer_count
+            p = Capnp.read_struct_pointer(ptr, ptr.data_word_count, 4)
+            @assert isnothing(p) || (p.data_word_count >= Value_data_word_count) && p.pointer_count >= Value_pointer_count
             p
         end
         function Node_const_initValue(ptr)
@@ -454,7 +454,7 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         function root_Node_annotation(message)
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Node_annotation_data_word_count) && p.pointer_count == Node_annotation_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Node_annotation_data_word_count) && p.pointer_count >= Node_annotation_pointer_count
             p
         end
         function initRoot_Node_annotation(builder)
@@ -466,8 +466,8 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             ptr
         end
         function Node_annotation_getType(ptr::Capnp.StructPointer{T}) where T <: Reader
-            p = Capnp.read_struct_pointer(ptr, 5, 3)
-            @assert isnothing(p) || (p.data_word_count == Type_data_word_count) && p.pointer_count == Type_pointer_count
+            p = Capnp.read_struct_pointer(ptr, ptr.data_word_count, 3)
+            @assert isnothing(p) || (p.data_word_count >= Type_data_word_count) && p.pointer_count >= Type_pointer_count
             p
         end
         function Node_annotation_initType(ptr)
@@ -565,9 +565,9 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             []
         end
         function Node_getParameters(ptr)
-            p = Capnp.read_list_pointer(ptr, 5, 5, Capnp.CapnpStruct)
+            p = Capnp.read_list_pointer(ptr, ptr.data_word_count, 5, Capnp.CapnpStruct)
             @assert isempty(p) || p isa Capnp.SimpleListPointer ||
-               (p isa Capnp.CompositeListPointer && p.data_word_count == Node_Parameter_data_word_count) && p.pointer_count == Node_Parameter_pointer_count
+               (p isa Capnp.CompositeListPointer && p.data_word_count >= Node_Parameter_data_word_count) && p.pointer_count >= Node_Parameter_pointer_count
             p
         end
         function Node_initParameters(ptr, size)
@@ -594,7 +594,7 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         function root_Field(message)
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Field_data_word_count) && p.pointer_count == Field_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Field_data_word_count) && p.pointer_count >= Field_pointer_count
             p
         end
         function initRoot_Field(builder)
@@ -606,7 +606,7 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             ptr
         end
         function Field_getName(ptr)
-            p = Capnp.read_list_pointer(ptr, 3, 0)
+            p = Capnp.read_list_pointer(ptr, ptr.data_word_count, 0)
             Capnp.read_text(p)
         end
         function Field_setName(ptr, txt)
@@ -627,9 +627,9 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             []
         end
         function Field_getAnnotations(ptr)
-            p = Capnp.read_list_pointer(ptr, 3, 1, Capnp.CapnpStruct)
+            p = Capnp.read_list_pointer(ptr, ptr.data_word_count, 1, Capnp.CapnpStruct)
             @assert isempty(p) || p isa Capnp.SimpleListPointer ||
-               (p isa Capnp.CompositeListPointer && p.data_word_count == Annotation_data_word_count) && p.pointer_count == Annotation_pointer_count
+               (p isa Capnp.CompositeListPointer && p.data_word_count >= Annotation_data_word_count) && p.pointer_count >= Annotation_pointer_count
             p
         end
         function Field_initAnnotations(ptr, size)
@@ -657,7 +657,7 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         function root_Field_slot(message)
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Field_slot_data_word_count) && p.pointer_count == Field_slot_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Field_slot_data_word_count) && p.pointer_count >= Field_slot_pointer_count
             p
         end
         function initRoot_Field_slot(builder)
@@ -676,8 +676,8 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             Capnp.write_bits(ptr, 4, UInt32, value)
         end
         function Field_slot_getType(ptr::Capnp.StructPointer{T}) where T <: Reader
-            p = Capnp.read_struct_pointer(ptr, 3, 2)
-            @assert isnothing(p) || (p.data_word_count == Type_data_word_count) && p.pointer_count == Type_pointer_count
+            p = Capnp.read_struct_pointer(ptr, ptr.data_word_count, 2)
+            @assert isnothing(p) || (p.data_word_count >= Type_data_word_count) && p.pointer_count >= Type_pointer_count
             p
         end
         function Field_slot_initType(ptr)
@@ -688,8 +688,8 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             child_ptr
         end
         function Field_slot_getDefaultValue(ptr::Capnp.StructPointer{T}) where T <: Reader
-            p = Capnp.read_struct_pointer(ptr, 3, 3)
-            @assert isnothing(p) || (p.data_word_count == Value_data_word_count) && p.pointer_count == Value_pointer_count
+            p = Capnp.read_struct_pointer(ptr, ptr.data_word_count, 3)
+            @assert isnothing(p) || (p.data_word_count >= Value_data_word_count) && p.pointer_count >= Value_pointer_count
             p
         end
         function Field_slot_initDefaultValue(ptr)
@@ -716,7 +716,7 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         function root_Field_group(message)
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Field_group_data_word_count) && p.pointer_count == Field_group_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Field_group_data_word_count) && p.pointer_count >= Field_group_pointer_count
             p
         end
         function initRoot_Field_group(builder)
@@ -747,7 +747,7 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         function root_Field_ordinal(message)
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Field_ordinal_data_word_count) && p.pointer_count == Field_ordinal_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Field_ordinal_data_word_count) && p.pointer_count >= Field_ordinal_pointer_count
             p
         end
         function initRoot_Field_ordinal(builder)
@@ -774,7 +774,7 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         function root_Enumerant(message)
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Enumerant_data_word_count) && p.pointer_count == Enumerant_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Enumerant_data_word_count) && p.pointer_count >= Enumerant_pointer_count
             p
         end
         function initRoot_Enumerant(builder)
@@ -786,7 +786,7 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             ptr
         end
         function Enumerant_getName(ptr)
-            p = Capnp.read_list_pointer(ptr, 1, 0)
+            p = Capnp.read_list_pointer(ptr, ptr.data_word_count, 0)
             Capnp.read_text(p)
         end
         function Enumerant_setName(ptr, txt)
@@ -807,9 +807,9 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             []
         end
         function Enumerant_getAnnotations(ptr)
-            p = Capnp.read_list_pointer(ptr, 1, 1, Capnp.CapnpStruct)
+            p = Capnp.read_list_pointer(ptr, ptr.data_word_count, 1, Capnp.CapnpStruct)
             @assert isempty(p) || p isa Capnp.SimpleListPointer ||
-               (p isa Capnp.CompositeListPointer && p.data_word_count == Annotation_data_word_count) && p.pointer_count == Annotation_pointer_count
+               (p isa Capnp.CompositeListPointer && p.data_word_count >= Annotation_data_word_count) && p.pointer_count >= Annotation_pointer_count
             p
         end
         function Enumerant_initAnnotations(ptr, size)
@@ -824,7 +824,7 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         function root_Superclass(message)
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Superclass_data_word_count) && p.pointer_count == Superclass_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Superclass_data_word_count) && p.pointer_count >= Superclass_pointer_count
             p
         end
         function initRoot_Superclass(builder)
@@ -843,8 +843,8 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             Capnp.write_bits(ptr, 0, UInt64, value)
         end
         function Superclass_getBrand(ptr::Capnp.StructPointer{T}) where T <: Reader
-            p = Capnp.read_struct_pointer(ptr, 1, 0)
-            @assert isnothing(p) || (p.data_word_count == Brand_data_word_count) && p.pointer_count == Brand_pointer_count
+            p = Capnp.read_struct_pointer(ptr, ptr.data_word_count, 0)
+            @assert isnothing(p) || (p.data_word_count >= Brand_data_word_count) && p.pointer_count >= Brand_pointer_count
             p
         end
         function Superclass_initBrand(ptr)
@@ -859,7 +859,7 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         function root_Method(message)
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Method_data_word_count) && p.pointer_count == Method_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Method_data_word_count) && p.pointer_count >= Method_pointer_count
             p
         end
         function initRoot_Method(builder)
@@ -871,7 +871,7 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             ptr
         end
         function Method_getName(ptr)
-            p = Capnp.read_list_pointer(ptr, 3, 0)
+            p = Capnp.read_list_pointer(ptr, ptr.data_word_count, 0)
             Capnp.read_text(p)
         end
         function Method_setName(ptr, txt)
@@ -906,9 +906,9 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             []
         end
         function Method_getAnnotations(ptr)
-            p = Capnp.read_list_pointer(ptr, 3, 1, Capnp.CapnpStruct)
+            p = Capnp.read_list_pointer(ptr, ptr.data_word_count, 1, Capnp.CapnpStruct)
             @assert isempty(p) || p isa Capnp.SimpleListPointer ||
-               (p isa Capnp.CompositeListPointer && p.data_word_count == Annotation_data_word_count) && p.pointer_count == Annotation_pointer_count
+               (p isa Capnp.CompositeListPointer && p.data_word_count >= Annotation_data_word_count) && p.pointer_count >= Annotation_pointer_count
             p
         end
         function Method_initAnnotations(ptr, size)
@@ -919,8 +919,8 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             child_ptr
         end
         function Method_getParamBrand(ptr::Capnp.StructPointer{T}) where T <: Reader
-            p = Capnp.read_struct_pointer(ptr, 3, 2)
-            @assert isnothing(p) || (p.data_word_count == Brand_data_word_count) && p.pointer_count == Brand_pointer_count
+            p = Capnp.read_struct_pointer(ptr, ptr.data_word_count, 2)
+            @assert isnothing(p) || (p.data_word_count >= Brand_data_word_count) && p.pointer_count >= Brand_pointer_count
             p
         end
         function Method_initParamBrand(ptr)
@@ -931,8 +931,8 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             child_ptr
         end
         function Method_getResultBrand(ptr::Capnp.StructPointer{T}) where T <: Reader
-            p = Capnp.read_struct_pointer(ptr, 3, 3)
-            @assert isnothing(p) || (p.data_word_count == Brand_data_word_count) && p.pointer_count == Brand_pointer_count
+            p = Capnp.read_struct_pointer(ptr, ptr.data_word_count, 3)
+            @assert isnothing(p) || (p.data_word_count >= Brand_data_word_count) && p.pointer_count >= Brand_pointer_count
             p
         end
         function Method_initResultBrand(ptr)
@@ -946,9 +946,9 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             []
         end
         function Method_getImplicitParameters(ptr)
-            p = Capnp.read_list_pointer(ptr, 3, 4, Capnp.CapnpStruct)
+            p = Capnp.read_list_pointer(ptr, ptr.data_word_count, 4, Capnp.CapnpStruct)
             @assert isempty(p) || p isa Capnp.SimpleListPointer ||
-               (p isa Capnp.CompositeListPointer && p.data_word_count == Node_Parameter_data_word_count) && p.pointer_count == Node_Parameter_pointer_count
+               (p isa Capnp.CompositeListPointer && p.data_word_count >= Node_Parameter_data_word_count) && p.pointer_count >= Node_Parameter_pointer_count
             p
         end
         function Method_initImplicitParameters(ptr, size)
@@ -967,7 +967,7 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         function root_Type(message)
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Type_data_word_count) && p.pointer_count == Type_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Type_data_word_count) && p.pointer_count >= Type_pointer_count
             p
         end
         function initRoot_Type(builder)
@@ -1030,7 +1030,7 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         function root_Type_list(message)
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Type_list_data_word_count) && p.pointer_count == Type_list_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Type_list_data_word_count) && p.pointer_count >= Type_list_pointer_count
             p
         end
         function initRoot_Type_list(builder)
@@ -1042,8 +1042,8 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             ptr
         end
         function Type_list_getElementType(ptr::Capnp.StructPointer{T}) where T <: Reader
-            p = Capnp.read_struct_pointer(ptr, 3, 0)
-            @assert isnothing(p) || (p.data_word_count == Type_data_word_count) && p.pointer_count == Type_pointer_count
+            p = Capnp.read_struct_pointer(ptr, ptr.data_word_count, 0)
+            @assert isnothing(p) || (p.data_word_count >= Type_data_word_count) && p.pointer_count >= Type_pointer_count
             p
         end
         function Type_list_initElementType(ptr)
@@ -1063,7 +1063,7 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         function root_Type_enum(message)
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Type_enum_data_word_count) && p.pointer_count == Type_enum_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Type_enum_data_word_count) && p.pointer_count >= Type_enum_pointer_count
             p
         end
         function initRoot_Type_enum(builder)
@@ -1082,8 +1082,8 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             Capnp.write_bits(ptr, 8, UInt64, value)
         end
         function Type_enum_getBrand(ptr::Capnp.StructPointer{T}) where T <: Reader
-            p = Capnp.read_struct_pointer(ptr, 3, 0)
-            @assert isnothing(p) || (p.data_word_count == Brand_data_word_count) && p.pointer_count == Brand_pointer_count
+            p = Capnp.read_struct_pointer(ptr, ptr.data_word_count, 0)
+            @assert isnothing(p) || (p.data_word_count >= Brand_data_word_count) && p.pointer_count >= Brand_pointer_count
             p
         end
         function Type_enum_initBrand(ptr)
@@ -1103,7 +1103,7 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         function root_Type_struct(message)
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Type_struct_data_word_count) && p.pointer_count == Type_struct_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Type_struct_data_word_count) && p.pointer_count >= Type_struct_pointer_count
             p
         end
         function initRoot_Type_struct(builder)
@@ -1122,8 +1122,8 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             Capnp.write_bits(ptr, 8, UInt64, value)
         end
         function Type_struct_getBrand(ptr::Capnp.StructPointer{T}) where T <: Reader
-            p = Capnp.read_struct_pointer(ptr, 3, 0)
-            @assert isnothing(p) || (p.data_word_count == Brand_data_word_count) && p.pointer_count == Brand_pointer_count
+            p = Capnp.read_struct_pointer(ptr, ptr.data_word_count, 0)
+            @assert isnothing(p) || (p.data_word_count >= Brand_data_word_count) && p.pointer_count >= Brand_pointer_count
             p
         end
         function Type_struct_initBrand(ptr)
@@ -1143,7 +1143,7 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         function root_Type_interface(message)
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Type_interface_data_word_count) && p.pointer_count == Type_interface_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Type_interface_data_word_count) && p.pointer_count >= Type_interface_pointer_count
             p
         end
         function initRoot_Type_interface(builder)
@@ -1162,8 +1162,8 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             Capnp.write_bits(ptr, 8, UInt64, value)
         end
         function Type_interface_getBrand(ptr::Capnp.StructPointer{T}) where T <: Reader
-            p = Capnp.read_struct_pointer(ptr, 3, 0)
-            @assert isnothing(p) || (p.data_word_count == Brand_data_word_count) && p.pointer_count == Brand_pointer_count
+            p = Capnp.read_struct_pointer(ptr, ptr.data_word_count, 0)
+            @assert isnothing(p) || (p.data_word_count >= Brand_data_word_count) && p.pointer_count >= Brand_pointer_count
             p
         end
         function Type_interface_initBrand(ptr)
@@ -1187,7 +1187,7 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         function root_Type_anyPointer(message)
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Type_anyPointer_data_word_count) && p.pointer_count == Type_anyPointer_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Type_anyPointer_data_word_count) && p.pointer_count >= Type_anyPointer_pointer_count
             p
         end
         function initRoot_Type_anyPointer(builder)
@@ -1212,7 +1212,7 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         function root_Type_anyPointer_unconstrained(message)
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Type_anyPointer_unconstrained_data_word_count) && p.pointer_count == Type_anyPointer_unconstrained_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Type_anyPointer_unconstrained_data_word_count) && p.pointer_count >= Type_anyPointer_unconstrained_pointer_count
             p
         end
         function initRoot_Type_anyPointer_unconstrained(builder)
@@ -1245,7 +1245,7 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         function root_Type_anyPointer_parameter(message)
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Type_anyPointer_parameter_data_word_count) && p.pointer_count == Type_anyPointer_parameter_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Type_anyPointer_parameter_data_word_count) && p.pointer_count >= Type_anyPointer_parameter_pointer_count
             p
         end
         function initRoot_Type_anyPointer_parameter(builder)
@@ -1280,7 +1280,7 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         function root_Type_anyPointer_implicitMethodParameter(message)
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Type_anyPointer_implicitMethodParameter_data_word_count) && p.pointer_count == Type_anyPointer_implicitMethodParameter_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Type_anyPointer_implicitMethodParameter_data_word_count) && p.pointer_count >= Type_anyPointer_implicitMethodParameter_pointer_count
             p
         end
         function initRoot_Type_anyPointer_implicitMethodParameter(builder)
@@ -1307,7 +1307,7 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         function root_Brand_Scope(message)
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Brand_Scope_data_word_count) && p.pointer_count == Brand_Scope_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Brand_Scope_data_word_count) && p.pointer_count >= Brand_Scope_pointer_count
             p
         end
         function initRoot_Brand_Scope(builder)
@@ -1329,9 +1329,9 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             []
         end
         function Brand_Scope_getBind(ptr)
-            p = Capnp.read_list_pointer(ptr, 2, 0, Capnp.CapnpStruct)
+            p = Capnp.read_list_pointer(ptr, ptr.data_word_count, 0, Capnp.CapnpStruct)
             @assert isempty(p) || p isa Capnp.SimpleListPointer ||
-               (p isa Capnp.CompositeListPointer && p.data_word_count == Brand_Binding_data_word_count) && p.pointer_count == Brand_Binding_pointer_count
+               (p isa Capnp.CompositeListPointer && p.data_word_count >= Brand_Binding_data_word_count) && p.pointer_count >= Brand_Binding_pointer_count
             p
         end
         function Brand_Scope_initBind(ptr, size)
@@ -1354,7 +1354,7 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         function root_Brand_Binding(message)
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Brand_Binding_data_word_count) && p.pointer_count == Brand_Binding_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Brand_Binding_data_word_count) && p.pointer_count >= Brand_Binding_pointer_count
             p
         end
         function initRoot_Brand_Binding(builder)
@@ -1369,8 +1369,8 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             Capnp.write_bits(ptr, 0, UInt16, 0) # union discriminant
         end
         function Brand_Binding_getType(ptr::Capnp.StructPointer{T}) where T <: Reader
-            p = Capnp.read_struct_pointer(ptr, 1, 0)
-            @assert isnothing(p) || (p.data_word_count == Type_data_word_count) && p.pointer_count == Type_pointer_count
+            p = Capnp.read_struct_pointer(ptr, ptr.data_word_count, 0)
+            @assert isnothing(p) || (p.data_word_count >= Type_data_word_count) && p.pointer_count >= Type_pointer_count
             p
         end
         function Brand_Binding_initType(ptr)
@@ -1386,7 +1386,7 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         function root_Brand(message)
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Brand_data_word_count) && p.pointer_count == Brand_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Brand_data_word_count) && p.pointer_count >= Brand_pointer_count
             p
         end
         function initRoot_Brand(builder)
@@ -1401,9 +1401,9 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             []
         end
         function Brand_getScopes(ptr)
-            p = Capnp.read_list_pointer(ptr, 0, 0, Capnp.CapnpStruct)
+            p = Capnp.read_list_pointer(ptr, ptr.data_word_count, 0, Capnp.CapnpStruct)
             @assert isempty(p) || p isa Capnp.SimpleListPointer ||
-               (p isa Capnp.CompositeListPointer && p.data_word_count == Brand_Scope_data_word_count) && p.pointer_count == Brand_Scope_pointer_count
+               (p isa Capnp.CompositeListPointer && p.data_word_count >= Brand_Scope_data_word_count) && p.pointer_count >= Brand_Scope_pointer_count
             p
         end
         function Brand_initScopes(ptr, size)
@@ -1422,7 +1422,7 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         function root_Value(message)
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Value_data_word_count) && p.pointer_count == Value_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Value_data_word_count) && p.pointer_count >= Value_pointer_count
             p
         end
         function initRoot_Value(builder)
@@ -1525,7 +1525,7 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             Capnp.write_bits(ptr, 0, UInt16, 11) # union discriminant
         end
         function Value_getText(ptr)
-            p = Capnp.read_list_pointer(ptr, 2, 0)
+            p = Capnp.read_list_pointer(ptr, ptr.data_word_count, 0)
             Capnp.read_text(p)
         end
         function Value_setText(ptr, txt)
@@ -1538,7 +1538,7 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         end
         # Value's data has type Capnp.Generator.SchemaData() which is not supported by Capnp.jl yet
         function Value_getList(ptr)
-            value = Capnp.read_bits(ptr, 2, Int64)
+            value = Capnp.read_bits(ptr, 8 * (ptr.data_word_count + 0), Int64)
             if value == 0
                 Nothing
             else
@@ -1554,7 +1554,7 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             Capnp.write_bits(ptr, 0, UInt16, 15) # union discriminant
         end
         function Value_getStruct(ptr)
-            value = Capnp.read_bits(ptr, 2, Int64)
+            value = Capnp.read_bits(ptr, 8 * (ptr.data_word_count + 0), Int64)
             if value == 0
                 Nothing
             else
@@ -1565,7 +1565,7 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             Capnp.write_bits(ptr, 0, UInt16, 17) # union discriminant
         end
         function Value_getAnyPointer(ptr)
-            value = Capnp.read_bits(ptr, 2, Int64)
+            value = Capnp.read_bits(ptr, 8 * (ptr.data_word_count + 0), Int64)
             if value == 0
                 Nothing
             else
@@ -1577,7 +1577,7 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         function root_Annotation(message)
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == Annotation_data_word_count) && p.pointer_count == Annotation_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= Annotation_data_word_count) && p.pointer_count >= Annotation_pointer_count
             p
         end
         function initRoot_Annotation(builder)
@@ -1596,8 +1596,8 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             Capnp.write_bits(ptr, 0, UInt64, value)
         end
         function Annotation_getValue(ptr::Capnp.StructPointer{T}) where T <: Reader
-            p = Capnp.read_struct_pointer(ptr, 1, 0)
-            @assert isnothing(p) || (p.data_word_count == Value_data_word_count) && p.pointer_count == Value_pointer_count
+            p = Capnp.read_struct_pointer(ptr, ptr.data_word_count, 0)
+            @assert isnothing(p) || (p.data_word_count >= Value_data_word_count) && p.pointer_count >= Value_pointer_count
             p
         end
         function Annotation_initValue(ptr)
@@ -1608,8 +1608,8 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             child_ptr
         end
         function Annotation_getBrand(ptr::Capnp.StructPointer{T}) where T <: Reader
-            p = Capnp.read_struct_pointer(ptr, 1, 1)
-            @assert isnothing(p) || (p.data_word_count == Brand_data_word_count) && p.pointer_count == Brand_pointer_count
+            p = Capnp.read_struct_pointer(ptr, ptr.data_word_count, 1)
+            @assert isnothing(p) || (p.data_word_count >= Brand_data_word_count) && p.pointer_count >= Brand_pointer_count
             p
         end
         function Annotation_initBrand(ptr)
@@ -1625,7 +1625,7 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         function root_CapnpVersion(message)
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == CapnpVersion_data_word_count) && p.pointer_count == CapnpVersion_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= CapnpVersion_data_word_count) && p.pointer_count >= CapnpVersion_pointer_count
             p
         end
         function initRoot_CapnpVersion(builder)
@@ -1662,7 +1662,7 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         function root_CodeGeneratorRequest_RequestedFile_Import(message)
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == CodeGeneratorRequest_RequestedFile_Import_data_word_count) && p.pointer_count == CodeGeneratorRequest_RequestedFile_Import_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= CodeGeneratorRequest_RequestedFile_Import_data_word_count) && p.pointer_count >= CodeGeneratorRequest_RequestedFile_Import_pointer_count
             p
         end
         function initRoot_CodeGeneratorRequest_RequestedFile_Import(builder)
@@ -1681,7 +1681,7 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             Capnp.write_bits(ptr, 0, UInt64, value)
         end
         function CodeGeneratorRequest_RequestedFile_Import_getName(ptr)
-            p = Capnp.read_list_pointer(ptr, 1, 0)
+            p = Capnp.read_list_pointer(ptr, ptr.data_word_count, 0)
             Capnp.read_text(p)
         end
         function CodeGeneratorRequest_RequestedFile_Import_setName(ptr, txt)
@@ -1696,7 +1696,7 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         function root_CodeGeneratorRequest_RequestedFile(message)
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == CodeGeneratorRequest_RequestedFile_data_word_count) && p.pointer_count == CodeGeneratorRequest_RequestedFile_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= CodeGeneratorRequest_RequestedFile_data_word_count) && p.pointer_count >= CodeGeneratorRequest_RequestedFile_pointer_count
             p
         end
         function initRoot_CodeGeneratorRequest_RequestedFile(builder)
@@ -1715,7 +1715,7 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             Capnp.write_bits(ptr, 0, UInt64, value)
         end
         function CodeGeneratorRequest_RequestedFile_getFilename(ptr)
-            p = Capnp.read_list_pointer(ptr, 1, 0)
+            p = Capnp.read_list_pointer(ptr, ptr.data_word_count, 0)
             Capnp.read_text(p)
         end
         function CodeGeneratorRequest_RequestedFile_setFilename(ptr, txt)
@@ -1729,9 +1729,9 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             []
         end
         function CodeGeneratorRequest_RequestedFile_getImports(ptr)
-            p = Capnp.read_list_pointer(ptr, 1, 1, Capnp.CapnpStruct)
+            p = Capnp.read_list_pointer(ptr, ptr.data_word_count, 1, Capnp.CapnpStruct)
             @assert isempty(p) || p isa Capnp.SimpleListPointer ||
-               (p isa Capnp.CompositeListPointer && p.data_word_count == CodeGeneratorRequest_RequestedFile_Import_data_word_count) && p.pointer_count == CodeGeneratorRequest_RequestedFile_Import_pointer_count
+               (p isa Capnp.CompositeListPointer && p.data_word_count >= CodeGeneratorRequest_RequestedFile_Import_data_word_count) && p.pointer_count >= CodeGeneratorRequest_RequestedFile_Import_pointer_count
             p
         end
         function CodeGeneratorRequest_RequestedFile_initImports(ptr, size)
@@ -1746,7 +1746,7 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         function root_CodeGeneratorRequest(message)
             ptr = Capnp.StructPointer(message, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
             p = Capnp.read_struct_pointer(ptr, 0, 0)
-            @assert isnothing(p) || (p.data_word_count == CodeGeneratorRequest_data_word_count) && p.pointer_count == CodeGeneratorRequest_pointer_count
+            @assert isnothing(p) || (p.data_word_count >= CodeGeneratorRequest_data_word_count) && p.pointer_count >= CodeGeneratorRequest_pointer_count
             p
         end
         function initRoot_CodeGeneratorRequest(builder)
@@ -1761,9 +1761,9 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             []
         end
         function CodeGeneratorRequest_getNodes(ptr)
-            p = Capnp.read_list_pointer(ptr, 0, 0, Capnp.CapnpStruct)
+            p = Capnp.read_list_pointer(ptr, ptr.data_word_count, 0, Capnp.CapnpStruct)
             @assert isempty(p) || p isa Capnp.SimpleListPointer ||
-               (p isa Capnp.CompositeListPointer && p.data_word_count == Node_data_word_count) && p.pointer_count == Node_pointer_count
+               (p isa Capnp.CompositeListPointer && p.data_word_count >= Node_data_word_count) && p.pointer_count >= Node_pointer_count
             p
         end
         function CodeGeneratorRequest_initNodes(ptr, size)
@@ -1777,9 +1777,9 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             []
         end
         function CodeGeneratorRequest_getRequestedFiles(ptr)
-            p = Capnp.read_list_pointer(ptr, 0, 1, Capnp.CapnpStruct)
+            p = Capnp.read_list_pointer(ptr, ptr.data_word_count, 1, Capnp.CapnpStruct)
             @assert isempty(p) || p isa Capnp.SimpleListPointer ||
-               (p isa Capnp.CompositeListPointer && p.data_word_count == CodeGeneratorRequest_RequestedFile_data_word_count) && p.pointer_count == CodeGeneratorRequest_RequestedFile_pointer_count
+               (p isa Capnp.CompositeListPointer && p.data_word_count >= CodeGeneratorRequest_RequestedFile_data_word_count) && p.pointer_count >= CodeGeneratorRequest_RequestedFile_pointer_count
             p
         end
         function CodeGeneratorRequest_initRequestedFiles(ptr, size)
@@ -1790,8 +1790,8 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             child_ptr
         end
         function CodeGeneratorRequest_getCapnpVersion(ptr::Capnp.StructPointer{T}) where T <: Reader
-            p = Capnp.read_struct_pointer(ptr, 0, 2)
-            @assert isnothing(p) || (p.data_word_count == CapnpVersion_data_word_count) && p.pointer_count == CapnpVersion_pointer_count
+            p = Capnp.read_struct_pointer(ptr, ptr.data_word_count, 2)
+            @assert isnothing(p) || (p.data_word_count >= CapnpVersion_data_word_count) && p.pointer_count >= CapnpVersion_pointer_count
             p
         end
         function CodeGeneratorRequest_initCapnpVersion(ptr)
@@ -1805,9 +1805,9 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             []
         end
         function CodeGeneratorRequest_getSourceInfo(ptr)
-            p = Capnp.read_list_pointer(ptr, 0, 3, Capnp.CapnpStruct)
+            p = Capnp.read_list_pointer(ptr, ptr.data_word_count, 3, Capnp.CapnpStruct)
             @assert isempty(p) || p isa Capnp.SimpleListPointer ||
-               (p isa Capnp.CompositeListPointer && p.data_word_count == Node_SourceInfo_data_word_count) && p.pointer_count == Node_SourceInfo_pointer_count
+               (p isa Capnp.CompositeListPointer && p.data_word_count >= Node_SourceInfo_data_word_count) && p.pointer_count >= Node_SourceInfo_pointer_count
             p
         end
         function CodeGeneratorRequest_initSourceInfo(ptr, size)
