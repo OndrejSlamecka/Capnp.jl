@@ -1,24 +1,28 @@
 # https://github.com/julia-actions/julia-runtest
 name: Run tests
 
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - main
+  pull_request:
 
 jobs:
   test:
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        julia-version: ['1.10', 'nightly']
-        julia-arch: [x64]
+        julia-version: ['1.10', '1'] # oldest supported and latest stable
         os: [ubuntu-latest]
 
     steps:
       - name: Install capnp
-        run: sudo apt-get install -y capnproto libcapnp-dev
-      - uses: actions/checkout@v2
-      - uses: julia-actions/setup-julia@v1
+        run: sudo apt-get update && sudo apt-get install -y capnproto libcapnp-dev
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
         with:
           version: ${{ matrix.julia-version }}
-          arch: ${{ matrix.julia-arch }}
+      - uses: julia-actions/cache@v2
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-runtest@v1
