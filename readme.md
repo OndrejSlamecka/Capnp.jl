@@ -41,6 +41,8 @@ anonymous union the names would be `A_union` and `A_which`. Sett union slot `xy`
 
 ## Development
 
+The repository provides a [Nix](https://nixos.org) dev shell with Julia and Cap'n Proto: run `nix develop`, or `direnv allow` once to have [direnv](https://direnv.net) enter it automatically.
+
 See `src/Capnp.jl` for description of code structure. To generate the code for _the_ Capnp schema use `capnpc
 -o./capnpc-jl src/schema.capnp`.
 

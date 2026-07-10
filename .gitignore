@@ -1,3 +1,4 @@
 .vscode
 *.capnp.jl
 !src/schema.capnp.jl
+.direnv/
