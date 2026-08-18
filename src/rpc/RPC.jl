@@ -56,7 +56,7 @@ export resolve!, reject!, call_pipelined
 export on_resolve!, on_reject!, then
 
 # Exports - Transport layer
-export Transport, TcpTransport, UnixTransport, MockTransport
+export Transport, TransportContractError, IOTransport, TcpTransport, UnixTransport, MockTransport
 export send_message, receive_message, send_raw_message
 export inject_message!, get_sent_messages, clear_sent_messages!
 
@@ -78,7 +78,7 @@ export add_remote_promise!, get_remote_promise, remove_remote_promise!
 export incref!, decref!
 
 # Exports - Client RPC
-export connect, bootstrap, ConnectionOptions
+export connect, bootstrap, bootstrap_async, ConnectionOptions
 export handle_message!, handle_return!, handle_exception!, handle_resolve!, handle_release!
 export start_message_loop!
 export NotPersistentException, call_save, call_save_sync
@@ -100,10 +100,10 @@ export register_persistent!, is_save_call
 export MessageType, ReturnType, MessageTargetType, SendResultsToType
 export ResolveType, CapDescriptorType, PromisedAnswerOpType
 export PromisedAnswerOp, ParsedPromisedAnswer, ParsedCapDescriptor
-export ParsedBootstrap, ParsedMessageTarget, ParsedCall, ParsedFinish, ParsedRelease, ParsedResolve, ParsedMessage
+export ParsedBootstrap, ParsedMessageTarget, ParsedCall, ParsedFinish, ParsedRelease, ParsedResolve, ParsedReturn, ParsedMessage
 export ParsedParams
 export parse_rpc_message, parse_cap_descriptor, parse_promised_answer
-export build_return_message, build_bootstrap_return
+export build_bootstrap_request, build_return_message, build_bootstrap_return
 export build_resolve_message, build_resolve_exception
 export ParsedSaveResults, build_save_call, parse_save_results
 export ParsedRestoreResults, build_restore_call, parse_restore_results

@@ -249,6 +249,16 @@ struct ParsedResolve
     exception_type::Union{ExceptionType.T,Nothing}      # If kind == EXCEPTION
 end
 
+"""Parsed subset of a Return message needed by the Level 0 client path."""
+struct ParsedReturn
+    answer_id::AnswerId
+    kind::ReturnType.T
+    result::Any
+    cap_descriptor::Union{ParsedCapDescriptor,Nothing}
+    exception_reason::Union{String,Nothing}
+    exception_type::Union{ExceptionType.T,Nothing}
+end
+
 """
     ParsedMessage
 
@@ -261,6 +271,7 @@ struct ParsedMessage
     finish::Union{ParsedFinish,Nothing}
     release::Union{ParsedRelease,Nothing}
     resolve::Union{ParsedResolve,Nothing}  # Level 2
+    return_message::Union{ParsedReturn,Nothing}
 end
 
 """
@@ -300,6 +311,8 @@ function parse_rpc_message(reader::Capnp.MessageReader)
         return parse_bootstrap(seg, ptr_section_start)
     elseif msg_type == MessageType.CALL
         return parse_call(seg, struct_start, ptr_section_start)
+    elseif msg_type == MessageType.RETURN
+        return parse_return(seg, ptr_section_start)
     elseif msg_type == MessageType.FINISH
         return parse_finish(seg, struct_start)
     elseif msg_type == MessageType.RELEASE
@@ -308,7 +321,7 @@ function parse_rpc_message(reader::Capnp.MessageReader)
         return parse_resolve(seg, ptr_section_start)
     else
         # Return an unimplemented message for unsupported types
-        return ParsedMessage(msg_type, nothing, nothing, nothing, nothing, nothing)
+        return ParsedMessage(msg_type, nothing, nothing, nothing, nothing, nothing, nothing)
     end
 end
 
@@ -391,7 +404,7 @@ function parse_bootstrap(seg::Vector{UInt8}, ptr_section_start::Int)
     question_id = read_data_field(seg, boot_start, 0, UInt32)
 
     bootstrap = ParsedBootstrap(QuestionId(question_id))
-    return ParsedMessage(MessageType.BOOTSTRAP, bootstrap, nothing, nothing, nothing, nothing)
+    return ParsedMessage(MessageType.BOOTSTRAP, bootstrap, nothing, nothing, nothing, nothing, nothing)
 end
 
 """
@@ -436,7 +449,7 @@ function parse_call(seg::Vector{UInt8}, _msg_struct_start::Int, msg_ptr_section_
 
     call = ParsedCall(QuestionId(question_id), target, interface_id, method_id, params)
 
-    return ParsedMessage(MessageType.CALL, nothing, call, nothing, nothing, nothing)
+    return ParsedMessage(MessageType.CALL, nothing, call, nothing, nothing, nothing, nothing)
 end
 
 """
@@ -598,7 +611,7 @@ function parse_finish(_seg::Vector{UInt8}, _msg_struct_start::Int)
     # TODO: Need to properly locate the Finish struct pointer
     # For now, assume it's at Message pointer 0
     finish = ParsedFinish(QuestionId(0), true)
-    return ParsedMessage(MessageType.FINISH, nothing, nothing, finish, nothing, nothing)
+    return ParsedMessage(MessageType.FINISH, nothing, nothing, finish, nothing, nothing, nothing)
 end
 
 """
@@ -612,7 +625,7 @@ function parse_release(seg::Vector{UInt8}, ptr_section_start::Int)
     release_ptr = get_struct_pointer(seg, ptr_section_start)
 
     if release_ptr === nothing || release_ptr == 0
-        return ParsedMessage(MessageType.RELEASE, nothing, nothing, nothing, ParsedRelease(ImportId(0), UInt32(1)))
+        return ParsedMessage(MessageType.RELEASE, nothing, nothing, nothing, ParsedRelease(ImportId(0), UInt32(1)), nothing, nothing)
     end
 
     # Decode the Release struct
@@ -624,7 +637,7 @@ function parse_release(seg::Vector{UInt8}, ptr_section_start::Int)
     ref_count = read_data_field(seg, rel_start, 4, UInt32)
 
     release = ParsedRelease(ImportId(id), ref_count)
-    return ParsedMessage(MessageType.RELEASE, nothing, nothing, nothing, release, nothing)
+    return ParsedMessage(MessageType.RELEASE, nothing, nothing, nothing, release, nothing, nothing)
 end
 
 """
@@ -709,7 +722,124 @@ function parse_resolve(seg::Vector{UInt8}, ptr_section_start::Int)
         resolve = ParsedResolve(ExportId(promise_id), kind, nothing, exception_reason, exception_type)
     end
 
-    return ParsedMessage(MessageType.RESOLVE, nothing, nothing, nothing, nothing, resolve)
+    return ParsedMessage(MessageType.RESOLVE, nothing, nothing, nothing, nothing, resolve, nothing)
+end
+
+function _signed_pointer_offset(ptr::UInt64)
+    raw = Int((ptr >> 2) & 0x3fffffff)
+    return (raw & 0x20000000) == 0 ? raw : raw - 0x40000000
+end
+
+function _parse_text_pointer(seg::Vector{UInt8}, ptr_word::Int)
+    ptr = get_struct_pointer(seg, ptr_word)
+    (ptr === nothing || ptr == 0 || (ptr & 0x3) != 1) && return ""
+    Int((ptr >> 32) & 0x7) == 2 || return ""
+    count = Int((ptr >> 35) & 0x1fffffff)
+    count == 0 && return ""
+    start_word = ptr_word + 1 + _signed_pointer_offset(ptr)
+    start_byte = (start_word - 1) * 8 + 1
+    stop_byte = start_byte + count - 1
+    1 <= start_byte <= stop_byte <= length(seg) || throw(RemoteException("Invalid text pointer in Return", ExceptionType.FAILED))
+    bytes = @view seg[start_byte:stop_byte]
+    return String(bytes[end] == 0 ? bytes[1:(end-1)] : bytes)
+end
+
+function _parse_return_exception(seg::Vector{UInt8}, pointer_word::Int)
+    ptr = get_struct_pointer(seg, pointer_word)
+    (ptr === nothing || ptr == 0) && return ("Remote exception", ExceptionType.FAILED)
+    offset, data_size, _ = decode_struct_pointer(ptr)
+    start = pointer_word + 1 + offset
+    raw_type = read_data_field(seg, start, 4, UInt16)
+    exception_type = raw_type <= UInt16(3) ? ExceptionType.T(raw_type) : ExceptionType.FAILED
+    return (_parse_text_pointer(seg, start + data_size), exception_type)
+end
+
+function _parse_cap_table_entry(seg::Vector{UInt8}, pointer_word::Int, index::Int)
+    ptr = get_struct_pointer(seg, pointer_word)
+    (ptr === nothing || ptr == 0 || (ptr & 0x3) != 1) && return nothing
+    Int((ptr >> 32) & 0x7) == 7 || return nothing
+    tag_word = pointer_word + 1 + _signed_pointer_offset(ptr)
+    tag = get_struct_pointer(seg, tag_word)
+    tag === nothing && throw(RemoteException("Truncated capability table", ExceptionType.FAILED))
+    count = Int((tag >> 2) & 0x3fffffff)
+    data_size = Int((tag >> 32) & 0xffff)
+    pointer_count = Int((tag >> 48) & 0xffff)
+    0 <= index < count || throw(InvalidCapabilityException("Capability table index $index is out of bounds"))
+    element_start = tag_word + 1 + index * (data_size + pointer_count)
+    return parse_cap_descriptor(seg, element_start, data_size)
+end
+
+"""Parse a Level 0 Return, including bootstrap capabilities and exceptions."""
+function parse_return(seg::Vector{UInt8}, pointer_word::Int)
+    ptr = get_struct_pointer(seg, pointer_word)
+    (ptr === nothing || ptr == 0) && throw(RemoteException("Invalid Return message: null pointer", ExceptionType.FAILED))
+    offset, data_size, pointer_count = decode_struct_pointer(ptr)
+    pointer_count >= 1 || throw(RemoteException("Invalid Return message: missing payload", ExceptionType.FAILED))
+    start = pointer_word + 1 + offset
+    answer_id = AnswerId(read_data_field(seg, start, 0, UInt32))
+    raw_kind = read_data_field(seg, start, 6, UInt16)
+    raw_kind <= UInt16(5) || throw(RemoteException("Invalid Return discriminant: $raw_kind", ExceptionType.FAILED))
+    kind = ReturnType.T(raw_kind)
+    return_pointer = start + data_size
+
+    if kind == ReturnType.EXCEPTION
+        reason, exception_type = _parse_return_exception(seg, return_pointer)
+        parsed = ParsedReturn(answer_id, kind, nothing, nothing, reason, exception_type)
+        return ParsedMessage(MessageType.RETURN, nothing, nothing, nothing, nothing, nothing, parsed)
+    elseif kind != ReturnType.RESULTS
+        parsed = ParsedReturn(answer_id, kind, nothing, nothing, nothing, nothing)
+        return ParsedMessage(MessageType.RETURN, nothing, nothing, nothing, nothing, nothing, parsed)
+    end
+
+    payload_ptr = get_struct_pointer(seg, return_pointer)
+    (payload_ptr === nothing || payload_ptr == 0) && throw(RemoteException("Invalid Return results: null payload", ExceptionType.FAILED))
+    payload_offset, payload_data_size, payload_pointer_count = decode_struct_pointer(payload_ptr)
+    payload_pointer_count >= 2 || throw(RemoteException("Invalid Return results: incomplete payload", ExceptionType.FAILED))
+    payload_start = return_pointer + 1 + payload_offset + payload_data_size
+    content_ptr = get_struct_pointer(seg, payload_start)
+    result = nothing
+    cap_descriptor = nothing
+
+    if content_ptr !== nothing && content_ptr != 0
+        pointer_type = content_ptr & 0x3
+        if pointer_type == 3
+            cap_index = Int((content_ptr >> 32) & 0xffffffff)
+            cap_descriptor = _parse_cap_table_entry(seg, payload_start + 1, cap_index)
+        elseif pointer_type == 0
+            content_offset, content_data_size, _ = decode_struct_pointer(content_ptr)
+            content_start = payload_start + 1 + content_offset
+            if content_data_size >= 1
+                result = read_data_field(seg, content_start, 0, Float64)
+            end
+        end
+    end
+
+    parsed = ParsedReturn(answer_id, kind, result, cap_descriptor, nothing, nothing)
+    return ParsedMessage(MessageType.RETURN, nothing, nothing, nothing, nothing, nothing, parsed)
+end
+
+
+# ============================================================================
+# Bootstrap Message Builder
+# ============================================================================
+
+"""Build a Bootstrap request for `question_id` in stream-framed wire format."""
+function build_bootstrap_request(question_id::QuestionId)
+    segment = zeros(UInt8, 4 * 8)
+
+    root_ptr = UInt64(0) | (UInt64(1) << 32) | (UInt64(1) << 48)
+    copyto!(segment, 1, reinterpret(UInt8, [root_ptr]), 1, 8)
+    copyto!(segment, 9, reinterpret(UInt8, [UInt16(MessageType.BOOTSTRAP)]), 1, 2)
+
+    bootstrap_ptr = UInt64(0) | (UInt64(1) << 32)
+    copyto!(segment, 17, reinterpret(UInt8, [bootstrap_ptr]), 1, 8)
+    copyto!(segment, 25, reinterpret(UInt8, [UInt32(question_id)]), 1, 4)
+
+    message = Vector{UInt8}(undef, 8 + length(segment))
+    copyto!(message, 1, reinterpret(UInt8, [UInt32(0)]), 1, 4)
+    copyto!(message, 5, reinterpret(UInt8, [UInt32(4)]), 1, 4)
+    copyto!(message, 9, segment, 1, length(segment))
+    return message
 end
 
 
@@ -1542,10 +1672,10 @@ end
 export MessageType, ReturnType, MessageTargetType, SendResultsToType
 export ResolveType, CapDescriptorType, PromisedAnswerOpType
 export PromisedAnswerOp, ParsedPromisedAnswer, ParsedCapDescriptor
-export ParsedBootstrap, ParsedMessageTarget, ParsedCall, ParsedFinish, ParsedRelease, ParsedResolve, ParsedMessage
+export ParsedBootstrap, ParsedMessageTarget, ParsedCall, ParsedFinish, ParsedRelease, ParsedResolve, ParsedReturn, ParsedMessage
 export ParsedParams
 export parse_rpc_message, parse_cap_descriptor, parse_promised_answer
-export build_return_message, build_capability_return, build_bootstrap_return, build_exception_return
+export build_bootstrap_request, build_return_message, build_capability_return, build_bootstrap_return, build_exception_return
 export build_resolve_message, build_resolve_exception
 export ParsedSaveResults, build_save_call, parse_save_results
 export ParsedRestoreResults, build_restore_call, parse_restore_results

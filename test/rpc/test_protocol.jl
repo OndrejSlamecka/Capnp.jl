@@ -118,6 +118,27 @@ using Capnp.RPC
         @test length(bytes) > 0
     end
 
+    @testset "Bootstrap and Return exchange" begin
+        request_bytes = RPC.build_bootstrap_request(UInt32(17))
+        request = RPC.parse_rpc_message(Capnp.MessageReader(IOBuffer(request_bytes)))
+        @test request.type == RPC.MessageType.BOOTSTRAP
+        @test request.bootstrap.question_id == UInt32(17)
+
+        response_bytes = RPC.build_bootstrap_return(UInt32(17), UInt32(23))
+        response = RPC.parse_rpc_message(Capnp.MessageReader(IOBuffer(response_bytes)))
+        @test response.type == RPC.MessageType.RETURN
+        @test response.return_message.answer_id == UInt32(17)
+        @test response.return_message.kind == RPC.ReturnType.RESULTS
+        @test response.return_message.cap_descriptor.kind == RPC.CapDescriptorType.SENDER_HOSTED
+        @test response.return_message.cap_descriptor.sender_hosted == UInt32(23)
+
+        exception_bytes = RPC.build_exception_return(UInt32(17), "bootstrap denied", RPC.ExceptionType.FAILED)
+        exception_response = RPC.parse_rpc_message(Capnp.MessageReader(IOBuffer(exception_bytes)))
+        @test exception_response.return_message.kind == RPC.ReturnType.EXCEPTION
+        @test exception_response.return_message.exception_reason == "bootstrap denied"
+        @test exception_response.return_message.exception_type == RPC.ExceptionType.FAILED
+    end
+
     @testset "build_resolve_exception" begin
         # Returns raw bytes for transmission
         bytes = RPC.build_resolve_exception(UInt32(42), "Test error", RPC.ExceptionType.FAILED)

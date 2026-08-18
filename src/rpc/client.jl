@@ -22,38 +22,39 @@ function connect(socket_path::AbstractString)
 end
 
 """
-    bootstrap(connection::Connection, ::Type{T}) -> T
+    bootstrap_async(connection::Connection, ::Type{T}) -> Promise{T}
 
-Request the bootstrap capability from the server.
-Returns a client stub of the specified type.
+Request the remote bootstrap capability. Generated client types are expected to
+have a one-argument constructor accepting a `RemoteCapability`.
 """
-function bootstrap(conn::Connection, ::Type{T}) where {T}
-    # Send Bootstrap message
+function bootstrap_async(conn::Connection, ::Type{T}) where {T}
+    is_connected(conn) || throw(DisconnectedException("Connection is not connected"))
     qid = next_question_id!(conn)
+    raw_promise = Promise{Any}(question_id = qid)
+    typed_promise = Promise{T}(question_id = qid)
+    add_question!(conn, PendingQuestion(qid, raw_promise, ExportId[]))
 
-    # Create and send Bootstrap request
-    builder = Capnp.AllocMessageBuilder()
-    # In a full implementation, we would build the Bootstrap message here
-    # For now, this is a placeholder
+    on_resolve!(raw_promise, function (value)
+        try
+            value isa RemoteCapability || throw(InvalidCapabilityException("Bootstrap did not return a remote capability"))
+            resolve!(typed_promise, T === RemoteCapability ? value : T(value))
+        catch err
+            reject!(typed_promise, err isa Exception ? err : ErrorException(string(err)))
+        end
+    end)
+    on_reject!(raw_promise, err -> reject!(typed_promise, err))
 
-    # Create promise for the response
-    promise = Promise{Any}(question_id = qid)
-
-    # Track the question
-    question = PendingQuestion(qid, promise, ExportId[])
-    add_question!(conn, question)
-
-    # Send the message
-    send_message(conn.transport, builder)
-
-    # In a full implementation, we would:
-    # 1. Wait for Return message
-    # 2. Extract capability from response
-    # 3. Create client stub wrapping the capability
-
-    # Return placeholder - actual implementation needs message handling loop
-    return nothing
+    try
+        send_raw_message(conn.transport, build_bootstrap_request(qid))
+    catch err
+        remove_question!(conn, qid)
+        reject!(raw_promise, err isa Exception ? err : ErrorException(string(err)))
+    end
+    return typed_promise
 end
+
+"""Request and synchronously return a typed bootstrap client."""
+bootstrap(conn::Connection, ::Type{T}) where {T} = fetch(bootstrap_async(conn, T))
 
 """
     ConnectionOptions
@@ -92,9 +93,7 @@ Connect to a Cap'n Proto RPC server via TCP with custom options.
 """
 function connect(host::AbstractString, port::Integer, options::ConnectionOptions)
     transport = TcpTransport(host, port; max_message_size = options.max_message_size, max_segments = options.max_segments)
-    conn = Connection(transport)
-    set_connected!(conn)
-    return conn
+    return connect(transport)
 end
 
 """
@@ -104,8 +103,20 @@ Connect to a Cap'n Proto RPC server via Unix domain socket with custom options.
 """
 function connect(socket_path::AbstractString, options::ConnectionOptions)
     transport = UnixTransport(socket_path; max_message_size = options.max_message_size, max_segments = options.max_segments)
-    conn = Connection(transport)
+    return connect(transport)
+end
+
+"""
+    connect(transport::Transport; owns_transport=true, start_message_loop=true)
+
+Create an RPC connection over an already-configured transport. This is the
+advanced extension point for custom streams and optional Reseau TLS support.
+"""
+function connect(transport::Transport; owns_transport::Bool = true, start_message_loop::Bool = true)
+    isopen(transport) || throw(ConnectionFailedException("Transport is not open"))
+    conn = Connection(transport; owns_transport)
     set_connected!(conn)
+    start_message_loop && start_message_loop!(conn)
     return conn
 end
 
@@ -123,9 +134,38 @@ function handle_message!(conn::Connection, message::Capnp.MessageReader)
 
     # Dispatch based on message type
     if parsed.type == MessageType.RETURN
-        # Handle Return message (contains answer_id, results or exception)
-        # TODO: Full implementation needs to parse Return details
-        return nothing
+        return lock(conn.lock) do
+            returned = parsed.return_message
+            returned === nothing && throw(RemoteException("Return message has no body", ExceptionType.FAILED))
+            get_question(conn, returned.answer_id) === nothing && return nothing
+            if returned.kind == ReturnType.RESULTS
+                result = returned.result
+                if returned.cap_descriptor !== nothing
+                    descriptor = returned.cap_descriptor
+                    if descriptor.kind == CapDescriptorType.SENDER_HOSTED && descriptor.sender_hosted !== nothing
+                        import_id = ImportId(descriptor.sender_hosted)
+                        capability = get_import(conn, import_id)
+                        if capability === nothing
+                            capability = RemoteCapability(import_id, UInt64(0), conn)
+                            add_import!(conn, import_id, capability)
+                        else
+                            capability.ref_count += UInt32(1)
+                        end
+                        result = capability
+                    elseif descriptor.kind == CapDescriptorType.NONE
+                        result = nothing
+                    else
+                        handle_exception!(conn, returned.answer_id, "Unsupported returned capability descriptor", ExceptionType.UNIMPLEMENTED)
+                        return nothing
+                    end
+                end
+                handle_return!(conn, returned.answer_id, result)
+            elseif returned.kind == ReturnType.EXCEPTION
+                handle_exception!(conn, returned.answer_id, something(returned.exception_reason, "Remote exception"), something(returned.exception_type, ExceptionType.FAILED))
+            else
+                handle_exception!(conn, returned.answer_id, "Remote call did not return results: $(returned.kind)", ExceptionType.FAILED)
+            end
+        end
     elseif parsed.type == MessageType.RESOLVE
         # Handle Resolve message (Level 2 promise resolution)
         if parsed.resolve !== nothing
@@ -159,11 +199,11 @@ end
 Handle a Return message from the server.
 """
 function handle_return!(conn::Connection, answer_id::AnswerId, result)
-    question = get_question(conn, answer_id)
-    if question !== nothing
-        resolve!(question.promise, result)
-        remove_question!(conn, answer_id)
+    lock(conn.lock) do
+        question = pop!(conn.questions, answer_id, nothing)
+        question === nothing || resolve!(question.promise, result)
     end
+    return nothing
 end
 
 """
@@ -172,11 +212,11 @@ end
 Handle an exception Return message from the server.
 """
 function handle_exception!(conn::Connection, answer_id::AnswerId, reason::String, type::ExceptionType.T)
-    question = get_question(conn, answer_id)
-    if question !== nothing
-        reject!(question.promise, RemoteException(reason, type))
-        remove_question!(conn, answer_id)
+    lock(conn.lock) do
+        question = pop!(conn.questions, answer_id, nothing)
+        question === nothing || reject!(question.promise, RemoteException(reason, type))
     end
+    return nothing
 end
 
 """
@@ -292,20 +332,42 @@ Start the background message handling loop.
 Returns a Task that processes incoming messages.
 """
 function start_message_loop!(conn::Connection)
-    @async begin
+    existing_task = lock(conn.lock) do
+        if conn.message_task !== nothing && !istaskdone(conn.message_task)
+            return conn.message_task
+        end
+        return nothing
+    end
+    existing_task !== nothing && return existing_task
+
+    task = @async begin
         try
             while is_connected(conn)
                 message = receive_message(conn.transport)
                 handle_message!(conn, message)
             end
         catch e
-            if e isa DisconnectedException
-                set_disconnected!(conn)
-            else
-                set_failed!(conn, string(e))
-            end
+            _reject_pending_questions!(conn, e isa Exception ? e : ErrorException(string(e)))
+            close(conn)
+            e isa DisconnectedException || set_failed!(conn, string(e))
         end
     end
+    lock(conn.lock) do
+        conn.message_task = task
+    end
+    return task
+end
+
+function _reject_pending_questions!(conn::Connection, err::Exception)
+    questions = PendingQuestion[]
+    lock(conn.lock) do
+        append!(questions, values(conn.questions))
+        empty!(conn.questions)
+    end
+    for question in questions
+        is_settled(question.promise) || reject!(question.promise, err)
+    end
+    return nothing
 end
 
 # ============================================================================
@@ -522,7 +584,7 @@ function call_restore_sync(conn::Connection, restorer_import_id::ImportId, sturd
 end
 
 # Exports
-export connect, bootstrap, ConnectionOptions
+export connect, bootstrap, bootstrap_async, ConnectionOptions
 export handle_message!, handle_return!, handle_exception!, handle_resolve!, handle_release!
 export start_message_loop!
 export NotPersistentException, call_save, call_save_sync

@@ -4,6 +4,29 @@
 using Test
 using Capnp
 using Capnp.RPC
+using Sockets
+
+struct BootstrapTestClient
+    cap::RPC.RemoteCapability
+end
+
+mutable struct PartialWriteIO <: IO
+    buffer::IOBuffer
+    chunk_size::Int
+    open::Bool
+end
+
+Base.isopen(io::PartialWriteIO) = io.open
+Base.close(io::PartialWriteIO) = (io.open = false; nothing)
+Base.flush(io::PartialWriteIO) = flush(io.buffer)
+function Base.write(io::PartialWriteIO, data::AbstractVector{UInt8})
+    count = min(length(data), io.chunk_size)
+    return write(io.buffer, @view(data[1:count]))
+end
+function Base.write(io::PartialWriteIO, data::SubArray{UInt8,1,<:Array})
+    count = min(length(data), io.chunk_size)
+    return write(io.buffer, @view(data[1:count]))
+end
 
 @testset "RPC Client" begin
     @testset "ConnectionState enum" begin
@@ -23,6 +46,36 @@ using Capnp.RPC
 
             @test RPC.state(conn) == RPC.ConnectionState.CONNECTING
             @test !RPC.is_connected(conn)
+        end
+
+        @testset "IO transport adapter" begin
+            stream = PartialWriteIO(IOBuffer(), 3, true)
+            transport = RPC.IOTransport(stream)
+            bytes = RPC.build_bootstrap_request(UInt32(12))
+            RPC.send_raw_message(transport, bytes)
+            @test take!(stream.buffer) == bytes
+
+            close(transport)
+            close(transport)
+            @test !isopen(transport)
+
+            external_stream = IOBuffer()
+            external = RPC.IOTransport(external_stream; owns_stream = false)
+            close(external)
+            @test isopen(external_stream)
+        end
+
+        @testset "Outbound framing limits" begin
+            message = RPC.build_bootstrap_request(UInt32(1))
+            size_limited = RPC.MockTransport(max_message_size = length(message) - 1)
+            @test_throws Capnp.InvalidMessageError RPC.send_raw_message(size_limited, message)
+
+            segment_limited = RPC.MockTransport(max_segments = 1)
+            two_empty_segments = UInt8[1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+            @test_throws Capnp.InvalidMessageError RPC.send_raw_message(segment_limited, two_empty_segments)
+
+            with_trailing_byte = [message; 0x00]
+            @test_throws Capnp.InvalidMessageError RPC.send_raw_message(RPC.MockTransport(), with_trailing_byte)
         end
 
         @testset "Connection options" begin
@@ -177,7 +230,93 @@ using Capnp.RPC
         RPC.set_connected!(conn)
 
         close(conn)
+        close(conn)
         @test RPC.state(conn) == RPC.ConnectionState.DISCONNECTED
+        @test !isopen(mock)
+    end
+
+    @testset "Connection close rejects and clears pending state" begin
+        mock = RPC.MockTransport()
+        conn = RPC.Connection(mock; owns_transport = false)
+        RPC.set_connected!(conn)
+        promise = RPC.Promise{Any}(question_id = UInt32(4))
+        RPC.add_question!(conn, RPC.PendingQuestion(UInt32(4), promise))
+        RPC.add_export!(conn, UInt32(1), RPC.LocalCapability(UInt64(1), :impl))
+        RPC.add_import!(conn, UInt32(2), RPC.RemoteCapability(UInt32(2), UInt64(2), conn))
+
+        close(conn)
+        @test RPC.is_rejected(promise)
+        @test RPC.question_count(conn) == 0
+        @test RPC.export_count(conn) == 0
+        @test RPC.import_count(conn) == 0
+        @test isopen(mock)
+    end
+
+    @testset "Typed bootstrap exchange" begin
+        mock = RPC.MockTransport()
+        conn = RPC.connect(mock; owns_transport = false, start_message_loop = false)
+        promise = RPC.bootstrap_async(conn, BootstrapTestClient)
+
+        @test length(RPC.get_sent_messages(mock)) == 1
+        request = RPC.parse_rpc_message(Capnp.MessageReader(IOBuffer(only(RPC.get_sent_messages(mock)))))
+        @test request.type == RPC.MessageType.BOOTSTRAP
+        @test request.bootstrap.question_id == RPC.question_id(promise)
+
+        response = RPC.build_bootstrap_return(request.bootstrap.question_id, UInt32(9))
+        RPC.handle_message!(conn, Capnp.MessageReader(IOBuffer(response)))
+        client = fetch(promise)
+        @test client isa BootstrapTestClient
+        @test client.cap.import_id == UInt32(9)
+        @test RPC.get_import(conn, UInt32(9)) === client.cap
+        @test RPC.question_count(conn) == 0
+
+        # A duplicate/late Return is ignored and does not create another import.
+        RPC.handle_message!(conn, Capnp.MessageReader(IOBuffer(response)))
+        @test client.cap.ref_count == UInt32(1)
+        @test RPC.import_count(conn) == 1
+
+        close(conn)
+        @test isopen(mock)
+    end
+
+    @testset "TCP bootstrap end-to-end" begin
+        server = RPC.Server(:bootstrap_root)
+        RPC.listen(server, "127.0.0.1", 0)
+        port = Int(Sockets.getsockname(server.tcp_server)[2])
+        server_task = RPC.serve_async(server)
+        conn = nothing
+        try
+            conn = RPC.connect("127.0.0.1", port)
+            capability = RPC.bootstrap(conn, RPC.RemoteCapability)
+            @test capability.import_id == UInt32(1)
+            @test capability.connection === conn
+        finally
+            conn === nothing || close(conn)
+            RPC.shutdown!(server)
+            wait(server_task)
+        end
+    end
+
+    if RPC.supports_unix_sockets()
+        @testset "Unix bootstrap end-to-end" begin
+            mktempdir() do directory
+                server = RPC.Server(:bootstrap_root)
+                socket_path = joinpath(directory, "capnp-rpc.sock")
+                RPC.listen(server, socket_path)
+                server_task = RPC.serve_async(server)
+                conn = nothing
+                try
+                    conn = RPC.connect(socket_path)
+                    capability = RPC.bootstrap(conn, RPC.RemoteCapability)
+                    @test capability.import_id == UInt32(1)
+                    @test capability.connection === conn
+                finally
+                    conn === nothing || close(conn)
+                    RPC.shutdown!(server)
+                    wait(server_task)
+                end
+            end
+        end
     end
 
     @testset "Level 2: Promise tracking" begin

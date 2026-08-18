@@ -74,6 +74,13 @@ using Capnp.RPC
         wait(promise)
         @test RPC.is_resolved(promise)
         @test fetch(promise) == 123
+
+        # A level-triggered event prevents a lost wakeup when resolution races
+        # with registration of the waiter.
+        raced = RPC.Promise{Int}()
+        RPC.resolve!(raced, 456)
+        @test wait(raced) === nothing
+        @test fetch(raced) == 456
     end
 
     @testset "Promise with question ID" begin

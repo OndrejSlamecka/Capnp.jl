@@ -70,6 +70,7 @@ Decrement the reference count of a local capability.
 Returns true if the capability should be released (ref_count reached 0).
 """
 function decref!(cap::LocalCapability)
+    cap.ref_count == 0 && throw(InvalidCapabilityException("Capability reference count is already zero"))
     cap.ref_count -= 1
     return cap.ref_count == 0
 end
@@ -175,10 +176,12 @@ mutable struct Connection
     next_export_id::ExportId
     error_reason::Union{String,Nothing}
     lock::ReentrantLock
+    owns_transport::Bool
+    message_task::Union{Task,Nothing}
     # Level 2: Promise tracking
     promise_tracker::PromiseTracker
 
-    function Connection(transport::Transport)
+    function Connection(transport::Transport; owns_transport::Bool = true)
         new(
             transport,
             ConnectionState.CONNECTING,
@@ -190,6 +193,8 @@ mutable struct Connection
             ExportId(1),  # Export IDs start at 1 (0 is reserved/invalid)
             nothing,
             ReentrantLock(),
+            owns_transport,
+            nothing,
             PromiseTracker(),
         )
     end
@@ -335,15 +340,30 @@ end
 
 # Connection close
 function Base.close(conn::Connection)
-    set_disconnected!(conn)
-    close(conn.transport)
+    pending = PendingQuestion[]
+    should_close_transport = false
+    lock(conn.lock) do
+        conn._state = ConnectionState.DISCONNECTED
+        append!(pending, values(conn.questions))
+        empty!(conn.questions)
+        empty!(conn.answers)
+        empty!(conn.exports)
+        empty!(conn.imports)
+        empty!(conn.promise_tracker.promised_exports)
+        empty!(conn.promise_tracker.remote_promises)
+        should_close_transport = conn.owns_transport && isopen(conn.transport)
+    end
 
-    # Reject all pending questions
-    for (_, question) in conn.questions
+    if should_close_transport
+        close(conn.transport)
+    end
+
+    for question in pending
         if !is_settled(question.promise)
             reject!(question.promise, DisconnectedException("Connection closed"))
         end
     end
+    return nothing
 end
 
 # Level 2: Promise tracking functions

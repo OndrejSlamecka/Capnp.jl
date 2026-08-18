@@ -49,7 +49,7 @@ mutable struct Promise{T}
     state::PromiseState.T
     result::Union{T,Nothing}
     error::Union{Exception,Nothing}
-    waiters::Vector{Condition}
+    settled::Base.Event
     _question_id::Union{QuestionId,Nothing}
     lock::ReentrantLock
     # Level 2: Callbacks for promise resolution
@@ -57,7 +57,7 @@ mutable struct Promise{T}
     on_reject_callbacks::Vector{Function}   # Called with exception
 
     function Promise{T}(; question_id::Union{QuestionId,Nothing} = nothing) where {T}
-        new{T}(PromiseState.PENDING, nothing, nothing, Condition[], question_id, ReentrantLock(), Function[], Function[])
+        new{T}(PromiseState.PENDING, nothing, nothing, Base.Event(), question_id, ReentrantLock(), Function[], Function[])
     end
 end
 
@@ -112,10 +112,7 @@ function resolve!(p::Promise{T}, value::T) where {T}
         end
         p.result = value
         p.state = PromiseState.RESOLVED
-        # Wake up all waiters
-        for cond in p.waiters
-            notify(cond)
-        end
+        notify(p.settled)
         # Collect callbacks to call outside the lock
         append!(callbacks_to_call, p.on_resolve_callbacks)
     end
@@ -148,10 +145,7 @@ function reject!(p::Promise, err::Exception)
         end
         p.error = err
         p.state = PromiseState.REJECTED
-        # Wake up all waiters
-        for cond in p.waiters
-            notify(cond)
-        end
+        notify(p.settled)
         # Collect callbacks to call outside the lock
         append!(callbacks_to_call, p.on_reject_callbacks)
     end
@@ -172,20 +166,8 @@ end
 Block until the promise is settled.
 """
 function Base.wait(p::Promise)
-    if is_settled(p)
-        return
-    end
-
-    cond = Condition()
-    lock(p.lock) do
-        if is_settled(p)
-            return
-        end
-        push!(p.waiters, cond)
-    end
-
-    wait(cond)
-    return
+    is_settled(p) || wait(p.settled)
+    return nothing
 end
 
 """

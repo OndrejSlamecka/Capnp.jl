@@ -129,7 +129,7 @@ mutable struct Server
     options::ServerOptions
     is_running::Bool
     listener_task::Union{Task,Nothing}
-    tcp_server::Union{Sockets.TCPServer,Nothing}
+    tcp_server::Union{Sockets.TCPServer,Sockets.PipeServer,Nothing}
     lock::ReentrantLock
     # Level 2: Restorer for persistent capabilities
     restorer::Union{DefaultRestorer,Nothing}
@@ -254,7 +254,11 @@ function handle_new_connection(server::Server, socket)
     end
 
     # Create transport and connection
-    transport = TcpTransport(socket; max_message_size = server.options.max_message_size, max_segments = server.options.max_segments)
+    transport = if socket isa Sockets.TCPSocket
+        TcpTransport(socket; max_message_size = server.options.max_message_size, max_segments = server.options.max_segments)
+    else
+        UnixTransport(socket, ""; max_message_size = server.options.max_message_size, max_segments = server.options.max_segments)
+    end
     conn = Connection(transport)
 
     # Call connection handler if set
