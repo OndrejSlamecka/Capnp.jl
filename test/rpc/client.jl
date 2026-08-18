@@ -24,6 +24,21 @@ using Capnp.RPC
             @test RPC.state(conn) == RPC.ConnectionState.CONNECTING
             @test !RPC.is_connected(conn)
         end
+
+        @testset "Connection options" begin
+            options = RPC.ConnectionOptions(max_message_size = 1024, max_segments = 8)
+            @test options.max_message_size == 1024
+            @test options.max_segments == 8
+
+            mock = RPC.MockTransport(max_message_size = options.max_message_size, max_segments = options.max_segments)
+            @test mock.max_message_size == 1024
+            @test mock.max_segments == 8
+
+            @test_throws ArgumentError RPC.ConnectionOptions(max_message_size = 7)
+            @test_throws ArgumentError RPC.ConnectionOptions(max_segments = 0)
+            @test_throws ArgumentError RPC.ConnectionOptions(send_buffer_size = 0)
+            @test_throws ArgumentError RPC.MockTransport(max_message_size = 7)
+        end
     end
 
     @testset "Connection tables" begin
@@ -108,7 +123,7 @@ using Capnp.RPC
     end
 
     @testset "PendingQuestion" begin
-        promise = RPC.Promise{Any}(question_id=UInt32(1))
+        promise = RPC.Promise{Any}(question_id = UInt32(1))
         pq = RPC.PendingQuestion(UInt32(1), promise, UInt32[])
 
         @test pq.question_id == UInt32(1)
@@ -169,7 +184,7 @@ using Capnp.RPC
         @testset "RemotePromise struct" begin
             mock = RPC.MockTransport()
             conn = RPC.Connection(mock)
-            promise = RPC.Promise{Any}(question_id=UInt32(1))
+            promise = RPC.Promise{Any}(question_id = UInt32(1))
 
             remote = RPC.RemotePromise(UInt32(10), promise)
             @test remote.import_id == UInt32(10)
@@ -179,7 +194,7 @@ using Capnp.RPC
         @testset "Remote promise tracking" begin
             mock = RPC.MockTransport()
             conn = RPC.Connection(mock)
-            promise = RPC.Promise{Any}(question_id=UInt32(1))
+            promise = RPC.Promise{Any}(question_id = UInt32(1))
 
             # Add remote promise (takes promise directly, creates RemotePromise internally)
             RPC.add_remote_promise!(conn, UInt32(10), promise)
@@ -203,7 +218,7 @@ using Capnp.RPC
             RPC.set_connected!(conn)
 
             # Create a pending promise and track it
-            promise = RPC.Promise{Any}(question_id=UInt32(1))
+            promise = RPC.Promise{Any}(question_id = UInt32(1))
             RPC.add_remote_promise!(conn, UInt32(5), promise)
 
             # Create a resolve message with SENDER_HOSTED
@@ -212,14 +227,14 @@ using Capnp.RPC
                 UInt32(100),  # export_id
                 nothing,
                 nothing,
-                nothing
+                nothing,
             )
             resolve = RPC.ParsedResolve(
                 UInt32(5),           # promise_id
                 RPC.ResolveType.CAP,
                 cap_descriptor,
                 nothing,
-                nothing
+                nothing,
             )
 
             # Handle the resolve
@@ -235,7 +250,7 @@ using Capnp.RPC
             RPC.set_connected!(conn)
 
             # Create a pending promise
-            promise = RPC.Promise{Any}(question_id=UInt32(2))
+            promise = RPC.Promise{Any}(question_id = UInt32(2))
             RPC.add_remote_promise!(conn, UInt32(6), promise)
 
             # Create a resolve with exception
@@ -244,7 +259,7 @@ using Capnp.RPC
                 RPC.ResolveType.EXCEPTION,
                 nothing,
                 "Capability failed",
-                RPC.ExceptionType.FAILED
+                RPC.ExceptionType.FAILED,
             )
 
             # Handle the resolve
@@ -260,13 +275,7 @@ using Capnp.RPC
             RPC.set_connected!(conn)
 
             # Resolve for unknown promise ID
-            resolve = RPC.ParsedResolve(
-                UInt32(999),
-                RPC.ResolveType.CAP,
-                RPC.ParsedCapDescriptor(RPC.CapDescriptorType.NONE, nothing, nothing, nothing, nothing),
-                nothing,
-                nothing
-            )
+            resolve = RPC.ParsedResolve(UInt32(999), RPC.ResolveType.CAP, RPC.ParsedCapDescriptor(RPC.CapDescriptorType.NONE, nothing, nothing, nothing, nothing), nothing, nothing)
 
             # Should not throw, just log warning
             result = RPC.handle_resolve!(conn, resolve)

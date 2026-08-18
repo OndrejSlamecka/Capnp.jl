@@ -3,6 +3,7 @@ module Capnp
 # Exports for user code. Generated code should use `Capnp.` prefix.
 export MessageTraverser, Reader, Writer, writeMessageToStream
 export BufferMessageReader, BufferMessageBuilder, get_segments, finalize!
+export InvalidMessageError
 
 # Core runtime types and library
 include("runtime_types.jl")

@@ -57,16 +57,19 @@ Transport implementation using TCP sockets.
 mutable struct TcpTransport <: Transport
     socket::TCPSocket
     is_open::Bool
+    max_message_size::Int
+    max_segments::Int
 
-    function TcpTransport(socket::TCPSocket)
-        new(socket, isopen(socket))
+    function TcpTransport(socket::TCPSocket; max_message_size::Int = Capnp.DEFAULT_MAX_MESSAGE_SIZE, max_segments::Int = Capnp.DEFAULT_MAX_SEGMENTS)
+        Capnp._validate_reader_limits(max_message_size, max_segments)
+        new(socket, isopen(socket), max_message_size, max_segments)
     end
 end
 
 # Connect to a TCP server
-function TcpTransport(host::AbstractString, port::Integer)
+function TcpTransport(host::AbstractString, port::Integer; max_message_size::Int = Capnp.DEFAULT_MAX_MESSAGE_SIZE, max_segments::Int = Capnp.DEFAULT_MAX_SEGMENTS)
     socket = connect(host, port)
-    TcpTransport(socket)
+    TcpTransport(socket; max_message_size, max_segments)
 end
 
 Base.isopen(t::TcpTransport) = t.is_open && isopen(t.socket)
@@ -90,7 +93,7 @@ function receive_message(t::TcpTransport)
         throw(DisconnectedException("Transport is closed"))
     end
     try
-        return Capnp.MessageReader(t.socket)
+        return Capnp.MessageReader(t.socket; max_message_size = t.max_message_size, max_segments = t.max_segments)
     catch e
         if e isa EOFError
             t.is_open = false
@@ -115,16 +118,20 @@ mutable struct UnixTransport <: Transport
     socket::Any  # PipeEndpoint or similar
     is_open::Bool
     path::String
+    max_message_size::Int
+    max_segments::Int
 
-    function UnixTransport(path::AbstractString)
+    function UnixTransport(path::AbstractString; max_message_size::Int = Capnp.DEFAULT_MAX_MESSAGE_SIZE, max_segments::Int = Capnp.DEFAULT_MAX_SEGMENTS)
+        Capnp._validate_reader_limits(max_message_size, max_segments)
         # Connect to Unix domain socket
         # Julia's Sockets stdlib supports Unix sockets via connect()
         socket = connect(path)
-        new(socket, true, path)
+        new(socket, true, path, max_message_size, max_segments)
     end
 
-    function UnixTransport(socket, path::AbstractString)
-        new(socket, isopen(socket), path)
+    function UnixTransport(socket, path::AbstractString; max_message_size::Int = Capnp.DEFAULT_MAX_MESSAGE_SIZE, max_segments::Int = Capnp.DEFAULT_MAX_SEGMENTS)
+        Capnp._validate_reader_limits(max_message_size, max_segments)
+        new(socket, isopen(socket), path, max_message_size, max_segments)
     end
 end
 
@@ -149,7 +156,7 @@ function receive_message(t::UnixTransport)
         throw(DisconnectedException("Transport is closed"))
     end
     try
-        return Capnp.MessageReader(t.socket)
+        return Capnp.MessageReader(t.socket; max_message_size = t.max_message_size, max_segments = t.max_segments)
     catch e
         if e isa EOFError
             t.is_open = false
@@ -169,8 +176,13 @@ mutable struct MockTransport <: Transport
     sent_messages::Vector{Vector{UInt8}}
     receive_queue::Vector{Vector{UInt8}}
     is_open::Bool
+    max_message_size::Int
+    max_segments::Int
 
-    MockTransport() = new(Vector{UInt8}[], Vector{UInt8}[], true)
+    function MockTransport(; max_message_size::Int = Capnp.DEFAULT_MAX_MESSAGE_SIZE, max_segments::Int = Capnp.DEFAULT_MAX_SEGMENTS)
+        Capnp._validate_reader_limits(max_message_size, max_segments)
+        new(Vector{UInt8}[], Vector{UInt8}[], true, max_message_size, max_segments)
+    end
 end
 
 Base.isopen(t::MockTransport) = t.is_open
@@ -197,7 +209,7 @@ function receive_message(t::MockTransport)
         throw(EOFError())
     end
     data = popfirst!(t.receive_queue)
-    return Capnp.MessageReader(IOBuffer(data))
+    return Capnp.MessageReader(IOBuffer(data); max_message_size = t.max_message_size, max_segments = t.max_segments)
 end
 
 """

@@ -28,6 +28,21 @@ using Capnp.RPC
             @test server.bootstrap_impl == impl
             @test server.connection_handler !== nothing
         end
+
+        @testset "Function bootstrap with connection handler" begin
+            bootstrap = () -> nothing
+            handler = _ -> true
+
+            server = RPC.Server(bootstrap; handler = handler)
+            @test server.bootstrap_impl === bootstrap
+            @test server.connection_handler === handler
+
+            do_block_server = RPC.Server(bootstrap) do _
+                true
+            end
+            @test do_block_server.bootstrap_impl === bootstrap
+            @test do_block_server.connection_handler !== nothing
+        end
     end
 
     @testset "Server state" begin
@@ -67,16 +82,19 @@ using Capnp.RPC
     end
 
     @testset "ServerOptions" begin
-        options = RPC.ServerOptions(
-            max_connections = 100,
-            connection_timeout = 30000
-        )
+        options = RPC.ServerOptions(max_connections = 100, connection_timeout = 30000, max_message_size = 1024, max_segments = 8)
         @test options.max_connections == 100
         @test options.connection_timeout == 30000
+        @test options.max_message_size == 1024
+        @test options.max_segments == 8
 
         # Default options
         default_opts = RPC.ServerOptions()
         @test default_opts.max_connections > 0
+
+        @test_throws ArgumentError RPC.ServerOptions(max_connections = 0)
+        @test_throws ArgumentError RPC.ServerOptions(max_message_size = 7)
+        @test_throws ArgumentError RPC.ServerOptions(max_segments = 0)
     end
 
     @testset "CallContext" begin
@@ -148,7 +166,7 @@ using Capnp.RPC
 
         # Simulate adding multiple concurrent clients
         connections = RPC.Connection[]
-        for i in 1:10
+        for i = 1:10
             mock = RPC.MockTransport()
             conn = RPC.Connection(mock)
             RPC.add_client!(server, conn)
@@ -166,11 +184,11 @@ using Capnp.RPC
 
     @testset "100 concurrent connections (SC-008)" begin
         impl = "mock"
-        server = RPC.Server(impl; options=RPC.ServerOptions(max_connections=150))
+        server = RPC.Server(impl; options = RPC.ServerOptions(max_connections = 150))
 
         # Add 100 concurrent clients
         connections = RPC.Connection[]
-        for i in 1:100
+        for i = 1:100
             mock = RPC.MockTransport()
             conn = RPC.Connection(mock)
             RPC.add_client!(server, conn)
@@ -201,7 +219,7 @@ using Capnp.RPC
         server = RPC.Server(impl)
 
         # Add some clients
-        for i in 1:3
+        for i = 1:3
             mock = RPC.MockTransport()
             conn = RPC.Connection(mock)
             RPC.set_connected!(conn)

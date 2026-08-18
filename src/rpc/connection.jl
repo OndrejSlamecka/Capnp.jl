@@ -3,23 +3,23 @@
 
 # Connection state enum (module-scoped per constitution)
 module ConnectionState
-    @enum T begin
-        CONNECTING    # Handshake in progress
-        CONNECTED     # Ready for RPC
-        DISCONNECTING # Graceful shutdown
-        DISCONNECTED  # Closed
-        FAILED        # Error state
-    end
+@enum T begin
+    CONNECTING    # Handshake in progress
+    CONNECTED     # Ready for RPC
+    DISCONNECTING # Graceful shutdown
+    DISCONNECTED  # Closed
+    FAILED        # Error state
+end
 end
 
 # Exception type enum (module-scoped per constitution)
 module ExceptionType
-    @enum T begin
-        FAILED
-        OVERLOADED
-        DISCONNECTED
-        UNIMPLEMENTED
-    end
+@enum T begin
+    FAILED
+    OVERLOADED
+    DISCONNECTED
+    UNIMPLEMENTED
+end
 end
 
 # RPC Exception types
@@ -100,8 +100,7 @@ struct PendingQuestion
     promise::Promise
     param_caps::Vector{ExportId}
 
-    PendingQuestion(qid::QuestionId, promise::Promise, caps::Vector{ExportId}=ExportId[]) =
-        new(qid, promise, caps)
+    PendingQuestion(qid::QuestionId, promise::Promise, caps::Vector{ExportId} = ExportId[]) = new(qid, promise, caps)
 end
 
 """
@@ -114,8 +113,7 @@ mutable struct PendingAnswer
     result_caps::Vector{ExportId}
     pipeline_refs::UInt32
 
-    PendingAnswer(aid::AnswerId, caps::Vector{ExportId}=ExportId[], refs::UInt32=UInt32(0)) =
-        new(aid, caps, refs)
+    PendingAnswer(aid::AnswerId, caps::Vector{ExportId} = ExportId[], refs::UInt32 = UInt32(0)) = new(aid, caps, refs)
 end
 
 """
@@ -144,8 +142,7 @@ end
 """
 Create a new promised export that hasn't been resolved yet.
 """
-PromisedExport(export_id::ExportId, promise::Promise{Any}) =
-    PromisedExport(export_id, promise, false)
+PromisedExport(export_id::ExportId, promise::Promise{Any}) = PromisedExport(export_id, promise, false)
 
 """
     PromiseTracker
@@ -155,14 +152,11 @@ Tracks promised exports (server-side) and remote promises (client-side).
 """
 mutable struct PromiseTracker
     # Server-side: promises exported that require Resolve messages
-    promised_exports::Dict{ExportId, PromisedExport}
+    promised_exports::Dict{ExportId,PromisedExport}
     # Client-side: remote promises awaiting Resolve
-    remote_promises::Dict{ImportId, RemotePromise}
+    remote_promises::Dict{ImportId,RemotePromise}
 
-    PromiseTracker() = new(
-        Dict{ExportId, PromisedExport}(),
-        Dict{ImportId, RemotePromise}()
-    )
+    PromiseTracker() = new(Dict{ExportId,PromisedExport}(), Dict{ImportId,RemotePromise}())
 end
 
 """
@@ -173,13 +167,13 @@ Manages an RPC connection with questions, answers, exports, and imports tables.
 mutable struct Connection
     transport::Transport
     _state::ConnectionState.T
-    questions::Dict{QuestionId, PendingQuestion}
-    answers::Dict{AnswerId, PendingAnswer}
-    exports::Dict{ExportId, LocalCapability}
-    imports::Dict{ImportId, RemoteCapability}
+    questions::Dict{QuestionId,PendingQuestion}
+    answers::Dict{AnswerId,PendingAnswer}
+    exports::Dict{ExportId,LocalCapability}
+    imports::Dict{ImportId,RemoteCapability}
     next_question_id::QuestionId
     next_export_id::ExportId
-    error_reason::Union{String, Nothing}
+    error_reason::Union{String,Nothing}
     lock::ReentrantLock
     # Level 2: Promise tracking
     promise_tracker::PromiseTracker
@@ -188,15 +182,15 @@ mutable struct Connection
         new(
             transport,
             ConnectionState.CONNECTING,
-            Dict{QuestionId, PendingQuestion}(),
-            Dict{AnswerId, PendingAnswer}(),
-            Dict{ExportId, LocalCapability}(),
-            Dict{ImportId, RemoteCapability}(),
+            Dict{QuestionId,PendingQuestion}(),
+            Dict{AnswerId,PendingAnswer}(),
+            Dict{ExportId,LocalCapability}(),
+            Dict{ImportId,RemoteCapability}(),
             QuestionId(0),
             ExportId(1),  # Export IDs start at 1 (0 is reserved/invalid)
             nothing,
             ReentrantLock(),
-            PromiseTracker()
+            PromiseTracker(),
         )
     end
 end

@@ -45,58 +45,58 @@ const SaveResults_pointer_count = 1
 RPC Message type discriminants from rpc.capnp Message union.
 """
 module MessageType
-    @enum T::UInt16 begin
-        UNIMPLEMENTED = 0
-        ABORT = 1
-        CALL = 2
-        RETURN = 3
-        FINISH = 4
-        RESOLVE = 5
-        RELEASE = 6
-        OBSOLETE_DELETE = 7
-        BOOTSTRAP = 8
-        PROVIDE = 9
-        ACCEPT = 10
-        JOIN = 11
-        OBSOLETE_SAVE = 12
-        DISEMBARGO = 13
-    end
+@enum T::UInt16 begin
+    UNIMPLEMENTED = 0
+    ABORT = 1
+    CALL = 2
+    RETURN = 3
+    FINISH = 4
+    RESOLVE = 5
+    RELEASE = 6
+    OBSOLETE_DELETE = 7
+    BOOTSTRAP = 8
+    PROVIDE = 9
+    ACCEPT = 10
+    JOIN = 11
+    OBSOLETE_SAVE = 12
+    DISEMBARGO = 13
+end
 end
 
 """
 Return union type discriminants from rpc.capnp Return struct.
 """
 module ReturnType
-    @enum T::UInt16 begin
-        RESULTS = 0
-        EXCEPTION = 1
-        CANCELED = 2
-        RESULTS_SENT_ELSEWHERE = 3
-        TAKE_FROM_OTHER_QUESTION = 4
-        ACCEPT_FROM_THIRD_PARTY = 5
-    end
+@enum T::UInt16 begin
+    RESULTS = 0
+    EXCEPTION = 1
+    CANCELED = 2
+    RESULTS_SENT_ELSEWHERE = 3
+    TAKE_FROM_OTHER_QUESTION = 4
+    ACCEPT_FROM_THIRD_PARTY = 5
+end
 end
 
 """
 MessageTarget union type discriminants.
 """
 module MessageTargetType
-    @enum T::UInt16 begin
-        IMPORTED_CAP = 0
-        PROMISED_ANSWER = 1
-        RECEIVER_HOSTED = 2  # receiverHosted targets an export in the server's export table
-    end
+@enum T::UInt16 begin
+    IMPORTED_CAP = 0
+    PROMISED_ANSWER = 1
+    RECEIVER_HOSTED = 2  # receiverHosted targets an export in the server's export table
+end
 end
 
 """
 SendResultsTo union type discriminants.
 """
 module SendResultsToType
-    @enum T::UInt16 begin
-        CALLER = 0
-        YOURSELF = 1
-        THIRD_PARTY = 2
-    end
+@enum T::UInt16 begin
+    CALLER = 0
+    YOURSELF = 1
+    THIRD_PARTY = 2
+end
 end
 
 """
@@ -104,10 +104,10 @@ Resolve union type discriminants from rpc.capnp Resolve struct.
 Level 2: Promise resolution message types.
 """
 module ResolveType
-    @enum T::UInt16 begin
-        CAP = 0        # Resolved to a capability
-        EXCEPTION = 1  # Resolved to an exception
-    end
+@enum T::UInt16 begin
+    CAP = 0        # Resolved to a capability
+    EXCEPTION = 1  # Resolved to an exception
+end
 end
 
 """
@@ -115,14 +115,14 @@ CapDescriptor union type discriminants from rpc.capnp.
 Describes how a capability is represented in a message's capability table.
 """
 module CapDescriptorType
-    @enum T::UInt16 begin
-        NONE = 0
-        SENDER_HOSTED = 1
-        SENDER_PROMISE = 2
-        RECEIVER_HOSTED = 3
-        RECEIVER_ANSWER = 4
-        THIRD_PARTY_HOSTED = 5
-    end
+@enum T::UInt16 begin
+    NONE = 0
+    SENDER_HOSTED = 1
+    SENDER_PROMISE = 2
+    RECEIVER_HOSTED = 3
+    RECEIVER_ANSWER = 4
+    THIRD_PARTY_HOSTED = 5
+end
 end
 
 """
@@ -130,10 +130,10 @@ PromisedAnswer.Op union type discriminants.
 Operations for navigating a promised answer.
 """
 module PromisedAnswerOpType
-    @enum T::UInt16 begin
-        NOOP = 0
-        GET_POINTER_FIELD = 1
-    end
+@enum T::UInt16 begin
+    NOOP = 0
+    GET_POINTER_FIELD = 1
+end
 end
 
 """
@@ -143,7 +143,7 @@ Operation for navigating a promised answer (getPointerField).
 """
 struct PromisedAnswerOp
     kind::PromisedAnswerOpType.T
-    get_pointer_field::Union{UInt16, Nothing}  # For GET_POINTER_FIELD kind
+    get_pointer_field::Union{UInt16,Nothing}  # For GET_POINTER_FIELD kind
 end
 
 """
@@ -165,10 +165,10 @@ Describes how a capability is represented.
 """
 struct ParsedCapDescriptor
     kind::CapDescriptorType.T
-    sender_hosted::Union{ExportId, Nothing}      # kind = SENDER_HOSTED
-    sender_promise::Union{ExportId, Nothing}     # kind = SENDER_PROMISE
-    receiver_hosted::Union{ImportId, Nothing}    # kind = RECEIVER_HOSTED
-    receiver_answer::Union{ParsedPromisedAnswer, Nothing}  # kind = RECEIVER_ANSWER
+    sender_hosted::Union{ExportId,Nothing}      # kind = SENDER_HOSTED
+    sender_promise::Union{ExportId,Nothing}     # kind = SENDER_PROMISE
+    receiver_hosted::Union{ImportId,Nothing}    # kind = RECEIVER_HOSTED
+    receiver_answer::Union{ParsedPromisedAnswer,Nothing}  # kind = RECEIVER_ANSWER
     # third_party_hosted not implemented for Level 2
 end
 
@@ -188,7 +188,7 @@ Parsed MessageTarget from a Call message.
 """
 struct ParsedMessageTarget
     kind::MessageTargetType.T
-    imported_cap::Union{ImportId, Nothing}
+    imported_cap::Union{ImportId,Nothing}
     # promised_answer would require additional fields
 end
 
@@ -212,7 +212,7 @@ struct ParsedCall
     target::ParsedMessageTarget
     interface_id::UInt64
     method_id::UInt16
-    params::Union{ParsedParams, Nothing}
+    params::Union{ParsedParams,Nothing}
 end
 
 """
@@ -244,9 +244,9 @@ Resolve notifies the receiver that a promised capability has resolved.
 struct ParsedResolve
     promise_id::ExportId           # ID of the promise being resolved
     kind::ResolveType.T            # cap or exception
-    cap_descriptor::Union{ParsedCapDescriptor, Nothing}  # If kind == CAP
-    exception_reason::Union{String, Nothing}             # If kind == EXCEPTION
-    exception_type::Union{ExceptionType.T, Nothing}      # If kind == EXCEPTION
+    cap_descriptor::Union{ParsedCapDescriptor,Nothing}  # If kind == CAP
+    exception_reason::Union{String,Nothing}             # If kind == EXCEPTION
+    exception_type::Union{ExceptionType.T,Nothing}      # If kind == EXCEPTION
 end
 
 """
@@ -256,11 +256,11 @@ Union type for parsed RPC messages.
 """
 struct ParsedMessage
     type::MessageType.T
-    bootstrap::Union{ParsedBootstrap, Nothing}
-    call::Union{ParsedCall, Nothing}
-    finish::Union{ParsedFinish, Nothing}
-    release::Union{ParsedRelease, Nothing}
-    resolve::Union{ParsedResolve, Nothing}  # Level 2
+    bootstrap::Union{ParsedBootstrap,Nothing}
+    call::Union{ParsedCall,Nothing}
+    finish::Union{ParsedFinish,Nothing}
+    release::Union{ParsedRelease,Nothing}
+    resolve::Union{ParsedResolve,Nothing}  # Level 2
 end
 
 """
@@ -320,7 +320,7 @@ function get_struct_pointer(seg::Vector{UInt8}, word_offset::Int)
     if byte_offset + 7 > length(seg)
         return nothing
     end
-    reinterpret(UInt64, @view seg[byte_offset:byte_offset+7])[1]
+    reinterpret(UInt64, @view seg[byte_offset:(byte_offset+7)])[1]
 end
 
 """
@@ -356,12 +356,12 @@ end
 """
 Read a data field from a segment.
 """
-function read_data_field(seg::Vector{UInt8}, struct_word::Int, byte_offset::Int, ::Type{T}) where T
+function read_data_field(seg::Vector{UInt8}, struct_word::Int, byte_offset::Int, ::Type{T}) where {T}
     byte_pos = (struct_word - 1) * 8 + byte_offset + 1  # Julia 1-based
     if byte_pos + sizeof(T) - 1 > length(seg)
         return zero(T)  # Default value for out-of-bounds
     end
-    reinterpret(T, @view seg[byte_pos:byte_pos+sizeof(T)-1])[1]
+    reinterpret(T, @view seg[byte_pos:(byte_pos+sizeof(T)-1)])[1]
 end
 
 """
@@ -434,13 +434,7 @@ function parse_call(seg::Vector{UInt8}, _msg_struct_start::Int, msg_ptr_section_
     # Parse params (Payload at pointer 1 of Call)
     params = parse_params(seg, call_ptr_section + 1)
 
-    call = ParsedCall(
-        QuestionId(question_id),
-        target,
-        interface_id,
-        method_id,
-        params
-    )
+    call = ParsedCall(QuestionId(question_id), target, interface_id, method_id, params)
 
     return ParsedMessage(MessageType.CALL, nothing, call, nothing, nothing, nothing)
 end
@@ -618,8 +612,7 @@ function parse_release(seg::Vector{UInt8}, ptr_section_start::Int)
     release_ptr = get_struct_pointer(seg, ptr_section_start)
 
     if release_ptr === nothing || release_ptr == 0
-        return ParsedMessage(MessageType.RELEASE, nothing, nothing, nothing,
-                           ParsedRelease(ImportId(0), UInt32(1)))
+        return ParsedMessage(MessageType.RELEASE, nothing, nothing, nothing, ParsedRelease(ImportId(0), UInt32(1)))
     end
 
     # Decode the Release struct
@@ -707,7 +700,7 @@ function parse_resolve(seg::Vector{UInt8}, ptr_section_start::Int)
                     text_start = (exc_ptr_section + list_offset) * 8 + 1
                     # Read bytes (elem_count includes NUL terminator)
                     if text_start > 0 && text_start + elem_count - 1 <= length(seg)
-                        text_bytes = seg[text_start:text_start + elem_count - 2]  # Exclude NUL
+                        text_bytes = seg[text_start:(text_start+elem_count-2)]  # Exclude NUL
                         exception_reason = String(text_bytes)
                     end
                 end
@@ -732,10 +725,7 @@ end
 
 Build a Return message to send back to the client.
 """
-function build_return_message(answer_id::AnswerId, result::Any;
-                             has_exception::Bool=false,
-                             exception_reason::String="",
-                             _exception_type::ExceptionType.T=ExceptionType.FAILED)
+function build_return_message(answer_id::AnswerId, result::Any; has_exception::Bool = false, exception_reason::String = "", _exception_type::ExceptionType.T = ExceptionType.FAILED)
     # For a simple implementation, we create a minimal Return message
     # Message struct with Return union variant
 
@@ -832,7 +822,7 @@ function build_exception_return(answer_id::AnswerId, reason::String, exception_t
     if reason_len > 0
         copyto!(segment, 65, reason_bytes, 1, reason_len)
     end
-    segment[65 + reason_len] = 0x00  # NUL terminator
+    segment[65+reason_len] = 0x00  # NUL terminator
 
     used_size = total_words * 8
 
@@ -1239,7 +1229,7 @@ function build_resolve_exception(promise_id::ExportId, reason::String, exception
     if reason_len > 0
         copyto!(segment, 57, reason_bytes, 1, reason_len)
     end
-    segment[57 + reason_len] = 0x00  # NUL terminator
+    segment[57+reason_len] = 0x00  # NUL terminator
 
     used_size = total_words * 8
 
@@ -1414,7 +1404,7 @@ function extract_data_bytes(seg::Vector{UInt8}, ptr_word::Int, ptr::UInt64)
 
     data_start = (ptr_word + 1 + offset - 1) * 8 + 1
     if data_start > 0 && data_start + elem_count - 1 <= length(seg)
-        return seg[data_start:data_start + elem_count - 1]
+        return seg[data_start:(data_start+elem_count-1)]
     end
 
     return UInt8[]
@@ -1517,9 +1507,9 @@ Contains either a capability import ID or an error.
 """
 struct ParsedRestoreResults
     success::Bool
-    import_id::Union{ImportId, Nothing}  # The restored capability
-    error_type::Union{Symbol, Nothing}   # :not_found, :unauthorized, :expired
-    error_reason::Union{String, Nothing}
+    import_id::Union{ImportId,Nothing}  # The restored capability
+    error_type::Union{Symbol,Nothing}   # :not_found, :unauthorized, :expired
+    error_reason::Union{String,Nothing}
 end
 
 """

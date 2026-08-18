@@ -16,14 +16,14 @@ Each variant describes where a capability lives and how to reach it:
 - THIRD_PARTY: Third-party capability handoff (Level 3)
 """
 module CapDescriptorKind
-    @enum T begin
-        NONE              # Null capability
-        SENDER_HOSTED     # We own it, they're importing
-        SENDER_PROMISE    # Promise we'll resolve
-        RECEIVER_HOSTED   # They own it, we're importing
-        RECEIVER_ANSWER   # Pipelined from call
-        THIRD_PARTY       # Level 3 (future)
-    end
+@enum T begin
+    NONE              # Null capability
+    SENDER_HOSTED     # We own it, they're importing
+    SENDER_PROMISE    # Promise we'll resolve
+    RECEIVER_HOSTED   # They own it, we're importing
+    RECEIVER_ANSWER   # Pipelined from call
+    THIRD_PARTY       # Level 3 (future)
+end
 end
 
 """
@@ -41,9 +41,9 @@ Describes a capability in a message's capability table.
 struct CapDescriptor
     kind::CapDescriptorKind.T
     # Union fields - only one is valid based on kind
-    sender_hosted_id::Union{UInt32, Nothing}
-    sender_promise_id::Union{UInt32, Nothing}
-    receiver_hosted_id::Union{UInt32, Nothing}
+    sender_hosted_id::Union{UInt32,Nothing}
+    sender_promise_id::Union{UInt32,Nothing}
+    receiver_hosted_id::Union{UInt32,Nothing}
     # receiver_answer would be PromisedAnswer, but we'll add that with RPC types
 end
 
@@ -203,8 +203,7 @@ struct DefaultSturdyRef
     object_id::Vector{UInt8}
 
     DefaultSturdyRef(host_id::Vector{UInt8}, object_id::Vector{UInt8}) = new(host_id, object_id)
-    DefaultSturdyRef(host_id::AbstractString, object_id::AbstractString) =
-        new(Vector{UInt8}(host_id), Vector{UInt8}(object_id))
+    DefaultSturdyRef(host_id::AbstractString, object_id::AbstractString) = new(Vector{UInt8}(host_id), Vector{UInt8}(object_id))
 end
 
 """
@@ -219,7 +218,7 @@ The owner field in SaveParams can be used for authorization checks.
 struct DefaultOwner
     display_name::String
 
-    DefaultOwner(name::AbstractString="") = new(String(name))
+    DefaultOwner(name::AbstractString = "") = new(String(name))
 end
 
 """
@@ -235,13 +234,13 @@ Used when requesting to persist a capability.
 - `seal_for::Owner`: Owner information for access control (optional)
 """
 struct SaveParams{Owner}
-    seal_for::Union{Owner, Nothing}
+    seal_for::Union{Owner,Nothing}
 
-    SaveParams{Owner}(seal_for::Union{Owner, Nothing}=nothing) where {Owner} = new{Owner}(seal_for)
+    SaveParams{Owner}(seal_for::Union{Owner,Nothing} = nothing) where {Owner} = new{Owner}(seal_for)
 end
 
 # Convenience constructor with default owner type
-SaveParams(seal_for::Union{DefaultOwner, Nothing}=nothing) = SaveParams{DefaultOwner}(seal_for)
+SaveParams(seal_for::Union{DefaultOwner,Nothing} = nothing) = SaveParams{DefaultOwner}(seal_for)
 
 """
     SaveResults{SturdyRef}
@@ -306,7 +305,7 @@ Implementations must provide:
 - `SturdyRef`: The type of sturdy reference used (e.g., DefaultSturdyRef)
 - `Owner`: The type of owner for authorization (e.g., DefaultOwner)
 """
-abstract type Restorer{SturdyRef, Owner} end
+abstract type Restorer{SturdyRef,Owner} end
 
 """
     RestoreException
@@ -324,15 +323,15 @@ end
 Registry that maps host IDs to their restorers and object IDs to capabilities.
 Used by DefaultRestorer to look up and restore capabilities.
 """
-mutable struct RestorerRegistry{SturdyRef, Owner}
+mutable struct RestorerRegistry{SturdyRef,Owner}
     # Map from object_id bytes to capability
-    capabilities::Dict{Vector{UInt8}, Any}
+    capabilities::Dict{Vector{UInt8},Any}
     # Map from object_id to owner (for authorization)
-    owners::Dict{Vector{UInt8}, Owner}
+    owners::Dict{Vector{UInt8},Owner}
     lock::ReentrantLock
 
-    function RestorerRegistry{S, O}() where {S, O}
-        new{S, O}(Dict{Vector{UInt8}, Any}(), Dict{Vector{UInt8}, O}(), ReentrantLock())
+    function RestorerRegistry{S,O}() where {S,O}
+        new{S,O}(Dict{Vector{UInt8},Any}(), Dict{Vector{UInt8},O}(), ReentrantLock())
     end
 end
 
@@ -342,16 +341,16 @@ end
 Default implementation of Restorer for DefaultSturdyRef.
 Maintains an in-memory registry of saved capabilities.
 """
-mutable struct DefaultRestorer <: Restorer{DefaultSturdyRef, DefaultOwner}
+mutable struct DefaultRestorer <: Restorer{DefaultSturdyRef,DefaultOwner}
     host_id::Vector{UInt8}
-    registry::RestorerRegistry{DefaultSturdyRef, DefaultOwner}
+    registry::RestorerRegistry{DefaultSturdyRef,DefaultOwner}
 
     function DefaultRestorer(host_id::Vector{UInt8})
-        new(host_id, RestorerRegistry{DefaultSturdyRef, DefaultOwner}())
+        new(host_id, RestorerRegistry{DefaultSturdyRef,DefaultOwner}())
     end
 
     function DefaultRestorer(host_id::AbstractString)
-        new(Vector{UInt8}(host_id), RestorerRegistry{DefaultSturdyRef, DefaultOwner}())
+        new(Vector{UInt8}(host_id), RestorerRegistry{DefaultSturdyRef,DefaultOwner}())
     end
 end
 
@@ -361,7 +360,7 @@ end
 Register a capability for later restoration.
 Returns a SturdyRef that can be used to restore the capability.
 """
-function register!(restorer::DefaultRestorer, object_id::Vector{UInt8}, capability, owner::DefaultOwner=DefaultOwner())
+function register!(restorer::DefaultRestorer, object_id::Vector{UInt8}, capability, owner::DefaultOwner = DefaultOwner())
     lock(restorer.registry.lock) do
         restorer.registry.capabilities[object_id] = capability
         restorer.registry.owners[object_id] = owner
@@ -379,7 +378,7 @@ This implements C003-RESTORE contract.
 - `RestoreException(:not_found, ...)` if the object_id is not registered
 - `RestoreException(:unauthorized, ...)` if the owner doesn't match
 """
-function restore(restorer::DefaultRestorer, sturdy_ref::DefaultSturdyRef, owner::DefaultOwner=DefaultOwner())
+function restore(restorer::DefaultRestorer, sturdy_ref::DefaultSturdyRef, owner::DefaultOwner = DefaultOwner())
     # Validate host_id matches
     if sturdy_ref.host_id != restorer.host_id
         throw(RestoreException("SturdyRef host_id does not match this restorer", :not_found))
@@ -498,7 +497,7 @@ mutable struct SimplePersistentCapability <: PersistentCapability
     wrapped::Any
     object_id::Vector{UInt8}
 
-    function SimplePersistentCapability(wrapped, object_id::Vector{UInt8}=Vector{UInt8}(string(objectid(wrapped))))
+    function SimplePersistentCapability(wrapped, object_id::Vector{UInt8} = Vector{UInt8}(string(objectid(wrapped))))
         new(wrapped, object_id)
     end
 

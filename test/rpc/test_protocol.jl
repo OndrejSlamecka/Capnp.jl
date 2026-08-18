@@ -35,7 +35,7 @@ using Capnp.RPC
             UInt32(42),  # sender_hosted export ID
             nothing,     # sender_promise
             nothing,     # receiver_hosted
-            nothing      # receiver_answer
+            nothing,      # receiver_answer
         )
 
         resolve_cap = RPC.ParsedResolve(
@@ -43,7 +43,7 @@ using Capnp.RPC
             RPC.ResolveType.CAP, # kind
             cap_descriptor,      # cap_descriptor
             nothing,             # exception_reason
-            nothing              # exception_type
+            nothing,              # exception_type
         )
 
         @test resolve_cap.promise_id == UInt32(1)
@@ -57,7 +57,7 @@ using Capnp.RPC
             RPC.ResolveType.EXCEPTION, # kind
             nothing,                   # cap_descriptor
             "capability failed",       # exception_reason
-            RPC.ExceptionType.FAILED   # exception_type
+            RPC.ExceptionType.FAILED,   # exception_type
         )
 
         @test resolve_exception.promise_id == UInt32(2)
@@ -69,46 +69,22 @@ using Capnp.RPC
 
     @testset "ParsedCapDescriptor struct" begin
         # SENDER_HOSTED
-        sender_hosted = RPC.ParsedCapDescriptor(
-            RPC.CapDescriptorType.SENDER_HOSTED,
-            UInt32(10),
-            nothing,
-            nothing,
-            nothing
-        )
+        sender_hosted = RPC.ParsedCapDescriptor(RPC.CapDescriptorType.SENDER_HOSTED, UInt32(10), nothing, nothing, nothing)
         @test sender_hosted.kind == RPC.CapDescriptorType.SENDER_HOSTED
         @test sender_hosted.sender_hosted == UInt32(10)
 
         # SENDER_PROMISE
-        sender_promise = RPC.ParsedCapDescriptor(
-            RPC.CapDescriptorType.SENDER_PROMISE,
-            nothing,
-            UInt32(20),
-            nothing,
-            nothing
-        )
+        sender_promise = RPC.ParsedCapDescriptor(RPC.CapDescriptorType.SENDER_PROMISE, nothing, UInt32(20), nothing, nothing)
         @test sender_promise.kind == RPC.CapDescriptorType.SENDER_PROMISE
         @test sender_promise.sender_promise == UInt32(20)
 
         # RECEIVER_HOSTED
-        receiver_hosted = RPC.ParsedCapDescriptor(
-            RPC.CapDescriptorType.RECEIVER_HOSTED,
-            nothing,
-            nothing,
-            UInt32(30),
-            nothing
-        )
+        receiver_hosted = RPC.ParsedCapDescriptor(RPC.CapDescriptorType.RECEIVER_HOSTED, nothing, nothing, UInt32(30), nothing)
         @test receiver_hosted.kind == RPC.CapDescriptorType.RECEIVER_HOSTED
         @test receiver_hosted.receiver_hosted == UInt32(30)
 
         # NONE
-        none_cap = RPC.ParsedCapDescriptor(
-            RPC.CapDescriptorType.NONE,
-            nothing,
-            nothing,
-            nothing,
-            nothing
-        )
+        none_cap = RPC.ParsedCapDescriptor(RPC.CapDescriptorType.NONE, nothing, nothing, nothing, nothing)
         @test none_cap.kind == RPC.CapDescriptorType.NONE
     end
 
@@ -125,10 +101,7 @@ using Capnp.RPC
     end
 
     @testset "ParsedPromisedAnswer struct" begin
-        ops = [
-            RPC.PromisedAnswerOp(RPC.PromisedAnswerOpType.GET_POINTER_FIELD, UInt16(0)),
-            RPC.PromisedAnswerOp(RPC.PromisedAnswerOpType.GET_POINTER_FIELD, UInt16(1))
-        ]
+        ops = [RPC.PromisedAnswerOp(RPC.PromisedAnswerOpType.GET_POINTER_FIELD, UInt16(0)), RPC.PromisedAnswerOp(RPC.PromisedAnswerOpType.GET_POINTER_FIELD, UInt16(1))]
         promised = RPC.ParsedPromisedAnswer(UInt32(5), ops)
 
         @test promised.question_id == UInt32(5)
@@ -140,22 +113,14 @@ using Capnp.RPC
     @testset "build_resolve_message" begin
         # Test building resolve with capability (SENDER_HOSTED)
         # These functions return raw bytes for transmission
-        bytes = RPC.build_resolve_message(
-            UInt32(42),
-            RPC.CapDescriptorType.SENDER_HOSTED,
-            UInt32(100)
-        )
+        bytes = RPC.build_resolve_message(UInt32(42), RPC.CapDescriptorType.SENDER_HOSTED, UInt32(100))
         @test bytes isa Vector{UInt8}
         @test length(bytes) > 0
     end
 
     @testset "build_resolve_exception" begin
         # Returns raw bytes for transmission
-        bytes = RPC.build_resolve_exception(
-            UInt32(42),
-            "Test error",
-            RPC.ExceptionType.FAILED
-        )
+        bytes = RPC.build_resolve_exception(UInt32(42), "Test error", RPC.ExceptionType.FAILED)
         @test bytes isa Vector{UInt8}
         @test length(bytes) > 0
     end

@@ -17,25 +17,25 @@ Generator = Capnp.Generator
 
     @testset "has_persistent_annotation function exists" begin
         @test isdefined(Generator, :has_persistent_annotation)
-        @test hasmethod(Generator.has_persistent_annotation, Tuple{Generator.Environment, Generator.Node{Generator.InterfaceNodeProps}})
-        @test hasmethod(Generator.has_persistent_annotation, Tuple{Generator.Environment, Generator.Node})
+        @test hasmethod(Generator.has_persistent_annotation, Tuple{Generator.Environment,Generator.Node{Generator.InterfaceNodeProps}})
+        @test hasmethod(Generator.has_persistent_annotation, Tuple{Generator.Environment,Generator.Node})
     end
 
     @testset "extends_persistent function exists" begin
         @test isdefined(Generator, :extends_persistent)
-        @test hasmethod(Generator.extends_persistent, Tuple{Generator.Environment, Generator.Node{Generator.InterfaceNodeProps}})
-        @test hasmethod(Generator.extends_persistent, Tuple{Generator.Environment, Generator.Node})
+        @test hasmethod(Generator.extends_persistent, Tuple{Generator.Environment,Generator.Node{Generator.InterfaceNodeProps}})
+        @test hasmethod(Generator.extends_persistent, Tuple{Generator.Environment,Generator.Node})
     end
 
     @testset "is_persistent_interface function exists" begin
         @test isdefined(Generator, :is_persistent_interface)
-        @test hasmethod(Generator.is_persistent_interface, Tuple{Generator.Environment, Generator.Node{Generator.InterfaceNodeProps}})
-        @test hasmethod(Generator.is_persistent_interface, Tuple{Generator.Environment, Generator.Node})
+        @test hasmethod(Generator.is_persistent_interface, Tuple{Generator.Environment,Generator.Node{Generator.InterfaceNodeProps}})
+        @test hasmethod(Generator.is_persistent_interface, Tuple{Generator.Environment,Generator.Node})
     end
 
     @testset "generatePersistentMethods function exists" begin
         @test isdefined(Generator, :generatePersistentMethods)
-        @test hasmethod(Generator.generatePersistentMethods, Tuple{Generator.Environment, Generator.Node{Generator.InterfaceNodeProps}})
+        @test hasmethod(Generator.generatePersistentMethods, Tuple{Generator.Environment,Generator.Node{Generator.InterfaceNodeProps}})
     end
 
     @testset "Generator types for persistence" begin

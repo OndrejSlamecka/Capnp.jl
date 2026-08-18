@@ -48,7 +48,7 @@ using Capnp
             copyto!(bytes, 1, msg_bytes, 1, min(length(msg_bytes), buffer_size))
 
             # Warm up to JIT compile
-            for _ in 1:3
+            for _ = 1:3
                 Capnp.BufferMessageReader(bytes[1:length(msg_bytes)])
             end
 
@@ -104,19 +104,19 @@ using Capnp
 
     @testset "Segment views avoid copies" begin
         @testset "View returns same memory" begin
-            # Create pre-allocated buffer
-            buffer = zeros(UInt8, 1024)
-            buffer[1:8] .= 0x42  # Mark some bytes
+            builder = Capnp.AllocMessageBuilder()
+            Capnp.alloc(builder, Capnp.WirePointer(UInt32(1), UInt32(0)), 8)
+            io = IOBuffer()
+            Capnp.writeMessageToStream(builder, io)
+            buffer = take!(io)
 
             reader = Capnp.BufferMessageReader(buffer)
             segments = Capnp.get_segments(reader)
 
-            # Segments should be views, not copies
-            if length(segments) > 0
-                seg = segments[1]
-                # Modifying view should affect original (or be immutable view)
-                @test seg isa AbstractVector{UInt8}
-            end
+            @test length(segments) == 1
+            @test segments[1] isa SubArray
+            segments[1][1] = 0x42
+            @test buffer[9] == 0x42
         end
     end
 
@@ -134,13 +134,13 @@ using Capnp
 
         # Measure read time - should be < 100μs
         # Warm up
-        for _ in 1:10
+        for _ = 1:10
             reader = Capnp.BufferMessageReader(bytes)
         end
 
         # Actual measurement
         times = Float64[]
-        for _ in 1:100
+        for _ = 1:100
             t = @elapsed begin
                 reader = Capnp.BufferMessageReader(bytes)
             end
@@ -155,14 +155,14 @@ using Capnp
         segment = zeros(UInt8, 2048)
 
         # Warm up
-        for _ in 1:10
+        for _ = 1:10
             builder = Capnp.BufferMessageBuilder(segment)
             Capnp.finalize!(builder)
         end
 
         # Measure allocations
         total_allocs = 0
-        for _ in 1:10
+        for _ = 1:10
             allocs = @allocated begin
                 builder = Capnp.BufferMessageBuilder(segment)
                 Capnp.finalize!(builder)
@@ -213,7 +213,7 @@ using Capnp
         times = Float64[]
 
         # Warm up
-        for _ in 1:10
+        for _ = 1:10
             t = @elapsed begin
                 # Simulate a minimal RPC operation:
                 # 1. Create a question
@@ -226,7 +226,7 @@ using Capnp
         end
 
         # Actual measurement
-        for _ in 1:100
+        for _ = 1:100
             t = @elapsed begin
                 qid = RPC.next_question_id!(conn)
                 ctx = RPC.CallContext(conn, qid, UInt64(0), UInt16(0))
@@ -255,14 +255,14 @@ using Capnp
         object_id = Vector{UInt8}("test-object-id")
 
         # Warm up
-        for i in 1:10
+        for i = 1:10
             warm_id = Vector{UInt8}("warmup-$i")
             RPC.register!(restorer, warm_id, mock_cap, RPC.DefaultOwner())
         end
 
         # Measure save (register) operation timing
         times = Float64[]
-        for i in 1:100
+        for i = 1:100
             unique_id = Vector{UInt8}("perf-test-$i")
             t = @elapsed begin
                 sturdy_ref = RPC.register!(restorer, unique_id, mock_cap, RPC.DefaultOwner())
@@ -290,21 +290,21 @@ using Capnp
 
         # Register many capabilities for realistic lookup
         sturdy_refs = RPC.DefaultSturdyRef[]
-        for i in 1:100
+        for i = 1:100
             object_id = Vector{UInt8}("restore-test-$i")
             ref = RPC.register!(restorer, object_id, "Capability-$i", RPC.DefaultOwner())
             push!(sturdy_refs, ref)
         end
 
         # Warm up
-        for _ in 1:10
+        for _ = 1:10
             ref = sturdy_refs[rand(1:100)]
             RPC.restore(restorer, ref)
         end
 
         # Measure restore operation timing
         times = Float64[]
-        for i in 1:100
+        for i = 1:100
             ref = sturdy_refs[i]
             t = @elapsed begin
                 # Simulate full restore workflow: deserialize + restore
@@ -329,14 +329,14 @@ using Capnp
         ref = RPC.DefaultSturdyRef("test-host-id", "test-object-identifier-12345")
 
         # Warm up
-        for _ in 1:10
+        for _ = 1:10
             serialized = RPC.serialize_sturdy_ref(ref)
             RPC.deserialize_sturdy_ref(serialized)
         end
 
         # Measure serialization
         serialize_times = Float64[]
-        for _ in 1:100
+        for _ = 1:100
             t = @elapsed begin
                 RPC.serialize_sturdy_ref(ref)
             end
@@ -346,7 +346,7 @@ using Capnp
         # Measure deserialization
         serialized = RPC.serialize_sturdy_ref(ref)
         deserialize_times = Float64[]
-        for _ in 1:100
+        for _ = 1:100
             t = @elapsed begin
                 RPC.deserialize_sturdy_ref(serialized)
             end

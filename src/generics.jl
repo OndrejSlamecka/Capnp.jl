@@ -12,10 +12,10 @@
 Module for Brand.Binding kind enum.
 """
 module BindingKind
-    @enum T begin
-        UNBOUND     # Type parameter is not bound
-        TYPE        # Type parameter is bound to a specific type
-    end
+@enum T begin
+    UNBOUND     # Type parameter is not bound
+    TYPE        # Type parameter is bound to a specific type
+end
 end
 
 """
@@ -28,9 +28,9 @@ or bound to a specific type.
 struct Binding
     kind::BindingKind.T
     # For TYPE kind: the bound type ID (or other type representation)
-    type_id::Union{UInt64, Nothing}
+    type_id::Union{UInt64,Nothing}
 
-    Binding(kind::BindingKind.T, type_id::Union{UInt64, Nothing} = nothing) = new(kind, type_id)
+    Binding(kind::BindingKind.T, type_id::Union{UInt64,Nothing} = nothing) = new(kind, type_id)
 end
 
 """

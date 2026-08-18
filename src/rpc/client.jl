@@ -9,10 +9,7 @@
 Connect to a Cap'n Proto RPC server via TCP.
 """
 function connect(host::AbstractString, port::Integer)
-    transport = TcpTransport(host, port)
-    conn = Connection(transport)
-    set_connected!(conn)
-    return conn
+    connect(host, port, ConnectionOptions())
 end
 
 """
@@ -21,10 +18,7 @@ end
 Connect to a Cap'n Proto RPC server via Unix domain socket.
 """
 function connect(socket_path::AbstractString)
-    transport = UnixTransport(socket_path)
-    conn = Connection(transport)
-    set_connected!(conn)
-    return conn
+    connect(socket_path, ConnectionOptions())
 end
 
 """
@@ -33,7 +27,7 @@ end
 Request the bootstrap capability from the server.
 Returns a client stub of the specified type.
 """
-function bootstrap(conn::Connection, ::Type{T}) where T
+function bootstrap(conn::Connection, ::Type{T}) where {T}
     # Send Bootstrap message
     qid = next_question_id!(conn)
 
@@ -43,7 +37,7 @@ function bootstrap(conn::Connection, ::Type{T}) where T
     # For now, this is a placeholder
 
     # Create promise for the response
-    promise = Promise{Any}(question_id=qid)
+    promise = Promise{Any}(question_id = qid)
 
     # Track the question
     question = PendingQuestion(qid, promise, ExportId[])
@@ -70,17 +64,24 @@ struct ConnectionOptions
     send_buffer_size::Int
     receive_buffer_size::Int
     max_message_size::Int
+    max_segments::Int
     traversal_limit::Int
     nesting_limit::Int
 
     function ConnectionOptions(;
         send_buffer_size::Int = 65536,
         receive_buffer_size::Int = 65536,
-        max_message_size::Int = 64 * 1024 * 1024,  # 64 MiB
+        max_message_size::Int = Capnp.DEFAULT_MAX_MESSAGE_SIZE,
+        max_segments::Int = Capnp.DEFAULT_MAX_SEGMENTS,
         traversal_limit::Int = 64 * 1024 * 1024,   # 64 MiB
-        nesting_limit::Int = 64
+        nesting_limit::Int = 64,
     )
-        new(send_buffer_size, receive_buffer_size, max_message_size, traversal_limit, nesting_limit)
+        send_buffer_size > 0 || throw(ArgumentError("send_buffer_size must be positive"))
+        receive_buffer_size > 0 || throw(ArgumentError("receive_buffer_size must be positive"))
+        traversal_limit > 0 || throw(ArgumentError("traversal_limit must be positive"))
+        nesting_limit > 0 || throw(ArgumentError("nesting_limit must be positive"))
+        Capnp._validate_reader_limits(max_message_size, max_segments)
+        new(send_buffer_size, receive_buffer_size, max_message_size, max_segments, traversal_limit, nesting_limit)
     end
 end
 
@@ -90,8 +91,22 @@ end
 Connect to a Cap'n Proto RPC server via TCP with custom options.
 """
 function connect(host::AbstractString, port::Integer, options::ConnectionOptions)
-    # Options will be used when implementing proper message handling
-    connect(host, port)
+    transport = TcpTransport(host, port; max_message_size = options.max_message_size, max_segments = options.max_segments)
+    conn = Connection(transport)
+    set_connected!(conn)
+    return conn
+end
+
+"""
+    connect(socket_path::AbstractString, options::ConnectionOptions) -> Connection
+
+Connect to a Cap'n Proto RPC server via Unix domain socket with custom options.
+"""
+function connect(socket_path::AbstractString, options::ConnectionOptions)
+    transport = UnixTransport(socket_path; max_message_size = options.max_message_size, max_segments = options.max_segments)
+    conn = Connection(transport)
+    set_connected!(conn)
+    return conn
 end
 
 # Message handling (internal functions)
@@ -259,7 +274,7 @@ Handle a Release message - decrement reference count on exported capability.
 function handle_release!(conn::Connection, id::UInt32, ref_count::UInt32)
     cap = get_export(conn, id)
     if cap !== nothing
-        for _ in 1:ref_count
+        for _ = 1:ref_count
             if decref!(cap)
                 remove_export!(conn, id)
                 break
@@ -333,7 +348,7 @@ function call_save(conn::Connection, import_id::ImportId)
     message = build_save_call(qid, import_id)
 
     # Create a promise for the result
-    promise = Promise{Any}(question_id=qid)
+    promise = Promise{Any}(question_id = qid)
 
     # Track the question
     question = PendingQuestion(qid, promise, ExportId[])
@@ -345,7 +360,7 @@ function call_save(conn::Connection, import_id::ImportId)
     # Return a typed promise that will convert the result
     result_promise = Promise{DefaultSturdyRef}()
 
-    on_resolve!(promise, function(value)
+    on_resolve!(promise, function (value)
         # Value should be ParsedSaveResults
         if value isa ParsedSaveResults
             if !isempty(value.sturdy_ref_data)
@@ -359,7 +374,7 @@ function call_save(conn::Connection, import_id::ImportId)
         end
     end)
 
-    on_reject!(promise, function(err)
+    on_reject!(promise, function (err)
         # Check if it's a "not implemented" error (capability doesn't support Persistent)
         if err isa RemoteException && err.type == ExceptionType.UNIMPLEMENTED
             reject!(result_promise, NotPersistentException("Capability does not implement Persistent interface"))
@@ -390,7 +405,7 @@ Blocks until the save completes or times out.
 - `RemoteException` if the server returns an error
 - Timeout-related error if the operation times out
 """
-function call_save_sync(conn::Connection, import_id::ImportId; timeout_ms::Int=5000)
+function call_save_sync(conn::Connection, import_id::ImportId; timeout_ms::Int = 5000)
     promise = call_save(conn, import_id)
 
     # Wait for the promise to settle (with timeout would require additional infrastructure)
@@ -432,7 +447,7 @@ function call_restore(conn::Connection, restorer_import_id::ImportId, sturdy_ref
     message = build_restore_call(qid, restorer_import_id, sturdy_ref_data)
 
     # Create a promise for the result
-    promise = Promise{Any}(question_id=qid)
+    promise = Promise{Any}(question_id = qid)
 
     # Track the question
     question = PendingQuestion(qid, promise, ExportId[])
@@ -444,7 +459,7 @@ function call_restore(conn::Connection, restorer_import_id::ImportId, sturdy_ref
     # Return a typed promise that will convert the result
     result_promise = Promise{RemoteCapability}()
 
-    on_resolve!(promise, function(value)
+    on_resolve!(promise, function (value)
         if value isa ParsedRestoreResults
             if value.success && value.import_id !== nothing
                 # Create a RemoteCapability for the restored capability
@@ -462,7 +477,7 @@ function call_restore(conn::Connection, restorer_import_id::ImportId, sturdy_ref
         end
     end)
 
-    on_reject!(promise, function(err)
+    on_reject!(promise, function (err)
         # Map remote exceptions to RestoreException where appropriate
         if err isa RemoteException
             if err.type == ExceptionType.UNIMPLEMENTED
@@ -497,7 +512,7 @@ Blocks until the restore completes or times out.
 - `RestoreException` for restore-related errors
 - `RemoteException` for other server errors
 """
-function call_restore_sync(conn::Connection, restorer_import_id::ImportId, sturdy_ref::DefaultSturdyRef; timeout_ms::Int=5000)
+function call_restore_sync(conn::Connection, restorer_import_id::ImportId, sturdy_ref::DefaultSturdyRef; timeout_ms::Int = 5000)
     promise = call_restore(conn, restorer_import_id, sturdy_ref)
 
     # Wait for the promise to settle

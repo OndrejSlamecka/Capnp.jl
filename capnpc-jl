@@ -6,7 +6,7 @@
 
 import Capnp
 
-const capnp = Capnp.Generator.capnp 
+const capnp = Capnp.Generator.capnp
 
 const message = Capnp.MessageReader(stdin)
 const request = capnp.schema.root_CodeGeneratorRequest(message)

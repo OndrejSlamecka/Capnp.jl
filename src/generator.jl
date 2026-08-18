@@ -49,7 +49,7 @@ function has_persistent_annotation(env::Environment, node::Node{InterfaceNodePro
         annotation_node = get(env.nodes, annotation.id, nothing)
         if annotation_node !== nothing
             # Check for $persistent annotation by name
-            display_name = annotation_node.displayName[annotation_node.displayNamePrefixLength+1:end]
+            display_name = annotation_node.displayName[(annotation_node.displayNamePrefixLength+1):end]
             if display_name == "persistent" || display_name == "Persistent"
                 return true
             end
@@ -108,7 +108,7 @@ function namespace_annotation(env::Environment, node::Node{FileNodeProps})::Vect
     namespace_annotations = Iterators.filter(node.annotations) do annotation
         annotation_node = env.nodes[annotation.id]
         # Capnp specification advises against parsing displayName, TODO
-        annotation_node.displayName[annotation_node.displayNamePrefixLength+1:end] == "namespace"
+        annotation_node.displayName[(annotation_node.displayNamePrefixLength+1):end] == "namespace"
     end
 
     if isempty(namespace_annotations)

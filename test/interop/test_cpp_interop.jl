@@ -12,8 +12,7 @@ println("Starting Julia Calculator server...")
 include("../../example/calculator.capnp.jl")
 
 # Implement the Calculator server
-struct TestCalculator <: Calculator_Server
-end
+struct TestCalculator <: Calculator_Server end
 
 # The default Calculator method implementations in RPC.server.jl use ParsedParams
 # to properly extract left/right Float64 values and compute correct results.
@@ -61,7 +60,7 @@ println("Server running, testing C++ client...")
 # Run C++ client
 cpp_client = joinpath(@__DIR__, "cpp_client_test")
 if isfile(cpp_client)
-    result = run(pipeline(`$cpp_client 127.0.0.1:$port`, stderr=stderr), wait=true)
+    result = run(pipeline(`$cpp_client 127.0.0.1:$port`, stderr = stderr), wait = true)
     println("\nC++ client exit code: ", result.exitcode)
 else
     println("C++ client not found at: $cpp_client")
