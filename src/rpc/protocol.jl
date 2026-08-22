@@ -317,7 +317,7 @@ function parse_rpc_message(reader::Capnp.MessageReader)
     elseif msg_type == MessageType.CALL
         return parse_call(seg, struct_start, ptr_section_start)
     elseif msg_type == MessageType.FINISH
-        return parse_finish(seg, struct_start)
+        return parse_finish(seg, ptr_section_start)
     elseif msg_type == MessageType.RELEASE
         return parse_release(seg, ptr_section_start)
     elseif msg_type == MessageType.RESOLVE
@@ -610,14 +610,32 @@ Finish struct layout:
 - questionId: UInt32 at data offset 0
 - releaseResultCaps: Bool at data offset 4
 """
-function parse_finish(_seg::Vector{UInt8}, _msg_struct_start::Int)
-    # For Finish, the data is in the Message struct itself after the discriminant
-    # Actually, looking at the schema, Finish is a separate struct pointed to
-
-    # TODO: Need to properly locate the Finish struct pointer
-    # For now, assume it's at Message pointer 0
-    finish = ParsedFinish(QuestionId(0), true)
-    return ParsedMessage(MessageType.FINISH, nothing, nothing, finish, nothing, nothing, nothing)
+function parse_finish(seg::Vector{UInt8}, ptr_section_start::Int)
+    # Get the Finish struct pointer from Message pointer section
+    finish_ptr = get_struct_pointer(seg, ptr_section_start)
+    
+    if finish_ptr === nothing || finish_ptr == 0
+        throw(RemoteException("Invalid Finish message: null pointer", ExceptionType.FAILED))
+    end
+    
+    data_offset, data_size, _ptr_count = decode_struct_pointer(finish_ptr)
+    struct_start = ptr_section_start + 1 + data_offset
+    
+    if data_size >= 1
+        # questionId: UInt32 at offset 0
+        qid = QuestionId(read_data_field(seg, struct_start, 0, UInt32))
+        
+        # releaseResultCaps: Bool at offset 4 (bit 0), default is true (XOR decoded)
+        release_caps = true
+        # Offset 4 is in the first word, so data_size >= 1 is sufficient
+        if data_size >= 1
+            raw_bool = read_data_field(seg, struct_start, 4, UInt8)
+            release_caps = (raw_bool & 0x01) == 0
+        end
+        return ParsedMessage(MessageType.FINISH, nothing, nothing, ParsedFinish(qid, release_caps), nothing, nothing, nothing)
+    end
+    
+    return ParsedMessage(MessageType.FINISH, nothing, nothing, ParsedFinish(QuestionId(0), true), nothing, nothing, nothing)
 end
 
 """

@@ -203,6 +203,37 @@ function call_pipelined(parent::Promise, ops::Vector{PipelineOp})
     return child
 end
 
+"""
+    cancel(promise::Promise)
+
+Cancel the promise. If the promise represents an ongoing RPC question,
+sends a Finish message to the server indicating the client no longer
+needs the result.
+"""
+function cancel(p::Promise)
+    # Check if we can cancel
+    qid, conn = lock(p.lock) do
+        if p.state != PromiseState.PENDING || p._question_id === nothing || p.connection === nothing
+            return nothing, nothing
+        end
+        return p._question_id, p.connection
+    end
+    
+    if qid !== nothing && conn !== nothing
+        # Send Finish message with releaseResultCaps = false (cancel)
+        # Cap'n Proto RPC says: "If a client wishes to cancel a question, it simply sends a Finish message."
+        try
+            # Call connection method to send Finish
+            # We must import or use the Capnp.RPC connection method here, which will be added below
+            _send_cancel_finish!(conn, qid)
+        catch e
+            @warn "Failed to send cancel message" exception=e
+        end
+    end
+    
+    return
+end
+
 # Level 2: Callback registration functions
 
 """

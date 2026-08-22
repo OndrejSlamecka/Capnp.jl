@@ -140,6 +140,7 @@ include("generator_persistent_test.jl")
 # User Story 2: RPC Client tests
 include("rpc/promise.jl")
 include("rpc/client.jl")
+include("rpc/cancellation.jl")
 include("rpc/calculator.jl")
 include("rpc/test_protocol.jl")
 include("rpc/test_persistent.jl")

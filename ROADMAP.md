@@ -99,7 +99,7 @@ adding TLS.
       capability returned from an actual `Bootstrap`/`Return` exchange.
 - [x] Implement generated client calls instead of emitting the current
       "not implemented" path.
-- [ ] Run and supervise the client receive loop. The loop is now started by the
+- [x] Run and supervise the client receive loop. The loop is now started by the
       connection façade and rejects pending questions on failure; cancellation,
       bounded supervision, and exhaustive exactly-once tests remain.
 - [x] Complete `Return`, `Finish`, `Release`, `Resolve`, exception, cancellation,

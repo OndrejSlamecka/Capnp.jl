@@ -165,6 +165,17 @@ function handle_message!(conn::Connection, message::Capnp.MessageReader)
                         exc_type = return_msg.exception_type !== nothing ? return_msg.exception_type : ExceptionType.FAILED
                         exc_reason = return_msg.exception_reason !== nothing ? return_msg.exception_reason : "Unknown error"
                         reject!(question.promise, RemoteException(exc_reason, exc_type))
+                    elseif return_msg.kind == ReturnType.CANCELED
+                        reject!(question.promise, RemoteException("Call canceled", ExceptionType.FAILED))
+                    elseif return_msg.kind == ReturnType.RESULTS_SENT_ELSEWHERE
+                        # Not implemented yet, reject for now
+                        reject!(question.promise, RemoteException("Results sent elsewhere", ExceptionType.UNIMPLEMENTED))
+                    elseif return_msg.kind == ReturnType.TAKE_FROM_OTHER_QUESTION
+                        # Not implemented yet, reject for now
+                        reject!(question.promise, RemoteException("Take from other question", ExceptionType.UNIMPLEMENTED))
+                    elseif return_msg.kind == ReturnType.ACCEPT_FROM_THIRD_PARTY
+                        # Not implemented yet, reject for now
+                        reject!(question.promise, RemoteException("Accept from third party", ExceptionType.UNIMPLEMENTED))
                     end
                     
                     # Handle releaseParamCaps
@@ -620,6 +631,19 @@ export start_message_loop!
 export NotPersistentException, call_save, call_save_sync
 export call_restore, call_restore_sync
 export call, add_capability_to_message!, release!
+
+"""
+    _send_cancel_finish!(conn::Connection, qid::QuestionId)
+
+Internal function called by `cancel(::Promise)` to send a `Finish` message
+indicating the client is no longer interested in the result.
+"""
+function _send_cancel_finish!(conn::Connection, qid::QuestionId)
+    # The RPC spec states that a canceled call still requires sending a Finish message.
+    # The releaseResultCaps flag is set to false because we are not waiting for results.
+    msg = build_finish_message(qid, false)
+    send_raw_message(conn.transport, msg)
+end
 
 """
     call(cap::Union{RemoteCapability, Promise}, interface_id::UInt64, method_id::UInt16;
