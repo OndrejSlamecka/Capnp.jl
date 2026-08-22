@@ -135,8 +135,9 @@ mutable struct PendingAnswer
     answer_id::AnswerId
     result_caps::Vector{ExportId}
     pipeline_refs::UInt32
+    result::Any
 
-    PendingAnswer(aid::AnswerId, caps::Vector{ExportId} = ExportId[], refs::UInt32 = UInt32(0)) = new(aid, caps, refs)
+    PendingAnswer(aid::AnswerId, caps::Vector{ExportId} = ExportId[], refs::UInt32 = UInt32(0)) = new(aid, caps, refs, nothing)
 end
 
 """

@@ -156,6 +156,29 @@ int main(int argc, const char* argv[]) {
         }
     }
 
+    // Test 7: Pipelined GetSubCalculator -> Add
+    {
+        std::cout << "Sending pipelined getSubCalculator()->add(5, 6)..." << std::endl;
+        auto getSubRequest = calculator.getSubCalculatorRequest();
+        // DO NOT WAIT. Immediately pipeline the call!
+        auto subCalc = getSubRequest.send().getCalculator();
+        
+        auto addRequest = subCalc.addRequest();
+        addRequest.setLeft(5.0);
+        addRequest.setRight(6.0);
+        auto addPromise = addRequest.send();
+        auto addResponse = addPromise.wait(waitScope);
+        auto result = addResponse.getValue();
+
+        std::cout << "Pipelined sub-calculator add result: " << result;
+        if (result == 11.0) {
+            std::cout << " ✓ CORRECT" << std::endl;
+        } else {
+            std::cout << " ✗ WRONG (expected 11.0)" << std::endl;
+            all_passed = false;
+        }
+    }
+
     if (all_passed) {
         std::cout << "SUCCESS: All tests passed!" << std::endl;
         std::cout << "SC-004 VERIFIED: C++ client works with Julia calculator server" << std::endl;

@@ -5,19 +5,21 @@
 
 namespace capnp {
 namespace schemas {
-static const ::capnp::_::AlignedData<73> b_f3488032057d7c3f = {
-  {   0,   0,   0,   0,   5,   0,   6,   0,
+static const ::capnp::_::AlignedData<75> b_f3488032057d7c3f = {
+  {   0,   0,   0,   0,   6,   0,   6,   0,
      63, 124, 125,   5,  50, 128,  72, 243,
-     17,   0,   0,   0,   3,   0,   0,   0,
+     25,   0,   0,   0,   3,   0,   0,   0,
     163, 230, 247, 200, 181, 215, 165, 212,
       0,   0,   0,   0,   0,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
-     21,   0,   0,   0, 226,   0,   0,   0,
-     33,   0,   0,   0,   7,   0,   0,   0,
+    178,   0,   0,   0, 166,   2,   0,   0,
+     21,   0,   0,   0,  34,   1,   0,   0,
+     37,   0,   0,   0,   7,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
-     29,   0,   0,   0,  71,   1,   0,   0,
-    245,   0,   0,   0,   7,   0,   0,   0,
+     33,   0,   0,   0,  71,   1,   0,   0,
+    249,   0,   0,   0,   7,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
+    101, 120,  97, 109, 112, 108, 101,  47,
      99,  97, 108,  99, 117, 108,  97, 116,
     111, 114,  46,  99,  97, 112, 110, 112,
      58,  67,  97, 108,  99, 117, 108,  97,
@@ -96,23 +98,25 @@ static const ::capnp::_::RawSchema* const d_f3488032057d7c3f[] = {
 };
 static const uint16_t m_f3488032057d7c3f[] = {0, 3, 4, 2, 1};
 const ::capnp::_::RawSchema s_f3488032057d7c3f = {
-  0xf3488032057d7c3f, b_f3488032057d7c3f.words, 73, d_f3488032057d7c3f, m_f3488032057d7c3f,
-  10, 5, nullptr, nullptr, nullptr, { &s_f3488032057d7c3f, nullptr, nullptr, 0, 0, nullptr }
+  0xf3488032057d7c3f, b_f3488032057d7c3f.words, 75, d_f3488032057d7c3f, m_f3488032057d7c3f,
+  10, 5, nullptr, nullptr, nullptr, { &s_f3488032057d7c3f, nullptr, nullptr, 0, 0, nullptr }, false
 };
 #endif  // !CAPNP_LITE
-static const ::capnp::_::AlignedData<48> b_fa81bc1806c5d530 = {
-  {   0,   0,   0,   0,   5,   0,   6,   0,
+static const ::capnp::_::AlignedData<50> b_fa81bc1806c5d530 = {
+  {   0,   0,   0,   0,   6,   0,   6,   0,
      48, 213, 197,   6,  24, 188, 129, 250,
-     28,   0,   0,   0,   1,   0,   2,   0,
+     36,   0,   0,   0,   1,   0,   2,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
       0,   0,   7,   0,   0,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
-     21,   0,   0,   0,  58,   1,   0,   0,
+      0,   0,   0,   0,   0,   0,   0,   0,
+     21,   0,   0,   0, 122,   1,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
-     29,   0,   0,   0, 119,   0,   0,   0,
+     33,   0,   0,   0, 119,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
+    101, 120,  97, 109, 112, 108, 101,  47,
      99,  97, 108,  99, 117, 108,  97, 116,
     111, 114,  46,  99,  97, 112, 110, 112,
      58,  67,  97, 108,  99, 117, 108,  97,
@@ -155,23 +159,25 @@ static const ::capnp::_::AlignedData<48> b_fa81bc1806c5d530 = {
 static const uint16_t m_fa81bc1806c5d530[] = {0, 1};
 static const uint16_t i_fa81bc1806c5d530[] = {0, 1};
 const ::capnp::_::RawSchema s_fa81bc1806c5d530 = {
-  0xfa81bc1806c5d530, b_fa81bc1806c5d530.words, 48, nullptr, m_fa81bc1806c5d530,
-  0, 2, i_fa81bc1806c5d530, nullptr, nullptr, { &s_fa81bc1806c5d530, nullptr, nullptr, 0, 0, nullptr }
+  0xfa81bc1806c5d530, b_fa81bc1806c5d530.words, 50, nullptr, m_fa81bc1806c5d530,
+  0, 2, i_fa81bc1806c5d530, nullptr, nullptr, { &s_fa81bc1806c5d530, nullptr, nullptr, 0, 0, nullptr }, false
 };
 #endif  // !CAPNP_LITE
-static const ::capnp::_::AlignedData<33> b_b79f0670bba74c46 = {
-  {   0,   0,   0,   0,   5,   0,   6,   0,
+static const ::capnp::_::AlignedData<35> b_b79f0670bba74c46 = {
+  {   0,   0,   0,   0,   6,   0,   6,   0,
      70,  76, 167, 187, 112,   6, 159, 183,
-     28,   0,   0,   0,   1,   0,   1,   0,
+     36,   0,   0,   0,   1,   0,   1,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
       0,   0,   7,   0,   0,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
-     21,   0,   0,   0,  66,   1,   0,   0,
+      0,   0,   0,   0,   0,   0,   0,   0,
+     21,   0,   0,   0, 130,   1,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
-     29,   0,   0,   0,  63,   0,   0,   0,
+     33,   0,   0,   0,  63,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
+    101, 120,  97, 109, 112, 108, 101,  47,
      99,  97, 108,  99, 117, 108,  97, 116,
     111, 114,  46,  99,  97, 112, 110, 112,
      58,  67,  97, 108,  99, 117, 108,  97,
@@ -199,23 +205,25 @@ static const ::capnp::_::AlignedData<33> b_b79f0670bba74c46 = {
 static const uint16_t m_b79f0670bba74c46[] = {0};
 static const uint16_t i_b79f0670bba74c46[] = {0};
 const ::capnp::_::RawSchema s_b79f0670bba74c46 = {
-  0xb79f0670bba74c46, b_b79f0670bba74c46.words, 33, nullptr, m_b79f0670bba74c46,
-  0, 1, i_b79f0670bba74c46, nullptr, nullptr, { &s_b79f0670bba74c46, nullptr, nullptr, 0, 0, nullptr }
+  0xb79f0670bba74c46, b_b79f0670bba74c46.words, 35, nullptr, m_b79f0670bba74c46,
+  0, 1, i_b79f0670bba74c46, nullptr, nullptr, { &s_b79f0670bba74c46, nullptr, nullptr, 0, 0, nullptr }, false
 };
 #endif  // !CAPNP_LITE
-static const ::capnp::_::AlignedData<49> b_997f4ec79a800400 = {
-  {   0,   0,   0,   0,   5,   0,   6,   0,
+static const ::capnp::_::AlignedData<51> b_997f4ec79a800400 = {
+  {   0,   0,   0,   0,   6,   0,   6,   0,
       0,   4, 128, 154, 199,  78, 127, 153,
-     28,   0,   0,   0,   1,   0,   2,   0,
+     36,   0,   0,   0,   1,   0,   2,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
       0,   0,   7,   0,   0,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
-     21,   0,   0,   0,  98,   1,   0,   0,
+      0,   0,   0,   0,   0,   0,   0,   0,
+     21,   0,   0,   0, 162,   1,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
-     33,   0,   0,   0, 119,   0,   0,   0,
+     37,   0,   0,   0, 119,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
+    101, 120,  97, 109, 112, 108, 101,  47,
      99,  97, 108,  99, 117, 108,  97, 116,
     111, 114,  46,  99,  97, 112, 110, 112,
      58,  67,  97, 108,  99, 117, 108,  97,
@@ -259,23 +267,25 @@ static const ::capnp::_::AlignedData<49> b_997f4ec79a800400 = {
 static const uint16_t m_997f4ec79a800400[] = {0, 1};
 static const uint16_t i_997f4ec79a800400[] = {0, 1};
 const ::capnp::_::RawSchema s_997f4ec79a800400 = {
-  0x997f4ec79a800400, b_997f4ec79a800400.words, 49, nullptr, m_997f4ec79a800400,
-  0, 2, i_997f4ec79a800400, nullptr, nullptr, { &s_997f4ec79a800400, nullptr, nullptr, 0, 0, nullptr }
+  0x997f4ec79a800400, b_997f4ec79a800400.words, 51, nullptr, m_997f4ec79a800400,
+  0, 2, i_997f4ec79a800400, nullptr, nullptr, { &s_997f4ec79a800400, nullptr, nullptr, 0, 0, nullptr }, false
 };
 #endif  // !CAPNP_LITE
-static const ::capnp::_::AlignedData<34> b_f31016b6e9f70d2b = {
-  {   0,   0,   0,   0,   5,   0,   6,   0,
+static const ::capnp::_::AlignedData<36> b_f31016b6e9f70d2b = {
+  {   0,   0,   0,   0,   6,   0,   6,   0,
      43,  13, 247, 233, 182,  22,  16, 243,
-     28,   0,   0,   0,   1,   0,   1,   0,
+     36,   0,   0,   0,   1,   0,   1,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
       0,   0,   7,   0,   0,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
-     21,   0,   0,   0, 106,   1,   0,   0,
+      0,   0,   0,   0,   0,   0,   0,   0,
+     21,   0,   0,   0, 170,   1,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
-     33,   0,   0,   0,  63,   0,   0,   0,
+     37,   0,   0,   0,  63,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
+    101, 120,  97, 109, 112, 108, 101,  47,
      99,  97, 108,  99, 117, 108,  97, 116,
     111, 114,  46,  99,  97, 112, 110, 112,
      58,  67,  97, 108,  99, 117, 108,  97,
@@ -304,23 +314,25 @@ static const ::capnp::_::AlignedData<34> b_f31016b6e9f70d2b = {
 static const uint16_t m_f31016b6e9f70d2b[] = {0};
 static const uint16_t i_f31016b6e9f70d2b[] = {0};
 const ::capnp::_::RawSchema s_f31016b6e9f70d2b = {
-  0xf31016b6e9f70d2b, b_f31016b6e9f70d2b.words, 34, nullptr, m_f31016b6e9f70d2b,
-  0, 1, i_f31016b6e9f70d2b, nullptr, nullptr, { &s_f31016b6e9f70d2b, nullptr, nullptr, 0, 0, nullptr }
+  0xf31016b6e9f70d2b, b_f31016b6e9f70d2b.words, 36, nullptr, m_f31016b6e9f70d2b,
+  0, 1, i_f31016b6e9f70d2b, nullptr, nullptr, { &s_f31016b6e9f70d2b, nullptr, nullptr, 0, 0, nullptr }, false
 };
 #endif  // !CAPNP_LITE
-static const ::capnp::_::AlignedData<49> b_dce5afd3a48ca75b = {
-  {   0,   0,   0,   0,   5,   0,   6,   0,
+static const ::capnp::_::AlignedData<51> b_dce5afd3a48ca75b = {
+  {   0,   0,   0,   0,   6,   0,   6,   0,
      91, 167, 140, 164, 211, 175, 229, 220,
-     28,   0,   0,   0,   1,   0,   2,   0,
+     36,   0,   0,   0,   1,   0,   2,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
       0,   0,   7,   0,   0,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
-     21,   0,   0,   0,  98,   1,   0,   0,
+      0,   0,   0,   0,   0,   0,   0,   0,
+     21,   0,   0,   0, 162,   1,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
-     33,   0,   0,   0, 119,   0,   0,   0,
+     37,   0,   0,   0, 119,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
+    101, 120,  97, 109, 112, 108, 101,  47,
      99,  97, 108,  99, 117, 108,  97, 116,
     111, 114,  46,  99,  97, 112, 110, 112,
      58,  67,  97, 108,  99, 117, 108,  97,
@@ -364,23 +376,25 @@ static const ::capnp::_::AlignedData<49> b_dce5afd3a48ca75b = {
 static const uint16_t m_dce5afd3a48ca75b[] = {0, 1};
 static const uint16_t i_dce5afd3a48ca75b[] = {0, 1};
 const ::capnp::_::RawSchema s_dce5afd3a48ca75b = {
-  0xdce5afd3a48ca75b, b_dce5afd3a48ca75b.words, 49, nullptr, m_dce5afd3a48ca75b,
-  0, 2, i_dce5afd3a48ca75b, nullptr, nullptr, { &s_dce5afd3a48ca75b, nullptr, nullptr, 0, 0, nullptr }
+  0xdce5afd3a48ca75b, b_dce5afd3a48ca75b.words, 51, nullptr, m_dce5afd3a48ca75b,
+  0, 2, i_dce5afd3a48ca75b, nullptr, nullptr, { &s_dce5afd3a48ca75b, nullptr, nullptr, 0, 0, nullptr }, false
 };
 #endif  // !CAPNP_LITE
-static const ::capnp::_::AlignedData<34> b_dc110019ac97c8a5 = {
-  {   0,   0,   0,   0,   5,   0,   6,   0,
+static const ::capnp::_::AlignedData<36> b_dc110019ac97c8a5 = {
+  {   0,   0,   0,   0,   6,   0,   6,   0,
     165, 200, 151, 172,  25,   0,  17, 220,
-     28,   0,   0,   0,   1,   0,   1,   0,
+     36,   0,   0,   0,   1,   0,   1,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
       0,   0,   7,   0,   0,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
-     21,   0,   0,   0, 106,   1,   0,   0,
+      0,   0,   0,   0,   0,   0,   0,   0,
+     21,   0,   0,   0, 170,   1,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
-     33,   0,   0,   0,  63,   0,   0,   0,
+     37,   0,   0,   0,  63,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
+    101, 120,  97, 109, 112, 108, 101,  47,
      99,  97, 108,  99, 117, 108,  97, 116,
     111, 114,  46,  99,  97, 112, 110, 112,
      58,  67,  97, 108,  99, 117, 108,  97,
@@ -409,23 +423,25 @@ static const ::capnp::_::AlignedData<34> b_dc110019ac97c8a5 = {
 static const uint16_t m_dc110019ac97c8a5[] = {0};
 static const uint16_t i_dc110019ac97c8a5[] = {0};
 const ::capnp::_::RawSchema s_dc110019ac97c8a5 = {
-  0xdc110019ac97c8a5, b_dc110019ac97c8a5.words, 34, nullptr, m_dc110019ac97c8a5,
-  0, 1, i_dc110019ac97c8a5, nullptr, nullptr, { &s_dc110019ac97c8a5, nullptr, nullptr, 0, 0, nullptr }
+  0xdc110019ac97c8a5, b_dc110019ac97c8a5.words, 36, nullptr, m_dc110019ac97c8a5,
+  0, 1, i_dc110019ac97c8a5, nullptr, nullptr, { &s_dc110019ac97c8a5, nullptr, nullptr, 0, 0, nullptr }, false
 };
 #endif  // !CAPNP_LITE
-static const ::capnp::_::AlignedData<49> b_8166571a070f3997 = {
-  {   0,   0,   0,   0,   5,   0,   6,   0,
+static const ::capnp::_::AlignedData<51> b_8166571a070f3997 = {
+  {   0,   0,   0,   0,   6,   0,   6,   0,
     151,  57,  15,   7,  26,  87, 102, 129,
-     28,   0,   0,   0,   1,   0,   2,   0,
+     36,   0,   0,   0,   1,   0,   2,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
       0,   0,   7,   0,   0,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
-     21,   0,   0,   0,  82,   1,   0,   0,
+      0,   0,   0,   0,   0,   0,   0,   0,
+     21,   0,   0,   0, 146,   1,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
-     33,   0,   0,   0, 119,   0,   0,   0,
+     37,   0,   0,   0, 119,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
+    101, 120,  97, 109, 112, 108, 101,  47,
      99,  97, 108,  99, 117, 108,  97, 116,
     111, 114,  46,  99,  97, 112, 110, 112,
      58,  67,  97, 108,  99, 117, 108,  97,
@@ -469,23 +485,25 @@ static const ::capnp::_::AlignedData<49> b_8166571a070f3997 = {
 static const uint16_t m_8166571a070f3997[] = {0, 1};
 static const uint16_t i_8166571a070f3997[] = {0, 1};
 const ::capnp::_::RawSchema s_8166571a070f3997 = {
-  0x8166571a070f3997, b_8166571a070f3997.words, 49, nullptr, m_8166571a070f3997,
-  0, 2, i_8166571a070f3997, nullptr, nullptr, { &s_8166571a070f3997, nullptr, nullptr, 0, 0, nullptr }
+  0x8166571a070f3997, b_8166571a070f3997.words, 51, nullptr, m_8166571a070f3997,
+  0, 2, i_8166571a070f3997, nullptr, nullptr, { &s_8166571a070f3997, nullptr, nullptr, 0, 0, nullptr }, false
 };
 #endif  // !CAPNP_LITE
-static const ::capnp::_::AlignedData<34> b_b8268627919f17d1 = {
-  {   0,   0,   0,   0,   5,   0,   6,   0,
+static const ::capnp::_::AlignedData<36> b_b8268627919f17d1 = {
+  {   0,   0,   0,   0,   6,   0,   6,   0,
     209,  23, 159, 145,  39, 134,  38, 184,
-     28,   0,   0,   0,   1,   0,   1,   0,
+     36,   0,   0,   0,   1,   0,   1,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
       0,   0,   7,   0,   0,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
-     21,   0,   0,   0,  90,   1,   0,   0,
+      0,   0,   0,   0,   0,   0,   0,   0,
+     21,   0,   0,   0, 154,   1,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
-     33,   0,   0,   0,  63,   0,   0,   0,
+     37,   0,   0,   0,  63,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
+    101, 120,  97, 109, 112, 108, 101,  47,
      99,  97, 108,  99, 117, 108,  97, 116,
     111, 114,  46,  99,  97, 112, 110, 112,
      58,  67,  97, 108,  99, 117, 108,  97,
@@ -514,23 +532,25 @@ static const ::capnp::_::AlignedData<34> b_b8268627919f17d1 = {
 static const uint16_t m_b8268627919f17d1[] = {0};
 static const uint16_t i_b8268627919f17d1[] = {0};
 const ::capnp::_::RawSchema s_b8268627919f17d1 = {
-  0xb8268627919f17d1, b_b8268627919f17d1.words, 34, nullptr, m_b8268627919f17d1,
-  0, 1, i_b8268627919f17d1, nullptr, nullptr, { &s_b8268627919f17d1, nullptr, nullptr, 0, 0, nullptr }
+  0xb8268627919f17d1, b_b8268627919f17d1.words, 36, nullptr, m_b8268627919f17d1,
+  0, 1, i_b8268627919f17d1, nullptr, nullptr, { &s_b8268627919f17d1, nullptr, nullptr, 0, 0, nullptr }, false
 };
 #endif  // !CAPNP_LITE
-static const ::capnp::_::AlignedData<19> b_bf115b007480a4ee = {
-  {   0,   0,   0,   0,   5,   0,   6,   0,
+static const ::capnp::_::AlignedData<21> b_bf115b007480a4ee = {
+  {   0,   0,   0,   0,   6,   0,   6,   0,
     238, 164, 128, 116,   0,  91,  17, 191,
-     28,   0,   0,   0,   1,   0,   0,   0,
+     36,   0,   0,   0,   1,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
       0,   0,   7,   0,   0,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
-     21,   0,   0,   0, 162,   1,   0,   0,
+      0,   0,   0,   0,   0,   0,   0,   0,
+     21,   0,   0,   0, 226,   1,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
+    101, 120,  97, 109, 112, 108, 101,  47,
      99,  97, 108,  99, 117, 108,  97, 116,
     111, 114,  46,  99,  97, 112, 110, 112,
      58,  67,  97, 108,  99, 117, 108,  97,
@@ -542,23 +562,25 @@ static const ::capnp::_::AlignedData<19> b_bf115b007480a4ee = {
 ::capnp::word const* const bp_bf115b007480a4ee = b_bf115b007480a4ee.words;
 #if !CAPNP_LITE
 const ::capnp::_::RawSchema s_bf115b007480a4ee = {
-  0xbf115b007480a4ee, b_bf115b007480a4ee.words, 19, nullptr, nullptr,
-  0, 0, nullptr, nullptr, nullptr, { &s_bf115b007480a4ee, nullptr, nullptr, 0, 0, nullptr }
+  0xbf115b007480a4ee, b_bf115b007480a4ee.words, 21, nullptr, nullptr,
+  0, 0, nullptr, nullptr, nullptr, { &s_bf115b007480a4ee, nullptr, nullptr, 0, 0, nullptr }, false
 };
 #endif  // !CAPNP_LITE
-static const ::capnp::_::AlignedData<36> b_f8301d297136749a = {
-  {   0,   0,   0,   0,   5,   0,   6,   0,
+static const ::capnp::_::AlignedData<38> b_f8301d297136749a = {
+  {   0,   0,   0,   0,   6,   0,   6,   0,
     154, 116,  54, 113,  41,  29,  48, 248,
-     28,   0,   0,   0,   1,   0,   0,   0,
+     36,   0,   0,   0,   1,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
       1,   0,   7,   0,   0,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
-     21,   0,   0,   0, 170,   1,   0,   0,
+      0,   0,   0,   0,   0,   0,   0,   0,
+     21,   0,   0,   0, 234,   1,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
-     37,   0,   0,   0,  63,   0,   0,   0,
+     41,   0,   0,   0,  63,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
+    101, 120,  97, 109, 112, 108, 101,  47,
      99,  97, 108,  99, 117, 108,  97, 116,
     111, 114,  46,  99,  97, 112, 110, 112,
      58,  67,  97, 108,  99, 117, 108,  97,
@@ -592,23 +614,25 @@ static const ::capnp::_::RawSchema* const d_f8301d297136749a[] = {
 static const uint16_t m_f8301d297136749a[] = {0};
 static const uint16_t i_f8301d297136749a[] = {0};
 const ::capnp::_::RawSchema s_f8301d297136749a = {
-  0xf8301d297136749a, b_f8301d297136749a.words, 36, d_f8301d297136749a, m_f8301d297136749a,
-  1, 1, i_f8301d297136749a, nullptr, nullptr, { &s_f8301d297136749a, nullptr, nullptr, 0, 0, nullptr }
+  0xf8301d297136749a, b_f8301d297136749a.words, 38, d_f8301d297136749a, m_f8301d297136749a,
+  1, 1, i_f8301d297136749a, nullptr, nullptr, { &s_f8301d297136749a, nullptr, nullptr, 0, 0, nullptr }, true
 };
 #endif  // !CAPNP_LITE
-static const ::capnp::_::AlignedData<48> b_b31d74267b640652 = {
-  {   0,   0,   0,   0,   5,   0,   6,   0,
+static const ::capnp::_::AlignedData<50> b_b31d74267b640652 = {
+  {   0,   0,   0,   0,   6,   0,   6,   0,
      82,   6, 100, 123,  38, 116,  29, 179,
-     17,   0,   0,   0,   1,   0,   2,   0,
+     25,   0,   0,   0,   1,   0,   2,   0,
     163, 230, 247, 200, 181, 215, 165, 212,
       0,   0,   7,   0,   0,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
-     21,   0,   0,   0, 218,   0,   0,   0,
-     33,   0,   0,   0,   7,   0,   0,   0,
+    231,   2,   0,   0,  36,   3,   0,   0,
+     21,   0,   0,   0,  26,   1,   0,   0,
+     37,   0,   0,   0,   7,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
-     29,   0,   0,   0, 119,   0,   0,   0,
+     33,   0,   0,   0, 119,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
+    101, 120,  97, 109, 112, 108, 101,  47,
      99,  97, 108,  99, 117, 108,  97, 116,
     111, 114,  46,  99,  97, 112, 110, 112,
      58,  65, 100, 100,  80,  97, 114,  97,
@@ -651,23 +675,25 @@ static const ::capnp::_::AlignedData<48> b_b31d74267b640652 = {
 static const uint16_t m_b31d74267b640652[] = {0, 1};
 static const uint16_t i_b31d74267b640652[] = {0, 1};
 const ::capnp::_::RawSchema s_b31d74267b640652 = {
-  0xb31d74267b640652, b_b31d74267b640652.words, 48, nullptr, m_b31d74267b640652,
-  0, 2, i_b31d74267b640652, nullptr, nullptr, { &s_b31d74267b640652, nullptr, nullptr, 0, 0, nullptr }
+  0xb31d74267b640652, b_b31d74267b640652.words, 50, nullptr, m_b31d74267b640652,
+  0, 2, i_b31d74267b640652, nullptr, nullptr, { &s_b31d74267b640652, nullptr, nullptr, 0, 0, nullptr }, false
 };
 #endif  // !CAPNP_LITE
-static const ::capnp::_::AlignedData<34> b_a9631c61e9f16be9 = {
-  {   0,   0,   0,   0,   5,   0,   6,   0,
+static const ::capnp::_::AlignedData<36> b_a9631c61e9f16be9 = {
+  {   0,   0,   0,   0,   6,   0,   6,   0,
     233, 107, 241, 233,  97,  28,  99, 169,
-     17,   0,   0,   0,   1,   0,   1,   0,
+     25,   0,   0,   0,   1,   0,   1,   0,
     163, 230, 247, 200, 181, 215, 165, 212,
       0,   0,   7,   0,   0,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
-     21,   0,   0,   0,  18,   1,   0,   0,
-     37,   0,   0,   0,   7,   0,   0,   0,
+     38,   3,   0,   0,  86,   3,   0,   0,
+     21,   0,   0,   0,  82,   1,   0,   0,
+     41,   0,   0,   0,   7,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
-     33,   0,   0,   0,  63,   0,   0,   0,
+     37,   0,   0,   0,  63,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,
+    101, 120,  97, 109, 112, 108, 101,  47,
      99,  97, 108,  99, 117, 108,  97, 116,
     111, 114,  46,  99,  97, 112, 110, 112,
      58,  67,  97, 108,  99, 117, 108,  97,
@@ -696,8 +722,8 @@ static const ::capnp::_::AlignedData<34> b_a9631c61e9f16be9 = {
 static const uint16_t m_a9631c61e9f16be9[] = {0};
 static const uint16_t i_a9631c61e9f16be9[] = {0};
 const ::capnp::_::RawSchema s_a9631c61e9f16be9 = {
-  0xa9631c61e9f16be9, b_a9631c61e9f16be9.words, 34, nullptr, m_a9631c61e9f16be9,
-  0, 1, i_a9631c61e9f16be9, nullptr, nullptr, { &s_a9631c61e9f16be9, nullptr, nullptr, 0, 0, nullptr }
+  0xa9631c61e9f16be9, b_a9631c61e9f16be9.words, 36, nullptr, m_a9631c61e9f16be9,
+  0, 1, i_a9631c61e9f16be9, nullptr, nullptr, { &s_a9631c61e9f16be9, nullptr, nullptr, 0, 0, nullptr }, false
 };
 #endif  // !CAPNP_LITE
 }  // namespace schemas
@@ -710,51 +736,51 @@ const ::capnp::_::RawSchema s_a9631c61e9f16be9 = {
 ::capnp::Request< ::Calculator::AddParams,  ::Calculator::AddResults>
 Calculator::Client::addRequest(::kj::Maybe< ::capnp::MessageSize> sizeHint) {
   return newCall< ::Calculator::AddParams,  ::Calculator::AddResults>(
-      0xf3488032057d7c3full, 0, sizeHint);
+      0xf3488032057d7c3full, 0, sizeHint, {true});
 }
 ::kj::Promise<void> Calculator::Server::add(AddContext) {
   return ::capnp::Capability::Server::internalUnimplemented(
-      "calculator.capnp:Calculator", "add",
+      "example/calculator.capnp:Calculator", "add",
       0xf3488032057d7c3full, 0);
 }
 ::capnp::Request< ::Calculator::SubtractParams,  ::Calculator::SubtractResults>
 Calculator::Client::subtractRequest(::kj::Maybe< ::capnp::MessageSize> sizeHint) {
   return newCall< ::Calculator::SubtractParams,  ::Calculator::SubtractResults>(
-      0xf3488032057d7c3full, 1, sizeHint);
+      0xf3488032057d7c3full, 1, sizeHint, {true});
 }
 ::kj::Promise<void> Calculator::Server::subtract(SubtractContext) {
   return ::capnp::Capability::Server::internalUnimplemented(
-      "calculator.capnp:Calculator", "subtract",
+      "example/calculator.capnp:Calculator", "subtract",
       0xf3488032057d7c3full, 1);
 }
 ::capnp::Request< ::Calculator::MultiplyParams,  ::Calculator::MultiplyResults>
 Calculator::Client::multiplyRequest(::kj::Maybe< ::capnp::MessageSize> sizeHint) {
   return newCall< ::Calculator::MultiplyParams,  ::Calculator::MultiplyResults>(
-      0xf3488032057d7c3full, 2, sizeHint);
+      0xf3488032057d7c3full, 2, sizeHint, {true});
 }
 ::kj::Promise<void> Calculator::Server::multiply(MultiplyContext) {
   return ::capnp::Capability::Server::internalUnimplemented(
-      "calculator.capnp:Calculator", "multiply",
+      "example/calculator.capnp:Calculator", "multiply",
       0xf3488032057d7c3full, 2);
 }
 ::capnp::Request< ::Calculator::DivideParams,  ::Calculator::DivideResults>
 Calculator::Client::divideRequest(::kj::Maybe< ::capnp::MessageSize> sizeHint) {
   return newCall< ::Calculator::DivideParams,  ::Calculator::DivideResults>(
-      0xf3488032057d7c3full, 3, sizeHint);
+      0xf3488032057d7c3full, 3, sizeHint, {true});
 }
 ::kj::Promise<void> Calculator::Server::divide(DivideContext) {
   return ::capnp::Capability::Server::internalUnimplemented(
-      "calculator.capnp:Calculator", "divide",
+      "example/calculator.capnp:Calculator", "divide",
       0xf3488032057d7c3full, 3);
 }
 ::capnp::Request< ::Calculator::GetSubCalculatorParams,  ::Calculator::GetSubCalculatorResults>
 Calculator::Client::getSubCalculatorRequest(::kj::Maybe< ::capnp::MessageSize> sizeHint) {
   return newCall< ::Calculator::GetSubCalculatorParams,  ::Calculator::GetSubCalculatorResults>(
-      0xf3488032057d7c3full, 4, sizeHint);
+      0xf3488032057d7c3full, 4, sizeHint, {false});
 }
 ::kj::Promise<void> Calculator::Server::getSubCalculator(GetSubCalculatorContext) {
   return ::capnp::Capability::Server::internalUnimplemented(
-      "calculator.capnp:Calculator", "getSubCalculator",
+      "example/calculator.capnp:Calculator", "getSubCalculator",
       0xf3488032057d7c3full, 4);
 }
 ::capnp::Capability::Server::DispatchCallResult Calculator::Server::dispatchCall(
@@ -764,7 +790,7 @@ Calculator::Client::getSubCalculatorRequest(::kj::Maybe< ::capnp::MessageSize> s
     case 0xf3488032057d7c3full:
       return dispatchCallInternal(methodId, context);
     default:
-      return internalUnimplemented("calculator.capnp:Calculator", interfaceId);
+      return internalUnimplemented("example/calculator.capnp:Calculator", interfaceId);
   }
 }
 ::capnp::Capability::Server::DispatchCallResult Calculator::Server::dispatchCallInternal(
@@ -775,36 +801,41 @@ Calculator::Client::getSubCalculatorRequest(::kj::Maybe< ::capnp::MessageSize> s
       return {
         add(::capnp::Capability::Server::internalGetTypedContext<
              ::Calculator::AddParams,  ::Calculator::AddResults>(context)),
+        false,
         false
       };
     case 1:
       return {
         subtract(::capnp::Capability::Server::internalGetTypedContext<
              ::Calculator::SubtractParams,  ::Calculator::SubtractResults>(context)),
+        false,
         false
       };
     case 2:
       return {
         multiply(::capnp::Capability::Server::internalGetTypedContext<
              ::Calculator::MultiplyParams,  ::Calculator::MultiplyResults>(context)),
+        false,
         false
       };
     case 3:
       return {
         divide(::capnp::Capability::Server::internalGetTypedContext<
              ::Calculator::DivideParams,  ::Calculator::DivideResults>(context)),
+        false,
         false
       };
     case 4:
       return {
         getSubCalculator(::capnp::Capability::Server::internalGetTypedContext<
              ::Calculator::GetSubCalculatorParams,  ::Calculator::GetSubCalculatorResults>(context)),
+        false,
         false
       };
     default:
       (void)context;
       return ::capnp::Capability::Server::internalUnimplemented(
-          "calculator.capnp:Calculator",
+          "example/calculator.capnp:Calculator",
           0xf3488032057d7c3full, methodId);
   }
 }
@@ -812,104 +843,154 @@ Calculator::Client::getSubCalculatorRequest(::kj::Maybe< ::capnp::MessageSize> s
 
 // Calculator
 #if !CAPNP_LITE
+#if CAPNP_NEED_REDUNDANT_CONSTEXPR_DECL
 constexpr ::capnp::Kind Calculator::_capnpPrivate::kind;
 constexpr ::capnp::_::RawSchema const* Calculator::_capnpPrivate::schema;
+#endif  // !CAPNP_NEED_REDUNDANT_CONSTEXPR_DECL
 #endif  // !CAPNP_LITE
 
 // Calculator::AddParams
+#if CAPNP_NEED_REDUNDANT_CONSTEXPR_DECL
 constexpr uint16_t Calculator::AddParams::_capnpPrivate::dataWordSize;
 constexpr uint16_t Calculator::AddParams::_capnpPrivate::pointerCount;
+#endif  // !CAPNP_NEED_REDUNDANT_CONSTEXPR_DECL
 #if !CAPNP_LITE
+#if CAPNP_NEED_REDUNDANT_CONSTEXPR_DECL
 constexpr ::capnp::Kind Calculator::AddParams::_capnpPrivate::kind;
 constexpr ::capnp::_::RawSchema const* Calculator::AddParams::_capnpPrivate::schema;
+#endif  // !CAPNP_NEED_REDUNDANT_CONSTEXPR_DECL
 #endif  // !CAPNP_LITE
 
 // Calculator::AddResults
+#if CAPNP_NEED_REDUNDANT_CONSTEXPR_DECL
 constexpr uint16_t Calculator::AddResults::_capnpPrivate::dataWordSize;
 constexpr uint16_t Calculator::AddResults::_capnpPrivate::pointerCount;
+#endif  // !CAPNP_NEED_REDUNDANT_CONSTEXPR_DECL
 #if !CAPNP_LITE
+#if CAPNP_NEED_REDUNDANT_CONSTEXPR_DECL
 constexpr ::capnp::Kind Calculator::AddResults::_capnpPrivate::kind;
 constexpr ::capnp::_::RawSchema const* Calculator::AddResults::_capnpPrivate::schema;
+#endif  // !CAPNP_NEED_REDUNDANT_CONSTEXPR_DECL
 #endif  // !CAPNP_LITE
 
 // Calculator::SubtractParams
+#if CAPNP_NEED_REDUNDANT_CONSTEXPR_DECL
 constexpr uint16_t Calculator::SubtractParams::_capnpPrivate::dataWordSize;
 constexpr uint16_t Calculator::SubtractParams::_capnpPrivate::pointerCount;
+#endif  // !CAPNP_NEED_REDUNDANT_CONSTEXPR_DECL
 #if !CAPNP_LITE
+#if CAPNP_NEED_REDUNDANT_CONSTEXPR_DECL
 constexpr ::capnp::Kind Calculator::SubtractParams::_capnpPrivate::kind;
 constexpr ::capnp::_::RawSchema const* Calculator::SubtractParams::_capnpPrivate::schema;
+#endif  // !CAPNP_NEED_REDUNDANT_CONSTEXPR_DECL
 #endif  // !CAPNP_LITE
 
 // Calculator::SubtractResults
+#if CAPNP_NEED_REDUNDANT_CONSTEXPR_DECL
 constexpr uint16_t Calculator::SubtractResults::_capnpPrivate::dataWordSize;
 constexpr uint16_t Calculator::SubtractResults::_capnpPrivate::pointerCount;
+#endif  // !CAPNP_NEED_REDUNDANT_CONSTEXPR_DECL
 #if !CAPNP_LITE
+#if CAPNP_NEED_REDUNDANT_CONSTEXPR_DECL
 constexpr ::capnp::Kind Calculator::SubtractResults::_capnpPrivate::kind;
 constexpr ::capnp::_::RawSchema const* Calculator::SubtractResults::_capnpPrivate::schema;
+#endif  // !CAPNP_NEED_REDUNDANT_CONSTEXPR_DECL
 #endif  // !CAPNP_LITE
 
 // Calculator::MultiplyParams
+#if CAPNP_NEED_REDUNDANT_CONSTEXPR_DECL
 constexpr uint16_t Calculator::MultiplyParams::_capnpPrivate::dataWordSize;
 constexpr uint16_t Calculator::MultiplyParams::_capnpPrivate::pointerCount;
+#endif  // !CAPNP_NEED_REDUNDANT_CONSTEXPR_DECL
 #if !CAPNP_LITE
+#if CAPNP_NEED_REDUNDANT_CONSTEXPR_DECL
 constexpr ::capnp::Kind Calculator::MultiplyParams::_capnpPrivate::kind;
 constexpr ::capnp::_::RawSchema const* Calculator::MultiplyParams::_capnpPrivate::schema;
+#endif  // !CAPNP_NEED_REDUNDANT_CONSTEXPR_DECL
 #endif  // !CAPNP_LITE
 
 // Calculator::MultiplyResults
+#if CAPNP_NEED_REDUNDANT_CONSTEXPR_DECL
 constexpr uint16_t Calculator::MultiplyResults::_capnpPrivate::dataWordSize;
 constexpr uint16_t Calculator::MultiplyResults::_capnpPrivate::pointerCount;
+#endif  // !CAPNP_NEED_REDUNDANT_CONSTEXPR_DECL
 #if !CAPNP_LITE
+#if CAPNP_NEED_REDUNDANT_CONSTEXPR_DECL
 constexpr ::capnp::Kind Calculator::MultiplyResults::_capnpPrivate::kind;
 constexpr ::capnp::_::RawSchema const* Calculator::MultiplyResults::_capnpPrivate::schema;
+#endif  // !CAPNP_NEED_REDUNDANT_CONSTEXPR_DECL
 #endif  // !CAPNP_LITE
 
 // Calculator::DivideParams
+#if CAPNP_NEED_REDUNDANT_CONSTEXPR_DECL
 constexpr uint16_t Calculator::DivideParams::_capnpPrivate::dataWordSize;
 constexpr uint16_t Calculator::DivideParams::_capnpPrivate::pointerCount;
+#endif  // !CAPNP_NEED_REDUNDANT_CONSTEXPR_DECL
 #if !CAPNP_LITE
+#if CAPNP_NEED_REDUNDANT_CONSTEXPR_DECL
 constexpr ::capnp::Kind Calculator::DivideParams::_capnpPrivate::kind;
 constexpr ::capnp::_::RawSchema const* Calculator::DivideParams::_capnpPrivate::schema;
+#endif  // !CAPNP_NEED_REDUNDANT_CONSTEXPR_DECL
 #endif  // !CAPNP_LITE
 
 // Calculator::DivideResults
+#if CAPNP_NEED_REDUNDANT_CONSTEXPR_DECL
 constexpr uint16_t Calculator::DivideResults::_capnpPrivate::dataWordSize;
 constexpr uint16_t Calculator::DivideResults::_capnpPrivate::pointerCount;
+#endif  // !CAPNP_NEED_REDUNDANT_CONSTEXPR_DECL
 #if !CAPNP_LITE
+#if CAPNP_NEED_REDUNDANT_CONSTEXPR_DECL
 constexpr ::capnp::Kind Calculator::DivideResults::_capnpPrivate::kind;
 constexpr ::capnp::_::RawSchema const* Calculator::DivideResults::_capnpPrivate::schema;
+#endif  // !CAPNP_NEED_REDUNDANT_CONSTEXPR_DECL
 #endif  // !CAPNP_LITE
 
 // Calculator::GetSubCalculatorParams
+#if CAPNP_NEED_REDUNDANT_CONSTEXPR_DECL
 constexpr uint16_t Calculator::GetSubCalculatorParams::_capnpPrivate::dataWordSize;
 constexpr uint16_t Calculator::GetSubCalculatorParams::_capnpPrivate::pointerCount;
+#endif  // !CAPNP_NEED_REDUNDANT_CONSTEXPR_DECL
 #if !CAPNP_LITE
+#if CAPNP_NEED_REDUNDANT_CONSTEXPR_DECL
 constexpr ::capnp::Kind Calculator::GetSubCalculatorParams::_capnpPrivate::kind;
 constexpr ::capnp::_::RawSchema const* Calculator::GetSubCalculatorParams::_capnpPrivate::schema;
+#endif  // !CAPNP_NEED_REDUNDANT_CONSTEXPR_DECL
 #endif  // !CAPNP_LITE
 
 // Calculator::GetSubCalculatorResults
+#if CAPNP_NEED_REDUNDANT_CONSTEXPR_DECL
 constexpr uint16_t Calculator::GetSubCalculatorResults::_capnpPrivate::dataWordSize;
 constexpr uint16_t Calculator::GetSubCalculatorResults::_capnpPrivate::pointerCount;
+#endif  // !CAPNP_NEED_REDUNDANT_CONSTEXPR_DECL
 #if !CAPNP_LITE
+#if CAPNP_NEED_REDUNDANT_CONSTEXPR_DECL
 constexpr ::capnp::Kind Calculator::GetSubCalculatorResults::_capnpPrivate::kind;
 constexpr ::capnp::_::RawSchema const* Calculator::GetSubCalculatorResults::_capnpPrivate::schema;
+#endif  // !CAPNP_NEED_REDUNDANT_CONSTEXPR_DECL
 #endif  // !CAPNP_LITE
 
 // AddParams
+#if CAPNP_NEED_REDUNDANT_CONSTEXPR_DECL
 constexpr uint16_t AddParams::_capnpPrivate::dataWordSize;
 constexpr uint16_t AddParams::_capnpPrivate::pointerCount;
+#endif  // !CAPNP_NEED_REDUNDANT_CONSTEXPR_DECL
 #if !CAPNP_LITE
+#if CAPNP_NEED_REDUNDANT_CONSTEXPR_DECL
 constexpr ::capnp::Kind AddParams::_capnpPrivate::kind;
 constexpr ::capnp::_::RawSchema const* AddParams::_capnpPrivate::schema;
+#endif  // !CAPNP_NEED_REDUNDANT_CONSTEXPR_DECL
 #endif  // !CAPNP_LITE
 
 // CalculatorResult
+#if CAPNP_NEED_REDUNDANT_CONSTEXPR_DECL
 constexpr uint16_t CalculatorResult::_capnpPrivate::dataWordSize;
 constexpr uint16_t CalculatorResult::_capnpPrivate::pointerCount;
+#endif  // !CAPNP_NEED_REDUNDANT_CONSTEXPR_DECL
 #if !CAPNP_LITE
+#if CAPNP_NEED_REDUNDANT_CONSTEXPR_DECL
 constexpr ::capnp::Kind CalculatorResult::_capnpPrivate::kind;
 constexpr ::capnp::_::RawSchema const* CalculatorResult::_capnpPrivate::schema;
+#endif  // !CAPNP_NEED_REDUNDANT_CONSTEXPR_DECL
 #endif  // !CAPNP_LITE
 
 

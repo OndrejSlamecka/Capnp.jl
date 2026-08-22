@@ -52,13 +52,14 @@ mutable struct Promise{T}
     settled::Base.Event
     _question_id::Union{QuestionId,Nothing}
     connection::Any
+    pipeline_ops::Vector{PipelineOp}
     lock::ReentrantLock
     # Level 2: Callbacks for promise resolution
     on_resolve_callbacks::Vector{Function}  # Called with resolved value
     on_reject_callbacks::Vector{Function}   # Called with exception
 
-    function Promise{T}(; question_id::Union{QuestionId,Nothing} = nothing, connection = nothing) where {T}
-        new{T}(PromiseState.PENDING, nothing, nothing, Base.Event(), question_id, connection, ReentrantLock(), Function[], Function[])
+    function Promise{T}(; question_id::Union{QuestionId,Nothing} = nothing, connection = nothing, pipeline_ops::Vector{PipelineOp} = PipelineOp[]) where {T}
+        new{T}(PromiseState.PENDING, nothing, nothing, Base.Event(), question_id, connection, pipeline_ops, ReentrantLock(), Function[], Function[])
     end
 end
 
@@ -192,13 +193,13 @@ Create a pipelined promise that calls through the given transform operations
 on the result of the parent promise.
 """
 function call_pipelined(parent::Promise, ops::Vector{PipelineOp})
-    # Create a new promise that represents the pipelined call
-    # In a real implementation, this would be tracked by the connection
-    # and the Call message would reference the parent via PromisedAnswer
-    child = Promise{Any}(question_id = parent._question_id)
-
-    # The actual pipelining happens at the RPC protocol level
-    # This function just creates the promise structure
+    new_ops = copy(parent.pipeline_ops)
+    append!(new_ops, ops)
+    child = Promise{Any}(
+        question_id = parent._question_id,
+        connection = parent.connection,
+        pipeline_ops = new_ops
+    )
     return child
 end
 

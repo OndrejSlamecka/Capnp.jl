@@ -364,7 +364,7 @@ function generateNode(env::Environment, node::Node{InterfaceNodeProps})
     cprintln(env, "end")
     
     cprintln(env, "")
-    cprintln(env, "function Capnp.RPC.dispatch_method!(impl::$(node.jlName)_Server, interface_id::UInt64, method_id::UInt16, context, params)")
+    cprintln(env, "function Capnp.RPC.dispatch_method!(impl::$(node.jlName)_Server, interface_id::UInt64, method_id::UInt16, context::Capnp.RPC.CallContext, params)")
     cprintln(env, "    if $(node.jlName)_interface_dispatch(impl, interface_id, method_id, context, params)")
     cprintln(env, "        return")
     cprintln(env, "    end")
@@ -669,6 +669,11 @@ function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFi
     cprintln(env, "    get_$(field_snake)(ptr, Val{:$(node.jlName)})")
     cprintln(env, "end")
 
+    # Pipelined getter (returns a pipelined Promise for the struct)
+    cprintln(env, "function get_$(field_snake)(promise::Capnp.RPC.Promise, ::Type{Val{:$(node.jlName)}})")
+    cprintln(env, "    Capnp.RPC.call_pipelined(promise, [Capnp.RPC.PipelineOp(Capnp.RPC.PipelineOpKind.GET_POINTER_FIELD, UInt16($(field.fieldProperties.offset)))])")
+    cprintln(env, "end")
+
     # New API: init
     cprintln(env, "function init_$(field_snake)!(ptr, ::Type{Val{:$(node.jlName)}})")
     cprintln(env, "    pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + $(node.nodeProperties.dataWordCount + field.fieldProperties.offset))")
@@ -732,6 +737,12 @@ function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFi
     cprintln(env, "function $(node.jlName)_get$(uppercasefirst(field.name))(ptr)")
     cprintln(env, "    Base.depwarn(\"$(node.jlName)_get$(uppercasefirst(field.name)) is deprecated, use get_$(field_snake)(ptr, Val{:$(node.jlName)}) instead\", :$(node.jlName)_get$(uppercasefirst(field.name)))")
     cprintln(env, "    get_$(field_snake)(ptr, Val{:$(node.jlName)})")
+    cprintln(env, "end")
+
+    # Pipelined getter (returns a Client wrapper around a pipelined Promise)
+    cprintln(env, "function get_$(field_snake)(promise::Capnp.RPC.Promise, ::Type{Val{:$(node.jlName)}})")
+    cprintln(env, "    pipelined = Capnp.RPC.call_pipelined(promise, [Capnp.RPC.PipelineOp(Capnp.RPC.PipelineOpKind.GET_POINTER_FIELD, UInt16($(field.fieldProperties.offset)))])")
+    cprintln(env, "    return $(typeNode.jlName)_Client(pipelined)")
     cprintln(env, "end")
 
     # New API: setter
