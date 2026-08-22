@@ -14,11 +14,31 @@ include("../../example/calculator.capnp.jl")
 # Implement the Calculator server
 struct TestCalculator <: Calculator_Server end
 
-# The default Calculator method implementations in RPC.server.jl use ParsedParams
-# to properly extract left/right Float64 values and compute correct results.
-# We only need to override getSubCalculator which has different behavior.
+function Calculator_add(::TestCalculator, ctx::RPC.CallContext, params::RPC.ParsedParams)
+    result = params.left + params.right
+    RPC.set_result!(ctx, result)
+end
 
-function RPC.Calculator_getSubCalculator(impl::TestCalculator, context::RPC.CallContext, params)
+function Calculator_subtract(::TestCalculator, ctx::RPC.CallContext, params::RPC.ParsedParams)
+    result = params.left - params.right
+    RPC.set_result!(ctx, result)
+end
+
+function Calculator_multiply(::TestCalculator, ctx::RPC.CallContext, params::RPC.ParsedParams)
+    result = params.left * params.right
+    RPC.set_result!(ctx, result)
+end
+
+function Calculator_divide(::TestCalculator, ctx::RPC.CallContext, params::RPC.ParsedParams)
+    if params.right == 0.0
+        RPC.set_exception!(ctx, "Division by zero", RPC.ExceptionType.FAILED)
+    else
+        result = params.left / params.right
+        RPC.set_result!(ctx, result)
+    end
+end
+
+function Calculator_getSubCalculator(impl::TestCalculator, context::RPC.CallContext, params)
     sub_calc = TestCalculator()
     export_id = RPC.export_capability(context, sub_calc, Calculator_interface_id)
     RPC.set_result!(context, export_id)

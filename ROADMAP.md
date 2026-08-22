@@ -106,7 +106,7 @@ adding TLS.
       and disconnect handling.
 - [ ] Implement promise pipelining and promised-answer transforms with explicit
       lifecycle tests.
-- [ ] Remove calculator-specific assumptions from server dispatch and generate
+- [x] Remove calculator-specific assumptions from server dispatch and generate
       interface/method dispatch tables for arbitrary schemas.
 - [ ] Finish capability-table reference counting, release accounting, and cleanup
       after failed calls.

@@ -362,6 +362,15 @@ function generateNode(env::Environment, node::Node{InterfaceNodeProps})
     cprintln(env, "    end")
     cprintln(env, "    return false")
     cprintln(env, "end")
+    
+    cprintln(env, "")
+    cprintln(env, "function Capnp.RPC.dispatch_method!(impl::$(node.jlName)_Server, interface_id::UInt64, method_id::UInt16, context, params)")
+    cprintln(env, "    if $(node.jlName)_interface_dispatch(impl, interface_id, method_id, context, params)")
+    cprintln(env, "        return")
+    cprintln(env, "    end")
+    # TODO: Traverse superclasses if implemented
+    cprintln(env, "    Capnp.RPC.set_exception!(context, \"Method not found: interface=\$interface_id method=\$method_id\", Capnp.RPC.ExceptionType.UNIMPLEMENTED)")
+    cprintln(env, "end")
 end
 
 """

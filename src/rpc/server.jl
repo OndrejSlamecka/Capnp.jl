@@ -391,78 +391,16 @@ function dispatch_method!(impl, interface_id::UInt64, method_id::UInt16, ctx::Ca
     # Default implementation - try to call a method based on naming convention
     # Generated code will provide proper dispatch
 
-    # For Calculator interface (example)
-    # The interface_id should match the schema
-    # method_id: 0=add, 1=subtract, 2=multiply, 3=divide
-
     # Try to find a dispatch function for this interface
     method_name = Symbol("dispatch_$(interface_id)_$(method_id)")
     if isdefined(Main, method_name)
         getfield(Main, method_name)(impl, ctx, params)
     else
-        # Fall back to trying Calculator_* methods if impl is a Calculator_Server
-        if method_id == 0
-            Calculator_add(impl, ctx, params)
-        elseif method_id == 1
-            Calculator_subtract(impl, ctx, params)
-        elseif method_id == 2
-            Calculator_multiply(impl, ctx, params)
-        elseif method_id == 3
-            Calculator_divide(impl, ctx, params)
-        elseif method_id == 4
-            Calculator_getSubCalculator(impl, ctx, params)
-        else
-            set_exception!(ctx, "Method not found: interface=$interface_id method=$method_id", ExceptionType.UNIMPLEMENTED)
-        end
+        set_exception!(ctx, "Method not found: interface=$interface_id method=$method_id", ExceptionType.UNIMPLEMENTED)
     end
 end
 
-# Stub functions for Calculator methods - to be overridden by user implementations
-function Calculator_add end
-function Calculator_subtract end
-function Calculator_multiply end
-function Calculator_divide end
-function Calculator_getSubCalculator end
 
-"""
-Default Calculator implementations that use parsed params.
-These can be overridden by user implementations.
-"""
-function Calculator_add(::Any, ctx::CallContext, params::ParsedParams)
-    result = params.left + params.right
-    set_result!(ctx, result)
-end
-
-function Calculator_subtract(::Any, ctx::CallContext, params::ParsedParams)
-    result = params.left - params.right
-    set_result!(ctx, result)
-end
-
-function Calculator_multiply(::Any, ctx::CallContext, params::ParsedParams)
-    result = params.left * params.right
-    set_result!(ctx, result)
-end
-
-function Calculator_divide(::Any, ctx::CallContext, params::ParsedParams)
-    if params.right == 0.0
-        set_exception!(ctx, "Division by zero", ExceptionType.FAILED)
-    else
-        result = params.left / params.right
-        set_result!(ctx, result)
-    end
-end
-
-"""
-Default getSubCalculator returns a new instance of the same implementation type.
-User implementations can override this for custom behavior.
-"""
-function Calculator_getSubCalculator(impl::Any, ctx::CallContext, _params)
-    # Create a new instance of the same type as the current implementation
-    sub_calc = typeof(impl)()
-    # Export the new capability - use interface_id 0 for now (should match Calculator)
-    export_id = export_capability(ctx, sub_calc, ctx.interface_id)
-    set_result!(ctx, export_id)
-end
 
 """
     send_return_response!(conn::Connection, ctx::CallContext)
