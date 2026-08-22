@@ -1,4 +1,5 @@
 using Test
+using Capnp
 
 # When running with Pkg.test() (like in Github Actions) the cwd is set to test, revert that.
 if endswith(pwd(), "test")
@@ -22,6 +23,19 @@ function compile_capnp(schema_path)
     end
 end
 
+# Keep generated schemas in separate namespaces. Besides avoiding collisions in
+# their common helper names, this prevents method invalidation issues on Julia 1.10.
+compile_capnp("test/elementary.capnp")
+compile_capnp("test/lists.capnp")
+
+module ElementarySchema
+include("elementary.capnp.jl")
+end
+
+module ListsSchema
+include("lists.capnp.jl")
+end
+
 @testset "Addressbook integration test" begin
     compile_capnp("example/addressbook.capnp")
 
@@ -32,7 +46,7 @@ end
             `julia --project example/addressbook.jl write`,
             `capnp convert binary:text example/addressbook.capnp AddressBook`,
             `capnp convert text:binary example/addressbook.capnp AddressBook`,
-            `julia --project example/addressbook.jl read`
+            `julia --project example/addressbook.jl read`,
         ),
         String,
     )
@@ -48,69 +62,63 @@ end
 end
 
 @testset "Elementary types" begin
-    compile_capnp("test/elementary.capnp")
-    include("elementary.capnp.jl")
-
     # writing part
-    message = Capnp.AllocMessageBuilder()
-    test = init_root!(message, Val{:Test})
-    set_boolean_false!(test, false, Val{:Test})
-    set_boolean_true!(test, true, Val{:Test})
-    set_signed64!(test, -1, Val{:Test})
+    builder = Capnp.AllocMessageBuilder()
+    test_writer = ElementarySchema.init_root!(builder, Val{:Test})
+    ElementarySchema.set_boolean_false!(test_writer, false, Val{:Test})
+    ElementarySchema.set_boolean_true!(test_writer, true, Val{:Test})
+    ElementarySchema.set_signed64!(test_writer, -1, Val{:Test})
 
     # finish writing and flush into buffer for reading
     buffer = IOBuffer()
-    writeMessageToStream(message, buffer)
+    writeMessageToStream(builder, buffer)
     seek(buffer, 0)
 
     # reading part
-    message = Capnp.MessageReader(buffer)
-    test = root(message, Val{:Test})
+    reader = Capnp.MessageReader(buffer)
+    test_reader = ElementarySchema.root(reader, Val{:Test})
 
-    booleanFalse = get_boolean_false(test, Val{:Test})
+    booleanFalse = ElementarySchema.get_boolean_false(test_reader, Val{:Test})
     @test booleanFalse == false
 
-    booleanTrue = get_boolean_true(test, Val{:Test})
+    booleanTrue = ElementarySchema.get_boolean_true(test_reader, Val{:Test})
     @test booleanTrue == true
 
-    signed64 = get_signed64(test, Val{:Test})
+    signed64 = ElementarySchema.get_signed64(test_reader, Val{:Test})
     @test signed64 == -1
 end
 
 @testset "Lists" begin
-    compile_capnp("test/lists.capnp")
-    include("lists.capnp.jl")
-
     # writing part
-    message = Capnp.AllocMessageBuilder()
-    listTest = init_root!(message, Val{:ListTest})
-    bytes = init_bytes!(listTest, 7, Val{:ListTest})
-    ints = init_ints!(listTest, 7, Val{:ListTest})
+    list_builder = Capnp.AllocMessageBuilder()
+    list_writer = ListsSchema.init_root!(list_builder, Val{:ListTest})
+    byte_writer = ListsSchema.init_bytes!(list_writer, 7, Val{:ListTest})
+    int_writer = ListsSchema.init_ints!(list_writer, 7, Val{:ListTest})
     # bools = init_bools!(listTest, 7, Val{:ListTest})
     for i = 1:7
-        bytes[i] = i
-        ints[i] = i
+        byte_writer[i] = i
+        int_writer[i] = i
         # bools[i] = i % 2
     end
 
     # finish writing and flush into buffer for reading
     buffer = IOBuffer()
-    writeMessageToStream(message, buffer)
+    writeMessageToStream(list_builder, buffer)
     seek(buffer, 0)
 
     # reading part
-    message = Capnp.MessageReader(buffer)
-    listTest = root(message, Val{:ListTest})
+    list_reader = Capnp.MessageReader(buffer)
+    list_value = ListsSchema.root(list_reader, Val{:ListTest})
 
-    bytes = get_bytes(listTest, Val{:ListTest})
-    @test bytes[1] == 1 # tests getindex
-    @test length(bytes) == 7
-    @test collect(bytes) == 1:7 # tests iterate
+    byte_reader = ListsSchema.get_bytes(list_value, Val{:ListTest})
+    @test byte_reader[1] == 1 # tests getindex
+    @test length(byte_reader) == 7
+    @test collect(byte_reader) == 1:7 # tests iterate
 
-    ints = get_ints(listTest, Val{:ListTest})
-    @test ints[1] == 1
-    @test length(ints) == 7
-    @test collect(ints) == 1:7
+    int_reader = ListsSchema.get_ints(list_value, Val{:ListTest})
+    @test int_reader[1] == 1
+    @test length(int_reader) == 7
+    @test collect(int_reader) == 1:7
 
     # bools = get_bools(listTest, Val{:ListTest})
     # @test bools[1] == 1
@@ -125,15 +133,24 @@ include("rpc/capability.jl")
 include("defaults.jl")
 include("packed.jl")
 include("generics.jl")
+include("reader_validation.jl")
 include("interop/roundtrip.jl")
+include("generator_persistent_test.jl")
 
 # User Story 2: RPC Client tests
 include("rpc/promise.jl")
 include("rpc/client.jl")
 include("rpc/calculator.jl")
+include("rpc/test_protocol.jl")
+include("rpc/test_persistent.jl")
+include("rpc/test_persistent_integration.jl")
 
 # User Story 3: RPC Server tests
 include("rpc/server.jl")
 
 # User Story 4: Zero-Copy Performance tests
 include("performance.jl")
+
+# Package quality checks
+using Aqua
+Aqua.test_all(Capnp)

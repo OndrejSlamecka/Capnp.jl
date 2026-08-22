@@ -57,7 +57,7 @@ end
 
 function Base.read(s::PackedInputStream, n::Integer)
     result = Vector{UInt8}(undef, n)
-    for i in 1:n
+    for i = 1:n
         result[i] = read(s, UInt8)
     end
     return result
@@ -100,9 +100,9 @@ function unpack_word!(s::PackedInputStream)
     else
         # Mixed: tag bits indicate which bytes are non-zero
         fill!(s.buffer, 0x00)
-        for i in 0:7
+        for i = 0:7
             if (tag >> i) & 0x01 == 1
-                s.buffer[i + 1] = read(s.inner, UInt8)
+                s.buffer[i+1] = read(s.inner, UInt8)
             end
         end
         s.buffer_pos = 1
@@ -127,19 +127,18 @@ function Base.write(s::PackedOutputStream, byte::UInt8)
     return 1
 end
 
-function Base.write(s::PackedOutputStream, bytes::Vector{UInt8})
+function _write_bytes(s::PackedOutputStream, bytes::AbstractVector{UInt8})
     for byte in bytes
         write(s, byte)
     end
     return length(bytes)
 end
 
-function Base.write(s::PackedOutputStream, bytes::SubArray{UInt8})
-    for byte in bytes
-        write(s, byte)
-    end
-    return length(bytes)
-end
+# Use concrete vector families to remain unambiguous with the IO methods in
+# every supported Julia release.
+Base.write(s::PackedOutputStream, bytes::Vector{UInt8}) = _write_bytes(s, bytes)
+Base.write(s::PackedOutputStream, bytes::SubArray{UInt8,1}) = _write_bytes(s, bytes)
+Base.write(s::PackedOutputStream, bytes::Base.CodeUnits{UInt8}) = _write_bytes(s, bytes)
 
 """
     pack_word!(s::PackedOutputStream)
@@ -151,7 +150,7 @@ function pack_word!(s::PackedOutputStream)
     tag = UInt8(0)
     non_zero_bytes = UInt8[]
 
-    for i in 1:8
+    for i = 1:8
         if s.word_buffer[i] != 0x00
             tag |= UInt8(1) << (i - 1)
             push!(non_zero_bytes, s.word_buffer[i])
@@ -185,7 +184,7 @@ Flush any remaining buffered data. Pads incomplete words with zeros.
 function Base.flush(s::PackedOutputStream)
     if s.word_pos > 1
         # Pad remaining bytes with zeros and pack
-        for i in s.word_pos:8
+        for i = s.word_pos:8
             s.word_buffer[i] = 0x00
         end
         pack_word!(s)

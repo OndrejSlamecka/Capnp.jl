@@ -74,17 +74,24 @@ using Capnp.RPC
         wait(promise)
         @test RPC.is_resolved(promise)
         @test fetch(promise) == 123
+
+        # A level-triggered event prevents a lost wakeup when resolution races
+        # with registration of the waiter.
+        raced = RPC.Promise{Int}()
+        RPC.resolve!(raced, 456)
+        @test wait(raced) === nothing
+        @test fetch(raced) == 456
     end
 
     @testset "Promise with question ID" begin
         # Promises can be associated with RPC questions for pipelining
-        promise = RPC.Promise{Int}(question_id=UInt32(42))
+        promise = RPC.Promise{Int}(question_id = UInt32(42))
         @test RPC.question_id(promise) == UInt32(42)
     end
 
     @testset "Promise pipelining" begin
         @testset "Pipeline operation creation" begin
-            promise = RPC.Promise{Int}(question_id=UInt32(1))
+            promise = RPC.Promise{Int}(question_id = UInt32(1))
 
             # Create a pipelined call operation
             op = RPC.PipelineOp(RPC.PipelineOpKind.GET_POINTER_FIELD, UInt16(0))
@@ -94,23 +101,18 @@ using Capnp.RPC
 
         @testset "PromisedAnswer construction" begin
             # PromisedAnswer references a pending call's result
-            promised = RPC.PromisedAnswer(UInt32(5), [
-                RPC.PipelineOp(RPC.PipelineOpKind.GET_POINTER_FIELD, UInt16(0)),
-                RPC.PipelineOp(RPC.PipelineOpKind.GET_POINTER_FIELD, UInt16(1))
-            ])
+            promised = RPC.PromisedAnswer(UInt32(5), [RPC.PipelineOp(RPC.PipelineOpKind.GET_POINTER_FIELD, UInt16(0)), RPC.PipelineOp(RPC.PipelineOpKind.GET_POINTER_FIELD, UInt16(1))])
             @test promised.question_id == UInt32(5)
             @test length(promised.transform) == 2
         end
 
         @testset "call_pipelined creates chained promise" begin
             # Create a promise representing a pending RPC call
-            parent_promise = RPC.Promise{Any}(question_id=UInt32(10))
+            parent_promise = RPC.Promise{Any}(question_id = UInt32(10))
 
             # Create a pipelined call on the pending result
             # This should create a new promise with pipeline operations
-            pipelined = RPC.call_pipelined(parent_promise, [
-                RPC.PipelineOp(RPC.PipelineOpKind.GET_POINTER_FIELD, UInt16(0))
-            ])
+            pipelined = RPC.call_pipelined(parent_promise, [RPC.PipelineOp(RPC.PipelineOpKind.GET_POINTER_FIELD, UInt16(0))])
 
             @test pipelined isa RPC.Promise
             @test RPC.state(pipelined) == RPC.PromiseState.PENDING

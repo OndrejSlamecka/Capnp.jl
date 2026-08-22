@@ -3,23 +3,23 @@
 
 # Connection state enum (module-scoped per constitution)
 module ConnectionState
-    @enum T begin
-        CONNECTING    # Handshake in progress
-        CONNECTED     # Ready for RPC
-        DISCONNECTING # Graceful shutdown
-        DISCONNECTED  # Closed
-        FAILED        # Error state
-    end
+@enum T begin
+    CONNECTING    # Handshake in progress
+    CONNECTED     # Ready for RPC
+    DISCONNECTING # Graceful shutdown
+    DISCONNECTED  # Closed
+    FAILED        # Error state
+end
 end
 
 # Exception type enum (module-scoped per constitution)
 module ExceptionType
-    @enum T begin
-        FAILED
-        OVERLOADED
-        DISCONNECTED
-        UNIMPLEMENTED
-    end
+@enum T begin
+    FAILED
+    OVERLOADED
+    DISCONNECTED
+    UNIMPLEMENTED
+end
 end
 
 # RPC Exception types
@@ -70,6 +70,7 @@ Decrement the reference count of a local capability.
 Returns true if the capability should be released (ref_count reached 0).
 """
 function decref!(cap::LocalCapability)
+    cap.ref_count == 0 && throw(InvalidCapabilityException("Capability reference count is already zero"))
     cap.ref_count -= 1
     return cap.ref_count == 0
 end
@@ -100,8 +101,7 @@ struct PendingQuestion
     promise::Promise
     param_caps::Vector{ExportId}
 
-    PendingQuestion(qid::QuestionId, promise::Promise, caps::Vector{ExportId}=ExportId[]) =
-        new(qid, promise, caps)
+    PendingQuestion(qid::QuestionId, promise::Promise, caps::Vector{ExportId} = ExportId[]) = new(qid, promise, caps)
 end
 
 """
@@ -114,8 +114,7 @@ mutable struct PendingAnswer
     result_caps::Vector{ExportId}
     pipeline_refs::UInt32
 
-    PendingAnswer(aid::AnswerId, caps::Vector{ExportId}=ExportId[], refs::UInt32=UInt32(0)) =
-        new(aid, caps, refs)
+    PendingAnswer(aid::AnswerId, caps::Vector{ExportId} = ExportId[], refs::UInt32 = UInt32(0)) = new(aid, caps, refs)
 end
 
 """
@@ -144,8 +143,7 @@ end
 """
 Create a new promised export that hasn't been resolved yet.
 """
-PromisedExport(export_id::ExportId, promise::Promise{Any}) =
-    PromisedExport(export_id, promise, false)
+PromisedExport(export_id::ExportId, promise::Promise{Any}) = PromisedExport(export_id, promise, false)
 
 """
     PromiseTracker
@@ -155,14 +153,11 @@ Tracks promised exports (server-side) and remote promises (client-side).
 """
 mutable struct PromiseTracker
     # Server-side: promises exported that require Resolve messages
-    promised_exports::Dict{ExportId, PromisedExport}
+    promised_exports::Dict{ExportId,PromisedExport}
     # Client-side: remote promises awaiting Resolve
-    remote_promises::Dict{ImportId, RemotePromise}
+    remote_promises::Dict{ImportId,RemotePromise}
 
-    PromiseTracker() = new(
-        Dict{ExportId, PromisedExport}(),
-        Dict{ImportId, RemotePromise}()
-    )
+    PromiseTracker() = new(Dict{ExportId,PromisedExport}(), Dict{ImportId,RemotePromise}())
 end
 
 """
@@ -173,30 +168,34 @@ Manages an RPC connection with questions, answers, exports, and imports tables.
 mutable struct Connection
     transport::Transport
     _state::ConnectionState.T
-    questions::Dict{QuestionId, PendingQuestion}
-    answers::Dict{AnswerId, PendingAnswer}
-    exports::Dict{ExportId, LocalCapability}
-    imports::Dict{ImportId, RemoteCapability}
+    questions::Dict{QuestionId,PendingQuestion}
+    answers::Dict{AnswerId,PendingAnswer}
+    exports::Dict{ExportId,LocalCapability}
+    imports::Dict{ImportId,RemoteCapability}
     next_question_id::QuestionId
     next_export_id::ExportId
-    error_reason::Union{String, Nothing}
+    error_reason::Union{String,Nothing}
     lock::ReentrantLock
+    owns_transport::Bool
+    message_task::Union{Task,Nothing}
     # Level 2: Promise tracking
     promise_tracker::PromiseTracker
 
-    function Connection(transport::Transport)
+    function Connection(transport::Transport; owns_transport::Bool = true)
         new(
             transport,
             ConnectionState.CONNECTING,
-            Dict{QuestionId, PendingQuestion}(),
-            Dict{AnswerId, PendingAnswer}(),
-            Dict{ExportId, LocalCapability}(),
-            Dict{ImportId, RemoteCapability}(),
+            Dict{QuestionId,PendingQuestion}(),
+            Dict{AnswerId,PendingAnswer}(),
+            Dict{ExportId,LocalCapability}(),
+            Dict{ImportId,RemoteCapability}(),
             QuestionId(0),
             ExportId(1),  # Export IDs start at 1 (0 is reserved/invalid)
             nothing,
             ReentrantLock(),
-            PromiseTracker()
+            owns_transport,
+            nothing,
+            PromiseTracker(),
         )
     end
 end
@@ -341,15 +340,30 @@ end
 
 # Connection close
 function Base.close(conn::Connection)
-    set_disconnected!(conn)
-    close(conn.transport)
+    pending = PendingQuestion[]
+    should_close_transport = false
+    lock(conn.lock) do
+        conn._state = ConnectionState.DISCONNECTED
+        append!(pending, values(conn.questions))
+        empty!(conn.questions)
+        empty!(conn.answers)
+        empty!(conn.exports)
+        empty!(conn.imports)
+        empty!(conn.promise_tracker.promised_exports)
+        empty!(conn.promise_tracker.remote_promises)
+        should_close_transport = conn.owns_transport && isopen(conn.transport)
+    end
 
-    # Reject all pending questions
-    for (_, question) in conn.questions
+    if should_close_transport
+        close(conn.transport)
+    end
+
+    for question in pending
         if !is_settled(question.promise)
             reject!(question.promise, DisconnectedException("Connection closed"))
         end
     end
+    return nothing
 end
 
 # Level 2: Promise tracking functions

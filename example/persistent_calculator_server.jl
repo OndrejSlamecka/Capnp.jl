@@ -28,7 +28,7 @@ mutable struct PersistentCalculator <: RPC.PersistentCapability
     # Unique identifier for this calculator instance
     object_id::Vector{UInt8}
 
-    function PersistentCalculator(accumulator::Float64=0.0)
+    function PersistentCalculator(accumulator::Float64 = 0.0)
         instance_id = string(Base.objectid(accumulator), "-", time_ns())
         new(accumulator, Vector{UInt8}(instance_id))
     end
@@ -45,8 +45,7 @@ end
 
 # Implement generate_sturdy_ref to create a restorable reference
 function RPC.generate_sturdy_ref(calc::PersistentCalculator, owner, restorer::RPC.DefaultRestorer)
-    return RPC.register!(restorer, calc.object_id, calc,
-                         owner isa RPC.DefaultOwner ? owner : RPC.DefaultOwner())
+    return RPC.register!(restorer, calc.object_id, calc, owner isa RPC.DefaultOwner ? owner : RPC.DefaultOwner())
 end
 
 # Implement the Calculator_Server interface
@@ -91,7 +90,7 @@ function Calculator_getSubCalculator(impl::PersistentCalculator, context::RPC.Ca
 end
 
 # Factory function to restore a calculator from a SturdyRef
-function restore_calculator(object_id::Vector{UInt8}, saved_state::Dict{Vector{UInt8}, Float64})
+function restore_calculator(object_id::Vector{UInt8}, saved_state::Dict{Vector{UInt8},Float64})
     accumulator = get(saved_state, object_id, 0.0)
     return PersistentCalculator(accumulator, object_id)
 end

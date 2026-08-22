@@ -27,7 +27,7 @@ apply_default_xor(UInt32(0), UInt32(42)) == 42
 apply_default_xor(UInt32(42), UInt32(42)) == 0
 ```
 """
-function apply_default_xor(value::T, default::T) where T
+function apply_default_xor(value::T, default::T) where {T}
     xor(value, default)
 end
 
@@ -46,7 +46,7 @@ encode_with_default(UInt32(0), UInt32(42)) == 42
 encode_with_default(UInt32(42), UInt32(42)) == 0
 ```
 """
-function encode_with_default(value::T, default::T) where T
+function encode_with_default(value::T, default::T) where {T}
     xor(value, default)
 end
 
@@ -135,7 +135,7 @@ default_data() = UInt8[]
 
 Return the default value for a null List pointer: empty list.
 """
-default_list(::Type{T}) where T = T[]
+default_list(::Type{T}) where {T} = T[]
 
 # Export public API
 export apply_default_xor, encode_with_default

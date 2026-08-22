@@ -13,13 +13,13 @@ struct ExportEntry
     capability::Any           # The actual capability
     ref_count::UInt32         # Reference count from remote
     is_promise::Bool          # True if this is a promise export
-    promise_id::Union{ExportId, Nothing}  # Link to promise if resolved from one
+    promise_id::Union{ExportId,Nothing}  # Link to promise if resolved from one
 end
 
 """
 Create a regular (non-promise) export entry.
 """
-function ExportEntry(capability::Any, ref_count::UInt32=UInt32(1))
+function ExportEntry(capability::Any, ref_count::UInt32 = UInt32(1))
     ExportEntry(capability, ref_count, false, nothing)
 end
 
@@ -42,14 +42,23 @@ struct ServerOptions
     connection_timeout::Int  # milliseconds
     send_buffer_size::Int
     receive_buffer_size::Int
+    max_message_size::Int
+    max_segments::Int
 
     function ServerOptions(;
         max_connections::Int = 1000,
         connection_timeout::Int = 30000,
         send_buffer_size::Int = 65536,
-        receive_buffer_size::Int = 65536
+        receive_buffer_size::Int = 65536,
+        max_message_size::Int = Capnp.DEFAULT_MAX_MESSAGE_SIZE,
+        max_segments::Int = Capnp.DEFAULT_MAX_SEGMENTS,
     )
-        new(max_connections, connection_timeout, send_buffer_size, receive_buffer_size)
+        max_connections > 0 || throw(ArgumentError("max_connections must be positive"))
+        connection_timeout > 0 || throw(ArgumentError("connection_timeout must be positive"))
+        send_buffer_size > 0 || throw(ArgumentError("send_buffer_size must be positive"))
+        receive_buffer_size > 0 || throw(ArgumentError("receive_buffer_size must be positive"))
+        Capnp._validate_reader_limits(max_message_size, max_segments)
+        new(max_connections, connection_timeout, send_buffer_size, receive_buffer_size, max_message_size, max_segments)
     end
 end
 
@@ -115,26 +124,22 @@ Supports Level 2 persistent capabilities via an optional restorer.
 """
 mutable struct Server
     bootstrap_impl::Any
-    connection_handler::Union{Function, Nothing}
+    connection_handler::Union{Function,Nothing}
     clients::Vector{Connection}
     options::ServerOptions
     is_running::Bool
-    listener_task::Union{Task, Nothing}
-    tcp_server::Union{Sockets.TCPServer, Nothing}
+    listener_task::Union{Task,Nothing}
+    tcp_server::Union{Sockets.TCPServer,Sockets.PipeServer,Nothing}
     lock::ReentrantLock
     # Level 2: Restorer for persistent capabilities
-    restorer::Union{DefaultRestorer, Nothing}
+    restorer::Union{DefaultRestorer,Nothing}
 
-    function Server(bootstrap_impl; options::ServerOptions = ServerOptions(), restorer::Union{DefaultRestorer, Nothing}=nothing)
-        new(bootstrap_impl, nothing, Connection[], options, false, nothing, nothing, ReentrantLock(), restorer)
-    end
-
-    function Server(bootstrap_impl, handler::Function; options::ServerOptions = ServerOptions(), restorer::Union{DefaultRestorer, Nothing}=nothing)
+    function Server(bootstrap_impl; handler::Union{Function,Nothing} = nothing, options::ServerOptions = ServerOptions(), restorer::Union{DefaultRestorer,Nothing} = nothing)
         new(bootstrap_impl, handler, Connection[], options, false, nothing, nothing, ReentrantLock(), restorer)
     end
 
     # Support do-block syntax: Server(impl) do conn ... end
-    function Server(handler::Function, bootstrap_impl; options::ServerOptions = ServerOptions(), restorer::Union{DefaultRestorer, Nothing}=nothing)
+    function Server(handler::Function, bootstrap_impl; options::ServerOptions = ServerOptions(), restorer::Union{DefaultRestorer,Nothing} = nothing)
         new(bootstrap_impl, handler, Connection[], options, false, nothing, nothing, ReentrantLock(), restorer)
     end
 end
@@ -249,7 +254,11 @@ function handle_new_connection(server::Server, socket)
     end
 
     # Create transport and connection
-    transport = TcpTransport(socket)
+    transport = if socket isa Sockets.TCPSocket
+        TcpTransport(socket; max_message_size = server.options.max_message_size, max_segments = server.options.max_segments)
+    else
+        UnixTransport(socket, ""; max_message_size = server.options.max_message_size, max_segments = server.options.max_segments)
+    end
     conn = Connection(transport)
 
     # Call connection handler if set
@@ -466,12 +475,7 @@ end
 Build and send a Return message based on the call context.
 """
 function send_return_response!(conn::Connection, ctx::CallContext)
-    response = build_return_message(
-        ctx.question_id,
-        ctx.result;
-        has_exception=ctx.has_exception,
-        exception_reason=ctx.exception_reason
-    )
+    response = build_return_message(ctx.question_id, ctx.result; has_exception = ctx.has_exception, exception_reason = ctx.exception_reason)
     send_raw_message(conn.transport, response)
 end
 
@@ -585,7 +589,7 @@ Handle a Release message - decrement reference count on exported capability.
 function handle_server_release!(conn::Connection, id::ExportId, ref_count::UInt32)
     cap = get_export(conn, id)
     if cap !== nothing
-        for _ in 1:ref_count
+        for _ = 1:ref_count
             if decref!(cap)
                 remove_export!(conn, id)
                 break
@@ -637,7 +641,7 @@ function export_promised_capability!(ctx::CallContext, promise::Promise{Any}, in
     add_promised_export!(conn, eid, promise)
 
     # Set up callback to send Resolve when the promise settles
-    on_resolve!(promise, function(resolved_cap)
+    on_resolve!(promise, function (resolved_cap)
         # Export the resolved capability with a new ID
         new_eid = next_export_id!(conn)
         cap = LocalCapability(interface_id, resolved_cap)
@@ -650,7 +654,7 @@ function export_promised_capability!(ctx::CallContext, promise::Promise{Any}, in
         remove_promised_export!(conn, eid)
     end)
 
-    on_reject!(promise, function(err)
+    on_reject!(promise, function (err)
         # Send Resolve with exception
         reason = err isa Exception ? string(err) : string(err)
         exc_type = err isa RemoteException ? err.type : ExceptionType.FAILED
@@ -773,7 +777,7 @@ end
 Register a capability as persistent in the server's restorer.
 Returns the SturdyRef, or nothing if no restorer is configured.
 """
-function register_persistent!(server::Server, object_id::Vector{UInt8}, capability, owner::DefaultOwner=DefaultOwner())
+function register_persistent!(server::Server, object_id::Vector{UInt8}, capability, owner::DefaultOwner = DefaultOwner())
     restorer = get_restorer(server)
     if restorer === nothing
         return nothing

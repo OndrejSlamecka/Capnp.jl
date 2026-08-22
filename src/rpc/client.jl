@@ -9,10 +9,7 @@
 Connect to a Cap'n Proto RPC server via TCP.
 """
 function connect(host::AbstractString, port::Integer)
-    transport = TcpTransport(host, port)
-    conn = Connection(transport)
-    set_connected!(conn)
-    return conn
+    connect(host, port, ConnectionOptions())
 end
 
 """
@@ -21,45 +18,43 @@ end
 Connect to a Cap'n Proto RPC server via Unix domain socket.
 """
 function connect(socket_path::AbstractString)
-    transport = UnixTransport(socket_path)
-    conn = Connection(transport)
-    set_connected!(conn)
-    return conn
+    connect(socket_path, ConnectionOptions())
 end
 
 """
-    bootstrap(connection::Connection, ::Type{T}) -> T
+    bootstrap_async(connection::Connection, ::Type{T}) -> Promise{T}
 
-Request the bootstrap capability from the server.
-Returns a client stub of the specified type.
+Request the remote bootstrap capability. Generated client types are expected to
+have a one-argument constructor accepting a `RemoteCapability`.
 """
-function bootstrap(conn::Connection, ::Type{T}) where T
-    # Send Bootstrap message
+function bootstrap_async(conn::Connection, ::Type{T}) where {T}
+    is_connected(conn) || throw(DisconnectedException("Connection is not connected"))
     qid = next_question_id!(conn)
+    raw_promise = Promise{Any}(question_id = qid)
+    typed_promise = Promise{T}(question_id = qid)
+    add_question!(conn, PendingQuestion(qid, raw_promise, ExportId[]))
 
-    # Create and send Bootstrap request
-    builder = Capnp.AllocMessageBuilder()
-    # In a full implementation, we would build the Bootstrap message here
-    # For now, this is a placeholder
+    on_resolve!(raw_promise, function (value)
+        try
+            value isa RemoteCapability || throw(InvalidCapabilityException("Bootstrap did not return a remote capability"))
+            resolve!(typed_promise, T === RemoteCapability ? value : T(value))
+        catch err
+            reject!(typed_promise, err isa Exception ? err : ErrorException(string(err)))
+        end
+    end)
+    on_reject!(raw_promise, err -> reject!(typed_promise, err))
 
-    # Create promise for the response
-    promise = Promise{Any}(question_id=qid)
-
-    # Track the question
-    question = PendingQuestion(qid, promise, ExportId[])
-    add_question!(conn, question)
-
-    # Send the message
-    send_message(conn.transport, builder)
-
-    # In a full implementation, we would:
-    # 1. Wait for Return message
-    # 2. Extract capability from response
-    # 3. Create client stub wrapping the capability
-
-    # Return placeholder - actual implementation needs message handling loop
-    return nothing
+    try
+        send_raw_message(conn.transport, build_bootstrap_request(qid))
+    catch err
+        remove_question!(conn, qid)
+        reject!(raw_promise, err isa Exception ? err : ErrorException(string(err)))
+    end
+    return typed_promise
 end
+
+"""Request and synchronously return a typed bootstrap client."""
+bootstrap(conn::Connection, ::Type{T}) where {T} = fetch(bootstrap_async(conn, T))
 
 """
     ConnectionOptions
@@ -70,17 +65,24 @@ struct ConnectionOptions
     send_buffer_size::Int
     receive_buffer_size::Int
     max_message_size::Int
+    max_segments::Int
     traversal_limit::Int
     nesting_limit::Int
 
     function ConnectionOptions(;
         send_buffer_size::Int = 65536,
         receive_buffer_size::Int = 65536,
-        max_message_size::Int = 64 * 1024 * 1024,  # 64 MiB
+        max_message_size::Int = Capnp.DEFAULT_MAX_MESSAGE_SIZE,
+        max_segments::Int = Capnp.DEFAULT_MAX_SEGMENTS,
         traversal_limit::Int = 64 * 1024 * 1024,   # 64 MiB
-        nesting_limit::Int = 64
+        nesting_limit::Int = 64,
     )
-        new(send_buffer_size, receive_buffer_size, max_message_size, traversal_limit, nesting_limit)
+        send_buffer_size > 0 || throw(ArgumentError("send_buffer_size must be positive"))
+        receive_buffer_size > 0 || throw(ArgumentError("receive_buffer_size must be positive"))
+        traversal_limit > 0 || throw(ArgumentError("traversal_limit must be positive"))
+        nesting_limit > 0 || throw(ArgumentError("nesting_limit must be positive"))
+        Capnp._validate_reader_limits(max_message_size, max_segments)
+        new(send_buffer_size, receive_buffer_size, max_message_size, max_segments, traversal_limit, nesting_limit)
     end
 end
 
@@ -90,8 +92,32 @@ end
 Connect to a Cap'n Proto RPC server via TCP with custom options.
 """
 function connect(host::AbstractString, port::Integer, options::ConnectionOptions)
-    # Options will be used when implementing proper message handling
-    connect(host, port)
+    transport = TcpTransport(host, port; max_message_size = options.max_message_size, max_segments = options.max_segments)
+    return connect(transport)
+end
+
+"""
+    connect(socket_path::AbstractString, options::ConnectionOptions) -> Connection
+
+Connect to a Cap'n Proto RPC server via Unix domain socket with custom options.
+"""
+function connect(socket_path::AbstractString, options::ConnectionOptions)
+    transport = UnixTransport(socket_path; max_message_size = options.max_message_size, max_segments = options.max_segments)
+    return connect(transport)
+end
+
+"""
+    connect(transport::Transport; owns_transport=true, start_message_loop=true)
+
+Create an RPC connection over an already-configured transport. This is the
+advanced extension point for custom streams and optional Reseau TLS support.
+"""
+function connect(transport::Transport; owns_transport::Bool = true, start_message_loop::Bool = true)
+    isopen(transport) || throw(ConnectionFailedException("Transport is not open"))
+    conn = Connection(transport; owns_transport)
+    set_connected!(conn)
+    start_message_loop && start_message_loop!(conn)
+    return conn
 end
 
 # Message handling (internal functions)
@@ -108,48 +134,50 @@ function handle_message!(conn::Connection, message::Capnp.MessageReader)
 
     # Dispatch based on message type
     if parsed.type == MessageType.RETURN
-        return_msg = parsed.return_msg
-        if return_msg !== nothing
-            question = get_question(conn, return_msg.answer_id)
-            if question !== nothing
-                if return_msg.kind == ReturnType.RESULTS
-                    # Populate the reader's capabilities array with instantiated RemoteCapabilities
-                    reader = return_msg.payload_ptr.traverser
-                    for cap_desc in return_msg.cap_table
-                        if cap_desc.kind == CapDescriptorType.SENDER_HOSTED
-                            import_id = cap_desc.sender_hosted
-                            cap = RemoteCapability(import_id, UInt64(0), conn)
-                            add_import!(conn, import_id, cap)
-                            push!(reader.capabilities, cap)
-                        elseif cap_desc.kind == CapDescriptorType.SENDER_PROMISE
-                            import_id = cap_desc.sender_promise
-                            cap = RemoteCapability(import_id, UInt64(0), conn)
-                            add_import!(conn, import_id, cap)
-                            push!(reader.capabilities, cap)
-                        elseif cap_desc.kind == CapDescriptorType.RECEIVER_HOSTED
-                            export_id = cap_desc.receiver_hosted
-                            cap = get_export(conn, export_id)
-                            push!(reader.capabilities, cap)
-                        else
-                            push!(reader.capabilities, nothing)
+        return lock(conn.lock) do
+            return_msg = parsed.return_msg
+            if return_msg !== nothing
+                question = get_question(conn, return_msg.answer_id)
+                if question !== nothing
+                    if return_msg.kind == ReturnType.RESULTS
+                        # Populate the reader's capabilities array with instantiated RemoteCapabilities
+                        reader = return_msg.payload_ptr.traverser
+                        for cap_desc in return_msg.cap_table
+                            if cap_desc.kind == CapDescriptorType.SENDER_HOSTED
+                                import_id = cap_desc.sender_hosted
+                                cap = RemoteCapability(import_id, UInt64(0), conn)
+                                add_import!(conn, import_id, cap)
+                                push!(reader.capabilities, cap)
+                            elseif cap_desc.kind == CapDescriptorType.SENDER_PROMISE
+                                import_id = cap_desc.sender_promise
+                                cap = RemoteCapability(import_id, UInt64(0), conn)
+                                add_import!(conn, import_id, cap)
+                                push!(reader.capabilities, cap)
+                            elseif cap_desc.kind == CapDescriptorType.RECEIVER_HOSTED
+                                export_id = cap_desc.receiver_hosted
+                                cap = get_export(conn, export_id)
+                                push!(reader.capabilities, cap)
+                            else
+                                push!(reader.capabilities, nothing)
+                            end
                         end
+                        resolve!(question.promise, return_msg.payload_ptr)
+                    elseif return_msg.kind == ReturnType.EXCEPTION
+                        exc_type = return_msg.exception_type !== nothing ? return_msg.exception_type : ExceptionType.FAILED
+                        exc_reason = return_msg.exception_reason !== nothing ? return_msg.exception_reason : "Unknown error"
+                        reject!(question.promise, RemoteException(exc_reason, exc_type))
                     end
-                    resolve!(question.promise, return_msg.payload_ptr)
-                elseif return_msg.kind == ReturnType.EXCEPTION
-                    exc_type = return_msg.exception_type !== nothing ? return_msg.exception_type : ExceptionType.FAILED
-                    exc_reason = return_msg.exception_reason !== nothing ? return_msg.exception_reason : "Unknown error"
-                    reject!(question.promise, RemoteException(exc_reason, exc_type))
+                    remove_question!(conn, return_msg.answer_id)
+                    
+                    # Send Finish message to acknowledge Return and free peer resources
+                    finish_builder = build_finish_message(return_msg.answer_id, false)
+                    io = IOBuffer()
+                    Capnp.writeMessageToStream(finish_builder, io)
+                    send_raw_message(conn.transport, take!(io))
                 end
-                remove_question!(conn, return_msg.answer_id)
-                
-                # Send Finish message to acknowledge Return and free peer resources
-                finish_builder = build_finish_message(return_msg.answer_id, false)
-                io = IOBuffer()
-                Capnp.writeMessageToStream(finish_builder, io)
-                send_raw_message(conn.transport, take!(io))
             end
+            return nothing
         end
-        return nothing
     elseif parsed.type == MessageType.RESOLVE
         # Handle Resolve message (Level 2 promise resolution)
         if parsed.resolve !== nothing
@@ -183,11 +211,11 @@ end
 Handle a Return message from the server.
 """
 function handle_return!(conn::Connection, answer_id::AnswerId, result)
-    question = get_question(conn, answer_id)
-    if question !== nothing
-        resolve!(question.promise, result)
-        remove_question!(conn, answer_id)
+    lock(conn.lock) do
+        question = pop!(conn.questions, answer_id, nothing)
+        question === nothing || resolve!(question.promise, result)
     end
+    return nothing
 end
 
 """
@@ -196,11 +224,11 @@ end
 Handle an exception Return message from the server.
 """
 function handle_exception!(conn::Connection, answer_id::AnswerId, reason::String, type::ExceptionType.T)
-    question = get_question(conn, answer_id)
-    if question !== nothing
-        reject!(question.promise, RemoteException(reason, type))
-        remove_question!(conn, answer_id)
+    lock(conn.lock) do
+        question = pop!(conn.questions, answer_id, nothing)
+        question === nothing || reject!(question.promise, RemoteException(reason, type))
     end
+    return nothing
 end
 
 """
@@ -298,7 +326,7 @@ Handle a Release message - decrement reference count on exported capability.
 function handle_release!(conn::Connection, id::UInt32, ref_count::UInt32)
     cap = get_export(conn, id)
     if cap !== nothing
-        for _ in 1:ref_count
+        for _ = 1:ref_count
             if decref!(cap)
                 remove_export!(conn, id)
                 break
@@ -316,20 +344,42 @@ Start the background message handling loop.
 Returns a Task that processes incoming messages.
 """
 function start_message_loop!(conn::Connection)
-    @async begin
+    existing_task = lock(conn.lock) do
+        if conn.message_task !== nothing && !istaskdone(conn.message_task)
+            return conn.message_task
+        end
+        return nothing
+    end
+    existing_task !== nothing && return existing_task
+
+    task = @async begin
         try
             while is_connected(conn)
                 message = receive_message(conn.transport)
                 handle_message!(conn, message)
             end
         catch e
-            if e isa DisconnectedException
-                set_disconnected!(conn)
-            else
-                set_failed!(conn, string(e))
-            end
+            _reject_pending_questions!(conn, e isa Exception ? e : ErrorException(string(e)))
+            close(conn)
+            e isa DisconnectedException || set_failed!(conn, string(e))
         end
     end
+    lock(conn.lock) do
+        conn.message_task = task
+    end
+    return task
+end
+
+function _reject_pending_questions!(conn::Connection, err::Exception)
+    questions = PendingQuestion[]
+    lock(conn.lock) do
+        append!(questions, values(conn.questions))
+        empty!(conn.questions)
+    end
+    for question in questions
+        is_settled(question.promise) || reject!(question.promise, err)
+    end
+    return nothing
 end
 
 # ============================================================================
@@ -372,7 +422,7 @@ function call_save(conn::Connection, import_id::ImportId)
     message = build_save_call(qid, import_id)
 
     # Create a promise for the result
-    promise = Promise{Any}(question_id=qid)
+    promise = Promise{Any}(question_id = qid)
 
     # Track the question
     question = PendingQuestion(qid, promise, ExportId[])
@@ -384,7 +434,7 @@ function call_save(conn::Connection, import_id::ImportId)
     # Return a typed promise that will convert the result
     result_promise = Promise{DefaultSturdyRef}()
 
-    on_resolve!(promise, function(value)
+    on_resolve!(promise, function (value)
         # Value should be ParsedSaveResults
         if value isa ParsedSaveResults
             if !isempty(value.sturdy_ref_data)
@@ -398,7 +448,7 @@ function call_save(conn::Connection, import_id::ImportId)
         end
     end)
 
-    on_reject!(promise, function(err)
+    on_reject!(promise, function (err)
         # Check if it's a "not implemented" error (capability doesn't support Persistent)
         if err isa RemoteException && err.type == ExceptionType.UNIMPLEMENTED
             reject!(result_promise, NotPersistentException("Capability does not implement Persistent interface"))
@@ -429,7 +479,7 @@ Blocks until the save completes or times out.
 - `RemoteException` if the server returns an error
 - Timeout-related error if the operation times out
 """
-function call_save_sync(conn::Connection, import_id::ImportId; timeout_ms::Int=5000)
+function call_save_sync(conn::Connection, import_id::ImportId; timeout_ms::Int = 5000)
     promise = call_save(conn, import_id)
 
     # Wait for the promise to settle (with timeout would require additional infrastructure)
@@ -471,7 +521,7 @@ function call_restore(conn::Connection, restorer_import_id::ImportId, sturdy_ref
     message = build_restore_call(qid, restorer_import_id, sturdy_ref_data)
 
     # Create a promise for the result
-    promise = Promise{Any}(question_id=qid)
+    promise = Promise{Any}(question_id = qid)
 
     # Track the question
     question = PendingQuestion(qid, promise, ExportId[])
@@ -483,7 +533,7 @@ function call_restore(conn::Connection, restorer_import_id::ImportId, sturdy_ref
     # Return a typed promise that will convert the result
     result_promise = Promise{RemoteCapability}()
 
-    on_resolve!(promise, function(value)
+    on_resolve!(promise, function (value)
         if value isa ParsedRestoreResults
             if value.success && value.import_id !== nothing
                 # Create a RemoteCapability for the restored capability
@@ -501,7 +551,7 @@ function call_restore(conn::Connection, restorer_import_id::ImportId, sturdy_ref
         end
     end)
 
-    on_reject!(promise, function(err)
+    on_reject!(promise, function (err)
         # Map remote exceptions to RestoreException where appropriate
         if err isa RemoteException
             if err.type == ExceptionType.UNIMPLEMENTED
@@ -536,7 +586,7 @@ Blocks until the restore completes or times out.
 - `RestoreException` for restore-related errors
 - `RemoteException` for other server errors
 """
-function call_restore_sync(conn::Connection, restorer_import_id::ImportId, sturdy_ref::DefaultSturdyRef; timeout_ms::Int=5000)
+function call_restore_sync(conn::Connection, restorer_import_id::ImportId, sturdy_ref::DefaultSturdyRef; timeout_ms::Int = 5000)
     promise = call_restore(conn, restorer_import_id, sturdy_ref)
 
     # Wait for the promise to settle
@@ -546,7 +596,7 @@ function call_restore_sync(conn::Connection, restorer_import_id::ImportId, sturd
 end
 
 # Exports
-export connect, bootstrap, ConnectionOptions
+export connect, bootstrap, bootstrap_async, ConnectionOptions
 export handle_message!, handle_return!, handle_exception!, handle_resolve!, handle_release!
 export start_message_loop!
 export NotPersistentException, call_save, call_save_sync

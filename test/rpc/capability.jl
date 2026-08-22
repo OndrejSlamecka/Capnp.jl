@@ -138,12 +138,7 @@ end
         table = CapabilityTable()
 
         # Create a custom descriptor
-        custom_desc = CapDescriptor(
-            CapDescriptorKind.SENDER_PROMISE,
-            nothing,
-            UInt32(999),
-            nothing
-        )
+        custom_desc = CapDescriptor(CapDescriptorKind.SENDER_PROMISE, nothing, UInt32(999), nothing)
 
         idx = add_descriptor!(table, custom_desc)
         @test idx == 0

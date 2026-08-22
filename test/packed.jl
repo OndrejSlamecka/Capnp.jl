@@ -70,6 +70,16 @@ using Capnp
             packed = take!(buffer)
             @test packed == UInt8[0x11, 0xab, 0xcd]
         end
+
+        @testset "Compress a byte view" begin
+            source = UInt8[0xff, 0xab, 0x00, 0x00, 0x00, 0xcd, 0x00, 0x00, 0x00, 0xff]
+            unpacked = @view source[2:9]
+            buffer = IOBuffer()
+            stream = Capnp.PackedOutputStream(buffer)
+            @test write(stream, unpacked) == length(unpacked)
+            flush(stream)
+            @test take!(buffer) == UInt8[0x11, 0xab, 0xcd]
+        end
     end
 
     @testset "Round-trip pack/unpack" begin
@@ -97,8 +107,22 @@ using Capnp
         @testset "Multiple words" begin
             # 16 bytes = 2 words
             original = UInt8[
-                0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  # word 1: sparse
-                0xff, 0xfe, 0xfd, 0xfc, 0xfb, 0xfa, 0xf9, 0xf8   # word 2: dense
+                0x01,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x00,  # word 1: sparse
+                0xff,
+                0xfe,
+                0xfd,
+                0xfc,
+                0xfb,
+                0xfa,
+                0xf9,
+                0xf8,   # word 2: dense
             ]
             packed = Capnp.pack(original)
             unpacked = Capnp.unpack(packed)

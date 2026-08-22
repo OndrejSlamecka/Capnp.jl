@@ -72,10 +72,7 @@ using Capnp
         @test isempty(Capnp.get_parameter_names(nongeneric))
 
         # Generic type with parameters
-        params = [
-            Capnp.TypeParameter("Key", 0),
-            Capnp.TypeParameter("Value", 1)
-        ]
+        params = [Capnp.TypeParameter("Key", 0), Capnp.TypeParameter("Value", 1)]
         generic = Capnp.GenericType(type_id, params)
         @test Capnp.is_generic(generic)
         @test Capnp.get_parameter_count(generic) == 2
@@ -99,10 +96,7 @@ using Capnp
         end
 
         @testset "Multiple parameters" begin
-            params = [
-                Capnp.TypeParameter("Key", 0),
-                Capnp.TypeParameter("Value", 1)
-            ]
+            params = [Capnp.TypeParameter("Key", 0), Capnp.TypeParameter("Value", 1)]
             generic = Capnp.GenericType(type_id, params)
             @test Capnp.julia_type_params(generic) == "{Key, Value}"
             @test Capnp.julia_type_bounds(generic) == " where {Key, Value}"

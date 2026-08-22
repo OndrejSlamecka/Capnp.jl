@@ -1,6 +1,40 @@
 # Shared functionality used by generated code.
 
 const Segment = Vector{UInt8}
+const DEFAULT_MAX_MESSAGE_SIZE = 64 * 1024 * 1024
+const DEFAULT_MAX_SEGMENTS = 512
+
+"""Raised when a byte stream is not a valid, safely bounded Cap'n Proto message."""
+struct InvalidMessageError <: Exception
+    message::String
+end
+
+Base.showerror(io::IO, error::InvalidMessageError) = print(io, "Invalid Cap'n Proto message: ", error.message)
+
+function _validate_reader_limits(max_message_size::Int, max_segments::Int)
+    max_message_size >= 8 || throw(ArgumentError("max_message_size must be at least 8 bytes"))
+    max_segments >= 1 || throw(ArgumentError("max_segments must be positive"))
+    return nothing
+end
+
+function _read_le_uint32(buffer::AbstractVector{UInt8}, offset::Int)
+    offset >= 1 && offset <= length(buffer) - 3 || throw(InvalidMessageError("truncated framing header"))
+    return UInt32(buffer[offset]) | UInt32(buffer[offset+1]) << 8 | UInt32(buffer[offset+2]) << 16 | UInt32(buffer[offset+3]) << 24
+end
+
+function _read_le_uint32(io::IO)
+    bytes = read(io, 4)
+    length(bytes) == 4 || throw(InvalidMessageError("truncated framing header"))
+    return _read_le_uint32(bytes, 1)
+end
+
+_decode_signed_word_offset(bytes::Int64) = Int(reinterpret(Int32, UInt32(reinterpret(UInt64, bytes) & typemax(UInt32)))) >> 2
+
+function _checked_word_target(pointer_position::Int, relative_offset::Int)
+    target = pointer_position + 1 + relative_offset
+    0 <= target <= typemax(UInt32) || throw(InvalidMessageError("pointer resolves outside the supported word range"))
+    return UInt32(target)
+end
 
 abstract type MessageTraverser end
 abstract type Reader <: MessageTraverser end
@@ -13,36 +47,77 @@ struct WirePointer <: CapnpPointer
     offset::UInt32
 end
 
+function _checked_segment(segments, segment_index::Integer)
+    index = Int(segment_index)
+    1 <= index <= length(segments) || throw(InvalidMessageError("segment index $index is out of bounds"))
+    return segments[index]
+end
+
+function _checked_byte_range(segment::AbstractVector{UInt8}, byte_offset::Integer, byte_count::Integer)
+    offset = Int(byte_offset)
+    count = Int(byte_count)
+    offset >= 0 || throw(InvalidMessageError("negative byte offset $offset"))
+    count >= 0 || throw(InvalidMessageError("negative byte count $count"))
+    offset <= length(segment) && count <= length(segment) - offset || throw(InvalidMessageError("byte range $offset:$(offset + count) exceeds a $(length(segment))-byte segment"))
+    return offset
+end
+
+function _checked_load(::Type{T}, segment::AbstractVector{UInt8}, byte_offset::Integer) where {T}
+    offset = _checked_byte_range(segment, byte_offset, sizeof(T))
+    GC.@preserve segment return unsafe_load(Ptr{T}(pointer(segment) + offset))
+end
+
+function _checked_load(::Type{T}, segments, segment_index::Integer, byte_offset::Integer) where {T}
+    return _checked_load(T, _checked_segment(segments, segment_index), byte_offset)
+end
+
+function _checked_store!(segment::AbstractVector{UInt8}, byte_offset::Integer, value::T) where {T}
+    offset = _checked_byte_range(segment, byte_offset, sizeof(T))
+    GC.@preserve segment unsafe_store!(Ptr{T}(pointer(segment) + offset), value)
+    return value
+end
+
+function _checked_store!(segments, segment_index::Integer, byte_offset::Integer, value)
+    return _checked_store!(_checked_segment(segments, segment_index), byte_offset, value)
+end
+
 # Structures for reading
 # TODO: think about a variant that uses a preallocated buffer
 mutable struct MessageReader <: Reader
     capabilities::Vector{Any}
     segments::Vector{Segment}
 
-    function MessageReader(io::IO)
+    function MessageReader(io::IO; max_message_size::Int = DEFAULT_MAX_MESSAGE_SIZE, max_segments::Int = DEFAULT_MAX_SEGMENTS)
+        _validate_reader_limits(max_message_size, max_segments)
+
         # num segments
-        num_segments = read(io, UInt32) + 1
+        num_segments = Int(_read_le_uint32(io)) + 1
+        num_segments <= max_segments || throw(InvalidMessageError("segment count $num_segments exceeds limit $max_segments"))
+
+        header_size = 4 * (1 + num_segments + (iseven(num_segments) ? 1 : 0))
+        header_size <= max_message_size || throw(InvalidMessageError("framing header exceeds the message-size limit"))
 
         # size of each segment
-        segments_sizes = zeros(UInt32, num_segments)
+        segment_sizes = Vector{Int}(undef, num_segments)
+        total_size = header_size
         for i = 1:num_segments
-            segments_sizes[i] = read(io, UInt32)
+            size_bytes = Base.checked_mul(Int(_read_le_uint32(io)), 8)
+            total_size = Base.checked_add(total_size, size_bytes)
+            total_size <= max_message_size || throw(InvalidMessageError("message size $total_size exceeds limit $max_message_size"))
+            segment_sizes[i] = size_bytes
         end
 
         # padding
-        pad = 0
-        if num_segments % 2 == 0
-            pad = 1
-            read(io, UInt32)
+        if iseven(num_segments)
+            _read_le_uint32(io) == 0 || throw(InvalidMessageError("non-zero framing padding"))
         end
-        # println("stream header took ", (1+num_segments+pad)*4, " bytes, segments are ", segments_sizes)
 
         # copy them all to memory
-        segments = Vector{Segment}()
-        for size_words in segments_sizes
-            data = UInt8[]
-            readbytes!(io, data, 8 * size_words)
-            push!(segments, data)
+        segments = Vector{Segment}(undef, num_segments)
+        for (i, size_bytes) in enumerate(segment_sizes)
+            data = read(io, size_bytes)
+            length(data) == size_bytes || throw(InvalidMessageError("segment $i is truncated"))
+            segments[i] = data
         end
 
         new(Any[], segments)
@@ -64,45 +139,45 @@ reader = BufferMessageReader(bytes)
 """
 mutable struct BufferMessageReader <: Reader
     capabilities::Vector{Any}
-    segments::Vector{SubArray{UInt8, 1, Vector{UInt8}, Tuple{UnitRange{Int64}}, true}}
+    segments::Vector{SubArray{UInt8,1,Vector{UInt8},Tuple{UnitRange{Int64}},true}}
     _buffer::Vector{UInt8}  # Keep reference to prevent GC
 
-    function BufferMessageReader(buffer::Vector{UInt8})
-        if length(buffer) < 8
-            # Minimum: 4 bytes header + 4 bytes segment size
-            return new(Any[], [view(buffer, 1:0)], buffer)
-        end
+    function BufferMessageReader(buffer::Vector{UInt8}; max_message_size::Int = DEFAULT_MAX_MESSAGE_SIZE, max_segments::Int = DEFAULT_MAX_SEGMENTS)
+        _validate_reader_limits(max_message_size, max_segments)
+        
+        length(buffer) >= 8 || throw(InvalidMessageError("message is shorter than the minimum framing header"))
 
         # Parse header from buffer (same format as MessageReader)
         # First 4 bytes: number of segments - 1
-        num_segments = reinterpret(UInt32, buffer[1:4])[1] + 1
+        num_segments = Int(_read_le_uint32(buffer, 1)) + 1
+        num_segments <= max_segments || throw(InvalidMessageError("segment count $num_segments exceeds limit $max_segments"))
 
         header_size = 4 + 4 * num_segments
-        if num_segments % 2 == 0
+        if iseven(num_segments)
             header_size += 4  # padding
         end
-
-        if length(buffer) < header_size
-            return new(Any[], [view(buffer, 1:0)], buffer)
-        end
+        header_size <= max_message_size || throw(InvalidMessageError("framing header exceeds the message-size limit"))
+        length(buffer) >= header_size || throw(InvalidMessageError("truncated framing header"))
 
         # Read segment sizes
-        segment_sizes = Vector{UInt32}(undef, num_segments)
-        for i in 1:num_segments
+        segment_sizes = Vector{Int}(undef, num_segments)
+        total_size = header_size
+        for i = 1:num_segments
             offset = 4 + (i - 1) * 4
-            segment_sizes[i] = reinterpret(UInt32, buffer[offset+1:offset+4])[1]
+            size_bytes = Base.checked_mul(Int(_read_le_uint32(buffer, offset + 1)), 8)
+            total_size = Base.checked_add(total_size, size_bytes)
+            total_size <= max_message_size || throw(InvalidMessageError("message size $total_size exceeds limit $max_message_size"))
+            segment_sizes[i] = size_bytes
         end
+        iseven(num_segments) && _read_le_uint32(buffer, header_size - 3) != 0 && throw(InvalidMessageError("non-zero framing padding"))
+        length(buffer) >= total_size || throw(InvalidMessageError("message declares $total_size bytes but only $(length(buffer)) are available"))
 
         # Create views into buffer for each segment (zero-copy)
-        segments = Vector{SubArray{UInt8, 1, Vector{UInt8}, Tuple{UnitRange{Int64}}, true}}()
+        segments = Vector{SubArray{UInt8,1,Vector{UInt8},Tuple{UnitRange{Int64}},true}}()
         current_offset = header_size
 
-        for size_words in segment_sizes
-            size_bytes = 8 * size_words
-            if current_offset + size_bytes > length(buffer)
-                size_bytes = max(0, length(buffer) - current_offset)
-            end
-            push!(segments, view(buffer, (current_offset + 1):(current_offset + size_bytes)))
+        for size_bytes in segment_sizes
+            push!(segments, view(buffer, (current_offset+1):(current_offset+size_bytes)))
             current_offset += size_bytes
         end
 
@@ -149,7 +224,7 @@ function writeMessageToStream(builder::AllocMessageBuilder, io)
 
     for (i, segment) in enumerate(builder.segments)
         if i == builder.current_segment # last
-            write(io, segment[1:8*builder.current_offset])
+            write(io, segment[1:(8*builder.current_offset)])
         else
             write(io, segment)
         end
@@ -177,7 +252,7 @@ bytes_written = finalize!(builder)
 - Use `finalize!(builder)` to get the number of bytes written
 """
 mutable struct BufferMessageBuilder <: Writer
-    segments::Vector{SubArray{UInt8, 1, Vector{UInt8}, Tuple{UnitRange{Int64}}, true}}
+    segments::Vector{SubArray{UInt8,1,Vector{UInt8},Tuple{UnitRange{Int64}},true}}
     _buffer::Vector{UInt8}
     current_segment::UInt32
     current_offset::UInt32
@@ -192,7 +267,7 @@ mutable struct BufferMessageBuilder <: Writer
         end
 
         # Create a view for the single segment (after header)
-        segment_view = view(buffer, (header_size + 1):length(buffer))
+        segment_view = view(buffer, (header_size+1):length(buffer))
         segments = [segment_view]
 
         new(segments, buffer, 1, 0, header_size, Any[])
@@ -281,8 +356,7 @@ function read_bool(ptr, from_bits)
     byte_position = from_bits >> 3
     in_byte_position = from_bits & 0b111
 
-    segment = ptr.traverser.segments[ptr.segment]
-    byte = unsafe_load(Ptr{Int8}(pointer(segment) + 8 * ptr.offset + byte_position))
+    byte = _checked_load(Int8, ptr.traverser.segments, ptr.segment, 8 * Int(ptr.offset) + byte_position)
     Bool((byte >> in_byte_position) & 0b1)
 end
 
@@ -290,26 +364,25 @@ function write_bool(ptr, from_bits, value)
     byte_position = from_bits >> 3
     in_byte_position = from_bits & 0b111
 
-    segment = ptr.traverser.segments[ptr.segment]
+    segment = _checked_segment(ptr.traverser.segments, ptr.segment)
+    position = 8 * Int(ptr.offset) + byte_position
     # println("Writing value ", value, " at segment ", ptr.segment, ", byte ", ptr.offset * 8 + from ÷ 8)
-    byte = unsafe_load(Ptr{UInt8}(pointer(segment) + 8 * ptr.offset + byte_position))
+    byte = _checked_load(UInt8, segment, position)
     # make the desired position zero and then place `value` to it
     byte = byte & ~(UInt8(1) << in_byte_position) | (value << in_byte_position)
-    unsafe_store!(Ptr{UInt8}(pointer(segment) + 8 * ptr.offset + byte_position), byte)
+    _checked_store!(segment, position, byte)
 end
 
 # "Bits" types except for bool.
 # For example Int32, see `is_capnp_bits`. In general it should be those that are "plain data" and so `isbits` in Julia.
 # Bool is an exception (it is "bits" in Julia but Capnp.jl's CapnpTypeBool is not) because capnp fits 8 bools into one byte.
 function read_bits(ptr, from, type)
-    segment = ptr.traverser.segments[ptr.segment]
-    unsafe_load(Ptr{type}(pointer(segment) + ptr.offset * 8 + from))
+    _checked_load(type, ptr.traverser.segments, ptr.segment, 8 * Int(ptr.offset) + from)
 end
 
 function write_bits(ptr, from, type, value)
-    segment = ptr.traverser.segments[ptr.segment]
     # println("Writing value ", value, " at segment ", ptr.segment, ", byte ", ptr.offset * 8 + from ÷ 8)
-    unsafe_store!(Ptr{type}(pointer(segment) + ptr.offset * 8 + from), value)
+    _checked_store!(ptr.traverser.segments, ptr.segment, 8 * Int(ptr.offset) + from, convert(type, value))
 end
 
 # Pointer tooling, especially for far (=inter-segment) pointers
@@ -319,40 +392,39 @@ is_far_pointer(bytes::Int64) = bytes & 0b11 == 2
 Returns bytes of the pointer at the given position and the location it points to.
 """
 function resolve_pointer(ptr, byte_section_words, ptrix)::Tuple{Int64,UInt32,UInt32}
-    position_bytes = 8 * (ptr.offset + byte_section_words + ptrix)
-    bytes = unsafe_load(Ptr{Int64}(pointer(ptr.traverser.segments[ptr.segment]) + position_bytes))
+    position_words = Int(ptr.offset) + Int(byte_section_words) + Int(ptrix)
+    bytes = _checked_load(Int64, ptr.traverser.segments, ptr.segment, 8 * position_words)
 
     if is_far_pointer(bytes)
         # landing pad
-        far_offset = (bytes & 0xff_ff_ff_ff) >> 3
-        segment_id = (bytes >> 32) + 1 # numbered from zero -> need +1 for Julia
-        far_bytes = unsafe_load(Ptr{Int64}(pointer(ptr.traverser.segments[segment_id]) + far_offset * 8))
+        far_offset = Int((UInt64(bytes) >> 3) & 0x1fff_ffff)
+        segment_id = Int(UInt32(UInt64(bytes) >> 32)) + 1 # numbered from zero -> need +1 for Julia
+        far_bytes = _checked_load(Int64, ptr.traverser.segments, segment_id, 8 * far_offset)
 
         if bytes & 0b100 == 0 # B == 0
             # far_bytes is the pointer, it tells us the absolute address within segment too (pointed_to_offset)
-            local_ptr_offset = (far_bytes & 0xff_ff_ff_ff) >> 2
+            local_ptr_offset = _decode_signed_word_offset(far_bytes)
+            pointed_to_offset = _checked_word_target(far_offset, local_ptr_offset)
 
-            pointed_to_offset = far_offset + local_ptr_offset + 1
-
-            (far_bytes, segment_id, pointed_to_offset)
+            (far_bytes, UInt32(segment_id), pointed_to_offset)
         else # B == 1
             # in this case we need to read the far bytes as another far pointer and use its segment_id and pointed_to_offset
             # furthermore behind this another far pointer there's the struct description (the bytes to read)
             @assert is_far_pointer(far_bytes)
             @assert far_bytes & 0b100 == 0
 
-            far_far_offset = (far_bytes & 0xff_ff_ff_ff) >> 3
-            far_segment_id = (far_bytes >> 32) + 1 # numbered from zero -> need +1 for Julia
+            far_far_offset = Int((UInt64(far_bytes) >> 3) & 0x1fff_ffff)
+            far_segment_id = Int(UInt32(UInt64(far_bytes) >> 32)) + 1 # numbered from zero -> need +1 for Julia
 
-            far_bytes_struct = unsafe_load(Ptr{Int64}(pointer(ptr.traverser.segments[segment_id]) + (far_offset + 1) * 8))
+            far_bytes_struct = _checked_load(Int64, ptr.traverser.segments, segment_id, 8 * (far_offset + 1))
 
             # TODO: assert far_bytes_struct's offset is 0
 
-            (far_bytes_struct, far_segment_id, far_far_offset)
+            (far_bytes_struct, UInt32(far_segment_id), UInt32(far_far_offset))
         end
     else
-        offset = (bytes & 0xff_ff_ff_ff) >> 2
-        (bytes, ptr.segment, ptr.offset + byte_section_words + (ptrix + 1) + offset)
+        offset = _decode_signed_word_offset(bytes)
+        (bytes, ptr.segment, _checked_word_target(position_words, offset))
     end
 end
 
@@ -364,7 +436,7 @@ function write_far_pointer(builder::Writer, pointer_location::WirePointer, landi
 
     bytes = (D << 32) | (C << 3) | (B << 2) | A
     # println("Writing far pointer located in segment $(pointer_location.segment), offset $(pointer_location.offset); $(A) $(B) $(C) $(D)")
-    unsafe_store!(Ptr{Int64}(pointer(builder.segments[pointer_location.segment]) + 8 * pointer_location.offset), bytes)
+    _checked_store!(builder.segments, pointer_location.segment, 8 * Int(pointer_location.offset), bytes)
 end
 
 # Structs
@@ -403,7 +475,7 @@ function write_root_struct_pointer(ptr)
     bytes = (D << 48) | (C << 32) | (B << 2) | A
 
     # println("Writing root struct pointer at pos 0 ", bytes)
-    unsafe_store!(Ptr{Int64}(pointer(ptr.traverser.segments[1])), bytes)
+    _checked_store!(ptr.traverser.segments, 1, 0, Int64(bytes))
     ptr
 end
 
@@ -412,18 +484,18 @@ function write_struct_pointer(pointer_location::WirePointer, ptr)
     position_words = pointer_location.offset
     position_bytes = 8 * position_words
 
-    bytes = unsafe_load(Ptr{Int64}(pointer(ptr.traverser.segments[pointer_location.segment]) + position_bytes))
+    bytes = _checked_load(Int64, ptr.traverser.segments, pointer_location.segment, position_bytes)
     @assert bytes & 0b11 == 0
 
     A = Int64(0)
-    B = Int64(ptr.offset - (position_words + 1)) # the difference between position and allocated space
+    B = Int64(ptr.offset) - Int64(position_words) - 1 # the difference between position and allocated space
     C = Int64(ptr.data_word_count)
     D = Int64(ptr.pointer_count)
 
     bytes = (D << 48) | (C << 32) | (B << 2) | A
 
     # println("Writing struct pointer at pos ", position_bytes, " ", bytes, " ", B, " ", C, " " , D)
-    unsafe_store!(Ptr{Int64}(pointer(ptr.traverser.segments[pointer_location.segment]) + position_bytes), bytes)
+    _checked_store!(ptr.traverser.segments, pointer_location.segment, position_bytes, bytes)
     ptr
 end
 
@@ -457,9 +529,9 @@ function Base.getindex(ptr::SimpleListPointer{ElType,Traverser}, i) where {ElTyp
     @assert is_capnp_bits(ElType)
 
     # i-1 for 1-based indices
-    position = UInt32(8 * ptr.offset + (i - 1) * capnp_sizeof(ElType))
+    position = 8 * Int(ptr.offset) + (i - 1) * capnp_sizeof(ElType)
     # println("getting ", i, " ", position)
-    unsafe_load(Ptr{capnp_type_to_bits_type(ElType)}(pointer(ptr.traverser.segments[ptr.segment]) + position))
+    _checked_load(capnp_type_to_bits_type(ElType), ptr.traverser.segments, ptr.segment, position)
 end
 
 function Base.setindex!(ptr::SimpleListPointer{ElType,Traverser}, value, i) where {ElType<:CapnpType,Traverser<:MessageTraverser}
@@ -467,9 +539,9 @@ function Base.setindex!(ptr::SimpleListPointer{ElType,Traverser}, value, i) wher
     @assert is_capnp_bits(ElType)
 
     # i-1 for 1-based indices
-    position = UInt32(8 * ptr.offset + (i - 1) * capnp_sizeof(ElType))
+    position = 8 * Int(ptr.offset) + (i - 1) * capnp_sizeof(ElType)
     # println("setting ", i, " ", position)
-    unsafe_store!(Ptr{capnp_type_to_bits_type(ElType)}(pointer(ptr.traverser.segments[ptr.segment]) + position), value)
+    _checked_store!(ptr.traverser.segments, ptr.segment, position, convert(capnp_type_to_bits_type(ElType), value))
 end
 
 function Base.getindex(ptr::CompositeListPointer, i)
@@ -502,32 +574,32 @@ function Base.iterate(ptr::SimpleListPointer{T}, state = 0) where {T<:CapnpType}
         elseif ptr.element_size == Pointer
             # Each element is a pointer to a struct (Cap'n Proto 1.3.0+ encoding)
             # Read the pointer at position state (each pointer is 1 word = 8 bytes)
-            pointer_word_offset = ptr.offset + state
-            bytes = unsafe_load(Ptr{Int64}(pointer(ptr.traverser.segments[ptr.segment]) + pointer_word_offset * 8))
+            pointer_word_offset = Int(ptr.offset) + state
+            bytes = _checked_load(Int64, ptr.traverser.segments, ptr.segment, pointer_word_offset * 8)
 
             if bytes == 0
                 # Null pointer
                 item = nothing
             elseif bytes & 0b11 == 0
                 # Struct pointer: decode offset, data_word_count, pointer_count
-                offset_delta = (bytes % Int32) >> 2  # signed offset in words
-                struct_offset = UInt32(pointer_word_offset + 1 + offset_delta)
+                offset_delta = _decode_signed_word_offset(bytes)
+                struct_offset = _checked_word_target(pointer_word_offset, offset_delta)
                 data_words = UInt16((bytes >> 32) & 0xff)
                 ptr_words = UInt16((bytes >> 48) & 0xff)
                 item = StructPointer(ptr.traverser, ptr.segment, struct_offset, data_words, ptr_words)
             elseif bytes & 0b11 == 2
                 # Far pointer - follow indirection
-                far_offset = (bytes >> 3) & 0x1f_ff_ff_ff_ff
-                segment_id = UInt32((bytes >> 32) + 1)  # 0-based in wire format, 1-based in Julia
+                far_offset = Int((UInt64(bytes) >> 3) & 0x1fff_ffff)
+                segment_id = Int(UInt32(UInt64(bytes) >> 32)) + 1  # 0-based in wire format, 1-based in Julia
                 # Read the landing pad
-                landing_bytes = unsafe_load(Ptr{Int64}(pointer(ptr.traverser.segments[segment_id]) + far_offset * 8))
+                landing_bytes = _checked_load(Int64, ptr.traverser.segments, segment_id, far_offset * 8)
                 if landing_bytes & 0b11 == 0
                     # Struct pointer at landing pad
-                    landing_offset_delta = (landing_bytes % Int32) >> 2
-                    struct_offset = UInt32(far_offset + 1 + landing_offset_delta)
+                    landing_offset_delta = _decode_signed_word_offset(landing_bytes)
+                    struct_offset = _checked_word_target(far_offset, landing_offset_delta)
                     data_words = UInt16((landing_bytes >> 32) & 0xff)
                     ptr_words = UInt16((landing_bytes >> 48) & 0xff)
-                    item = StructPointer(ptr.traverser, segment_id, struct_offset, data_words, ptr_words)
+                    item = StructPointer(ptr.traverser, UInt32(segment_id), struct_offset, data_words, ptr_words)
                 else
                     throw("Far pointer landing pad is not a struct pointer")
                 end
@@ -552,7 +624,7 @@ struct ListTag
 end
 
 function read_list_tag(segment, offset)
-    bytes = unsafe_load(Ptr{Int64}(pointer(segment) + offset * 8))
+    bytes = _checked_load(Int64, segment, Int(offset) * 8)
 
     @assert bytes & 0b11 == 0
 
@@ -573,7 +645,7 @@ function write_list_tag(pointer_location::WirePointer, ptr::CompositeListPointer
     D = Int64(ptr.pointer_count)
     tag_bytes = (D << 48) | (C << 32) | (B << 2) | A
     # println("Writing composite list tag at segment ", pointer_location.segment, ", byte ", 8*ptr.offset)
-    unsafe_store!(Ptr{Int64}(pointer(ptr.traverser.segments[pointer_location.segment]) + 8 * ptr.offset), tag_bytes)
+    _checked_store!(ptr.traverser.segments, pointer_location.segment, 8 * Int(ptr.offset), tag_bytes)
 end
 
 # Text is a special kind of list
@@ -582,18 +654,26 @@ function read_text(ptr::SimpleListPointer)
     if ptr.length == 0
         ""
     else
-        segment = ptr.traverser.segments[ptr.segment]
-        # TODO: this likely creates a copy -- is there a way to make this more like reinterpret_cast<...*>?
-        unsafe_string(Ptr{UInt8}(pointer(segment) + ptr.offset * 8), ptr.length - 1)
+        segment = _checked_segment(ptr.traverser.segments, ptr.segment)
+        byte_offset = 8 * Int(ptr.offset)
+        byte_count = Int(ptr.length)
+        _checked_byte_range(segment, byte_offset, byte_count)
+        segment[byte_offset+byte_count] == 0 || throw(InvalidMessageError("text is not NUL-terminated"))
+        byte_count == 1 ? "" : String(copy(@view segment[(byte_offset+1):(byte_offset+byte_count-1)]))
     end
 end
 
 function write_text(ptr::ListPointer, text)
     @assert ptr.element_size == Byte
-    segment = ptr.traverser.segments[ptr.segment]
-    # TODO: this relies on internal text representation... add some safety
-    # println("TEXT. segment=", ptr.segment, "; offset=", ptr.offset * 8, "; length=", length(text), "; text=LEFT OUT")
-    unsafe_copyto!(Ptr{UInt8}(pointer(segment) + ptr.offset * 8), pointer(text), length(text) + 1)
+    segment = _checked_segment(ptr.traverser.segments, ptr.segment)
+    bytes = codeunits(String(text))
+    byte_offset = 8 * Int(ptr.offset)
+    byte_count = length(bytes) + 1
+    byte_count <= Int(ptr.length) || throw(ArgumentError("text does not fit in the allocated list"))
+    _checked_byte_range(segment, byte_offset, byte_count)
+    copyto!(segment, byte_offset + 1, bytes, 1, length(bytes))
+    segment[byte_offset+byte_count] = 0
+    return ptr
 end
 
 # List pointer read/write
@@ -634,18 +714,18 @@ function write_list_pointer(pointer_location::WirePointer, ptr::SimpleListPointe
     position_words = pointer_location.offset
     position_bytes = 8 * position_words
 
-    bytes = unsafe_load(Ptr{Int64}(pointer(ptr.traverser.segments[pointer_location.segment]) + position_bytes))
+    bytes = _checked_load(Int64, ptr.traverser.segments, pointer_location.segment, position_bytes)
     @assert bytes & 0b11 == 0 "Non-empty pointer type bits at segment $(pointer_location.segment), byte $(position_bytes), $(Int64(bytes))"
 
     A = Int64(1) # list pointer indicator
-    B = ptr.offset - (position_words + 1) # offset, the difference between position and allocated space
+    B = Int64(ptr.offset) - Int64(position_words) - 1 # offset, the difference between position and allocated space
     C = Int64(encode_list_element_size(ptr.element_size))
     D = Int64(ptr.length)
 
     bytes = (D << 35) | (C << 32) | (B << 2) | A
 
     # println("Writing simple list pointer at segment=", ptr.segment, "; offset=", position_bytes)
-    unsafe_store!(Ptr{Int64}(pointer(ptr.traverser.segments[pointer_location.segment]) + position_bytes), bytes)
+    _checked_store!(ptr.traverser.segments, pointer_location.segment, position_bytes, bytes)
 end
 
 function write_list_pointer(pointer_location::WirePointer, ptr::CompositeListPointer)
@@ -653,18 +733,18 @@ function write_list_pointer(pointer_location::WirePointer, ptr::CompositeListPoi
     position_words = pointer_location.offset
     position_bytes = 8 * position_words
 
-    bytes = unsafe_load(Ptr{Int64}(pointer(ptr.traverser.segments[pointer_location.segment]) + position_bytes))
+    bytes = _checked_load(Int64, ptr.traverser.segments, pointer_location.segment, position_bytes)
     @assert bytes & 0b11 == 0 "Non-empty pointer type bits at segment $(pointer_location.segment), byte $(position_bytes)"
 
     A = Int64(1) # list pointer
-    B = ptr.offset - (position_words + 1) # offset, the difference between position and allocated space
+    B = Int64(ptr.offset) - Int64(position_words) - 1 # offset, the difference between position and allocated space
     C = Int64(7)
     D = Int64(ptr.length * (ptr.data_word_count + ptr.pointer_count))
 
     bytes = (D << 35) | (C << 32) | (B << 2) | A
 
     # println("Writing composite list pointer at pos ", position_bytes, " ", bytes, " ", B, " ", C, " " , D)
-    unsafe_store!(Ptr{Int64}(pointer(ptr.traverser.segments[pointer_location.segment]) + position_bytes), bytes)
+    _checked_store!(ptr.traverser.segments, pointer_location.segment, position_bytes, bytes)
 
     write_list_tag(pointer_location, ptr)
 
@@ -723,7 +803,7 @@ Read a capability pointer from the given struct pointer at the specified pointer
 """
 function read_capability_pointer(ptr, byte_section_words, ptrix)
     position_bytes = 8 * (ptr.offset + byte_section_words + ptrix)
-    bytes = unsafe_load(Ptr{Int64}(pointer(ptr.traverser.segments[ptr.segment]) + position_bytes))
+    bytes = _checked_load(Int64, ptr.traverser.segments, ptr.segment, position_bytes)
 
     if bytes == 0
         # Null capability
@@ -763,7 +843,7 @@ function write_capability_pointer(pointer_location::WirePointer, traverser, cap_
 
     bytes = (D << 32) | A
 
-    unsafe_store!(Ptr{Int64}(pointer(traverser.segments[pointer_location.segment]) + position_bytes), bytes)
+    _checked_store!(traverser.segments, pointer_location.segment, position_bytes, bytes)
 
     CapabilityPointer(traverser, pointer_location.segment, pointer_location.offset, cap_index)
 end

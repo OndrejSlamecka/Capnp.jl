@@ -1,18 +1,32 @@
 # Capnp.jl - Julia package for Cap'n Proto
 
-A Julia implementation of the Cap'n Proto serialization format with partial RPC support ([level 1 and level 2](https://capnproto.org/rpc.html#protocol-features) currently).
+[![Run tests](https://github.com/s-celles/Capnp.jl/actions/workflows/runtests.yml/badge.svg?branch=main)](https://github.com/s-celles/Capnp.jl/actions/workflows/runtests.yml)
+[![Documentation](https://github.com/s-celles/Capnp.jl/actions/workflows/documentation.yml/badge.svg?branch=main)](https://s-celles.github.io/Capnp.jl/)
+[![codecov](https://codecov.io/gh/s-celles/Capnp.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/s-celles/Capnp.jl)
+
+A Julia implementation of the Cap'n Proto serialization format with an experimental RPC implementation.
+
+> [!WARNING]
+> The serialization and code-generation APIs are under active development. RPC client calls, promise pipelining, and parts of the RPC protocol are not complete yet. Message framing and pointer bounds are checked, but traversal and nesting budgets are not yet enforced; treat untrusted-message processing as experimental.
 
 ## Features
 
-- **Wire format compliance**: Full support for Cap'n Proto binary format including default values, packed encoding, and generic types
-- **RPC client**: Connect to Cap'n Proto RPC servers with promise pipelining support
-- **RPC server**: Host Cap'n Proto services accessible to remote clients
+- **Wire format support**: Binary messages, default values, basic packed encoding, and generic types
+- **Experimental RPC**: Client/server infrastructure and partial level 1/2 protocol support
 - **Zero-copy performance**: Pre-allocated buffer support for minimal allocations
 - **Code generation**: Generate Julia types from Cap'n Proto schemas
 
+## Current limitations
+
+- Generated RPC client method calls and promise pipelining are not implemented yet.
+- Some RPC messages, including complete `Finish` handling, remain incomplete.
+- Message-size and segment-count limits are enforced at framing; traversal and nesting budgets are not yet enforced.
+- Two-word far-pointer landing pads are not generated.
+- The generated API may change before 1.0.
+
 ## Install & Use
 
-Install from JuliaHub:
+Capnp.jl requires Julia 1.10 or newer and the `capnp` compiler for schema generation. Install the registered release with Julia's package manager:
 
     ] add Capnp
 
@@ -42,7 +56,9 @@ addressBook = root(message, Val{:AddressBook})
 # ... read data ...
 ```
 
-### RPC Client
+### Experimental RPC Client API
+
+The following illustrates the intended API. Generated method calls currently report that RPC calls are not implemented.
 
 ```julia
 using Capnp
@@ -50,14 +66,14 @@ using Capnp.RPC
 
 # Connect to server
 conn = RPC.connect("localhost", 55000)
-client = RPC.bootstrap(conn)
+client = RPC.bootstrap(conn, Calculator_Client)
 
-# Call methods (with promise pipelining)
-result_promise = Calculator_evaluateAsync(client, params)
+# Planned generated call API
+result_promise = Calculator_addAsync(client, params)
 result = fetch(result_promise)
 ```
 
-### RPC Server
+### Experimental RPC Server
 
 ```julia
 using Capnp
@@ -66,9 +82,8 @@ using Capnp.RPC
 # Implement the server interface
 struct MyCalculator <: Calculator_Server end
 
-function Calculator_evaluate(impl::MyCalculator, context, params)
-    # ... implementation ...
-    RPC.set_result!(context, result)
+function Calculator_add(impl::MyCalculator, context, params)
+    RPC.set_result!(context, params.left + params.right)
 end
 
 # Start server
@@ -95,12 +110,12 @@ bytes_written = Capnp.finalize!(builder)
 
 ## Examples
 
-See the [`example` directory](example/) for complete examples:
+See the [`example` directory](example/) for examples and API sketches:
 
 - `addressbook.jl` - Basic serialization example
 - `calculator.capnp` - Calculator RPC interface schema
-- `calculator_client.jl` - RPC client example
-- `calculator_server.jl` - RPC server implementation
+- `calculator_client.jl` - intended RPC client API (not yet functional end-to-end)
+- `calculator_server.jl` - experimental RPC server implementation
 
 ## Generated API
 
@@ -152,13 +167,11 @@ Or using Pkg:
 
     ] test
 
-Format code (excluding generated files):
+Format code (the repository configuration excludes the committed generated schema):
 
 ```julia
 using JuliaFormatter
 format(".")
-# Restore generated files
-# git checkout src/schema.capnp.jl example/calculator.capnp.jl
 ```
 
 For debugging, save messages to files and use `xxd --bits --cols 8`.

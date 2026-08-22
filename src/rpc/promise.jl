@@ -3,19 +3,19 @@
 
 # Promise state enum (module-scoped per constitution)
 module PromiseState
-    @enum T begin
-        PENDING   # Awaiting result
-        RESOLVED  # Result available
-        REJECTED  # Error occurred
-    end
+@enum T begin
+    PENDING   # Awaiting result
+    RESOLVED  # Result available
+    REJECTED  # Error occurred
+end
 end
 
 # Pipeline operation kind
 module PipelineOpKind
-    @enum T begin
-        NOOP
-        GET_POINTER_FIELD
-    end
+@enum T begin
+    NOOP
+    GET_POINTER_FIELD
+end
 end
 
 # Exception thrown when trying to resolve/reject an already settled promise
@@ -28,7 +28,7 @@ struct PipelineOp
     kind::PipelineOpKind.T
     pointer_index::UInt16
 
-    PipelineOp(kind::PipelineOpKind.T, idx::UInt16=UInt16(0)) = new(kind, idx)
+    PipelineOp(kind::PipelineOpKind.T, idx::UInt16 = UInt16(0)) = new(kind, idx)
 end
 
 # PromisedAnswer references a pending call's result for pipelining
@@ -36,7 +36,7 @@ struct PromisedAnswer
     question_id::QuestionId
     transform::Vector{PipelineOp}
 
-    PromisedAnswer(qid::UInt32, ops::Vector{PipelineOp}=PipelineOp[]) = new(qid, ops)
+    PromisedAnswer(qid::UInt32, ops::Vector{PipelineOp} = PipelineOp[]) = new(qid, ops)
 end
 
 """
@@ -47,19 +47,18 @@ Supports Cap'n Proto RPC promise pipelining and Level 2 resolution callbacks.
 """
 mutable struct Promise{T}
     state::PromiseState.T
-    result::Union{T, Nothing}
-    error::Union{Exception, Nothing}
-    waiters::Vector{Condition}
-    _question_id::Union{QuestionId, Nothing}
+    result::Union{T,Nothing}
+    error::Union{Exception,Nothing}
+    settled::Base.Event
+    _question_id::Union{QuestionId,Nothing}
     connection::Any
     lock::ReentrantLock
     # Level 2: Callbacks for promise resolution
     on_resolve_callbacks::Vector{Function}  # Called with resolved value
     on_reject_callbacks::Vector{Function}   # Called with exception
 
-    function Promise{T}(; question_id::Union{QuestionId, Nothing}=nothing, connection=nothing) where T
-        new{T}(PromiseState.PENDING, nothing, nothing, Condition[], question_id, connection, ReentrantLock(),
-               Function[], Function[])
+    function Promise{T}(; question_id::Union{QuestionId,Nothing} = nothing, connection = nothing) where {T}
+        new{T}(PromiseState.PENDING, nothing, nothing, Base.Event(), question_id, connection, ReentrantLock(), Function[], Function[])
     end
 end
 
@@ -106,7 +105,7 @@ question_id(p::Promise) = p._question_id
 
 Resolve the promise with a value.
 """
-function resolve!(p::Promise{T}, value::T) where T
+function resolve!(p::Promise{T}, value::T) where {T}
     callbacks_to_call = Function[]
     lock(p.lock) do
         if is_settled(p)
@@ -114,10 +113,7 @@ function resolve!(p::Promise{T}, value::T) where T
         end
         p.result = value
         p.state = PromiseState.RESOLVED
-        # Wake up all waiters
-        for cond in p.waiters
-            notify(cond)
-        end
+        notify(p.settled)
         # Collect callbacks to call outside the lock
         append!(callbacks_to_call, p.on_resolve_callbacks)
     end
@@ -133,7 +129,7 @@ function resolve!(p::Promise{T}, value::T) where T
 end
 
 # Allow resolve! with any value that can be converted to T
-function resolve!(p::Promise{T}, value) where T
+function resolve!(p::Promise{T}, value) where {T}
     resolve!(p, convert(T, value))
 end
 
@@ -150,10 +146,7 @@ function reject!(p::Promise, err::Exception)
         end
         p.error = err
         p.state = PromiseState.REJECTED
-        # Wake up all waiters
-        for cond in p.waiters
-            notify(cond)
-        end
+        notify(p.settled)
         # Collect callbacks to call outside the lock
         append!(callbacks_to_call, p.on_reject_callbacks)
     end
@@ -174,20 +167,8 @@ end
 Block until the promise is settled.
 """
 function Base.wait(p::Promise)
-    if is_settled(p)
-        return
-    end
-
-    cond = Condition()
-    lock(p.lock) do
-        if is_settled(p)
-            return
-        end
-        push!(p.waiters, cond)
-    end
-
-    wait(cond)
-    return
+    is_settled(p) || wait(p.settled)
+    return nothing
 end
 
 """
@@ -195,7 +176,7 @@ end
 
 Block until the promise is settled, then return the value or throw the error.
 """
-function Base.fetch(p::Promise{T}) where T
+function Base.fetch(p::Promise{T}) where {T}
     wait(p)
     if p.state == PromiseState.RESOLVED
         return p.result::T
@@ -214,7 +195,7 @@ function call_pipelined(parent::Promise, ops::Vector{PipelineOp})
     # Create a new promise that represents the pipelined call
     # In a real implementation, this would be tracked by the connection
     # and the Call message would reference the parent via PromisedAnswer
-    child = Promise{Any}(question_id=parent._question_id)
+    child = Promise{Any}(question_id = parent._question_id)
 
     # The actual pipelining happens at the RPC protocol level
     # This function just creates the promise structure
@@ -285,7 +266,7 @@ end
 Register callbacks for both resolution and rejection.
 Returns the promise for chaining.
 """
-function then(p::Promise, on_resolve_cb::Function, on_reject_cb::Function=identity)
+function then(p::Promise, on_resolve_cb::Function, on_reject_cb::Function = identity)
     on_resolve!(p, on_resolve_cb)
     on_reject!(p, on_reject_cb)
     return p
