@@ -64,9 +64,10 @@ mutable struct CallContext
     has_exception::Bool
     exception_reason::String
     exception_type::ExceptionType.T
+    result_caps::Vector{ExportId}
 
     function CallContext(conn::Connection, qid::QuestionId, iface_id::UInt64, method_id::UInt16)
-        new(conn, qid, iface_id, method_id, nothing, false, "", ExceptionType.FAILED)
+        new(conn, qid, iface_id, method_id, nothing, false, "", ExceptionType.FAILED, ExportId[])
     end
 end
 
@@ -109,6 +110,7 @@ function export_capability(ctx::CallContext, impl, interface_id::UInt64)
     eid = next_export_id!(ctx.connection)
     cap = LocalCapability(interface_id, impl)
     add_export!(ctx.connection, eid, cap)
+    push!(ctx.result_caps, eid)
     return eid
 end
 
@@ -359,11 +361,29 @@ function handle_call_message!(server::Server, conn::Connection, call::ParsedCall
     if call.target.kind == MessageTargetType.IMPORTED_CAP && call.target.imported_cap !== nothing
         cap = get_export(conn, ExportId(call.target.imported_cap))
     elseif call.target.kind == MessageTargetType.PROMISED_ANSWER
-        # For promisedAnswer targeting the Bootstrap result, the capability is at export 1
-        # (the bootstrap capability is always exported first with ID 1)
-        # In a full implementation, we would parse the promisedAnswer's questionId and transform
-        # to find the actual capability, but for Level 1 compliance, we use the bootstrap cap
-        cap = get_export(conn, ExportId(1))
+        # Implement promise pipelining: look up the answer and follow the transform
+        pa = call.target.promised_answer
+        if pa !== nothing
+            answer = get_answer(conn, pa.question_id)
+            if answer !== nothing
+                # Follow the transform ops (usually GET_POINTER_FIELD)
+                # For our simple prototype, we just look up the capability in result_caps based on the first GET_POINTER_FIELD
+                if length(pa.transform) > 0 && pa.transform[1].kind == PromisedAnswerOpType.GET_POINTER_FIELD
+                    idx = pa.transform[1].get_pointer_field
+                    if idx !== nothing && (idx + 1) <= length(answer.result_caps)
+                        cap = get_export(conn, answer.result_caps[idx + 1])
+                    end
+                elseif length(answer.result_caps) > 0
+                    # Fallback if no transform is provided but we have a capability
+                    cap = get_export(conn, answer.result_caps[1])
+                end
+            end
+        end
+        
+        # Fallback to bootstrap if not found (legacy behavior)
+        if cap === nothing
+            cap = get_export(conn, ExportId(1))
+        end
     end
 
     if cap === nothing
@@ -385,6 +405,11 @@ function handle_call_message!(server::Server, conn::Connection, call::ParsedCall
             end
         end
     end
+
+    # Store the answer so pipelined calls can find it
+    answer = PendingAnswer(ctx.question_id, ctx.result_caps, UInt32(0))
+    answer.result = ctx.result
+    add_answer!(conn, answer)
 
     # Send Return message
     send_return_response!(conn, ctx)

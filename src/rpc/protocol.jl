@@ -201,7 +201,9 @@ end
 struct ParsedMessageTarget
     kind::MessageTargetType.T
     imported_cap::Union{ImportId,Nothing}
-    # promised_answer would require additional fields
+    promised_answer::Union{ParsedPromisedAnswer,Nothing}
+
+    ParsedMessageTarget(kind::MessageTargetType.T, imported::Union{ImportId,Nothing} = nothing, pa::Union{ParsedPromisedAnswer,Nothing} = nothing) = new(kind, imported, pa)
 end
 
 """
@@ -590,8 +592,9 @@ function parse_message_target(seg::Vector{UInt8}, call_ptr_section::Int)
         import_id = read_data_field(seg, target_start, 4, UInt32)
         return ParsedMessageTarget(MessageTargetType.IMPORTED_CAP, ImportId(import_id))
     elseif target_type_raw == 1  # promisedAnswer
-        # PromisedAnswer - for pipelining, we use the bootstrap capability (export 1)
-        return ParsedMessageTarget(MessageTargetType.PROMISED_ANSWER, nothing)
+        pa_ptr_section = target_start + target_data_size
+        pa = parse_promised_answer(seg, pa_ptr_section)
+        return ParsedMessageTarget(MessageTargetType.PROMISED_ANSWER, nothing, pa)
     else
         # Non-standard discriminant: Some C++ RPC implementations send the export_id as the
         # discriminant when calling a receiver-hosted capability. This is a workaround to
@@ -1527,9 +1530,9 @@ function build_call(
     Capnp.write_struct_pointer(call_ptr_loc, call_ptr)
 
     Capnp.write_bits(call_ptr, 0, UInt32, question_id)
-    Capnp.write_bits(call_ptr, 4*8, UInt16, method_id)
-    Capnp.write_bits(call_ptr, 6*8, UInt16, UInt16(Int(send_results_to)))
-    Capnp.write_bits(call_ptr, 8*8, UInt64, interface_id)
+    Capnp.write_bits(call_ptr, 4, UInt16, method_id)
+    Capnp.write_bits(call_ptr, 6, UInt16, UInt16(Int(send_results_to)))
+    Capnp.write_bits(call_ptr, 8, UInt64, interface_id)
     Capnp.write_bool(call_ptr, 16*8, allow_third_party_tail_call)
 
     # MessageTarget struct (1 data word, 1 pointer)

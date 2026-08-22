@@ -637,8 +637,13 @@ function call(cap::Union{RemoteCapability,Promise}, interface_id::UInt64, method
         target = ParsedMessageTarget(MessageTargetType.IMPORTED_CAP, cap.import_id)
     else
         # PromisedAnswer
-        pa = ParsedPromisedAnswer(cap._question_id, PipelineOp[])
-        target = ParsedMessageTarget(MessageTargetType.PROMISED_ANSWER, pa)
+        ops = PromisedAnswerOp[]
+        for op in cap.pipeline_ops
+            kind = op.kind == PipelineOpKind.GET_POINTER_FIELD ? PromisedAnswerOpType.GET_POINTER_FIELD : PromisedAnswerOpType.NOOP
+            push!(ops, PromisedAnswerOp(kind, op.pointer_index))
+        end
+        pa = ParsedPromisedAnswer(cap._question_id, ops)
+        target = ParsedMessageTarget(MessageTargetType.PROMISED_ANSWER, nothing, pa)
     end
 
     qid = next_question_id!(conn)
@@ -665,7 +670,12 @@ function add_capability_to_message!(builder, client)
         ParsedCapDescriptor(CapDescriptorType.RECEIVER_HOSTED, receiver_hosted = cap.import_id)
     elseif cap isa Promise
         # If it's a promise, it's a receiver answer
-        pa = ParsedPromisedAnswer(cap._question_id, PipelineOp[])
+        ops = PromisedAnswerOp[]
+        for op in cap.pipeline_ops
+            kind = op.kind == PipelineOpKind.GET_POINTER_FIELD ? PromisedAnswerOpType.GET_POINTER_FIELD : PromisedAnswerOpType.NOOP
+            push!(ops, PromisedAnswerOp(kind, op.pointer_index))
+        end
+        pa = ParsedPromisedAnswer(cap._question_id, ops)
         ParsedCapDescriptor(CapDescriptorType.RECEIVER_ANSWER, receiver_answer = pa)
     else
         # Sender hosted not implemented for full local objects yet

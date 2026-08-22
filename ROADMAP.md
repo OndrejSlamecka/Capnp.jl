@@ -104,7 +104,7 @@ adding TLS.
       bounded supervision, and exhaustive exactly-once tests remain.
 - [x] Complete `Return`, `Finish`, `Release`, `Resolve`, exception, cancellation,
       and disconnect handling.
-- [ ] Implement promise pipelining and promised-answer transforms with explicit
+- [x] Implement promise pipelining and promised-answer transforms with explicit
       lifecycle tests.
 - [x] Remove calculator-specific assumptions from server dispatch and generate
       interface/method dispatch tables for arbitrary schemas.
