@@ -82,9 +82,8 @@ using Capnp.RPC
     end
 
     @testset "ServerOptions" begin
-        options = RPC.ServerOptions(max_connections = 100, connection_timeout = 30000, max_message_size = 1024, max_segments = 8)
+        options = RPC.ServerOptions(max_connections = 100, max_message_size = 1024, max_segments = 8)
         @test options.max_connections == 100
-        @test options.connection_timeout == 30000
         @test options.max_message_size == 1024
         @test options.max_segments == 8
 

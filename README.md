@@ -7,7 +7,7 @@
 A Julia implementation of the Cap'n Proto serialization format with an experimental RPC implementation.
 
 > [!WARNING]
-> The serialization and code-generation APIs are under active development. RPC client calls, promise pipelining, and parts of the RPC protocol are not complete yet. Message framing and pointer bounds are checked, but traversal and nesting budgets are not yet enforced; treat untrusted-message processing as experimental.
+> The serialization and code-generation APIs are under active development. Promise pipelining is currently experimental. Message framing and pointer bounds are checked, but traversal and nesting budgets are not yet enforced; treat untrusted-message processing as experimental.
 
 ## Features
 
@@ -18,8 +18,6 @@ A Julia implementation of the Cap'n Proto serialization format with an experimen
 
 ## Current limitations
 
-- Generated RPC client method calls and promise pipelining are not implemented yet.
-- Some RPC messages, including complete `Finish` handling, remain incomplete.
 - Message-size and segment-count limits are enforced at framing; traversal and nesting budgets are not yet enforced.
 - Two-word far-pointer landing pads are not generated.
 - The generated API may change before 1.0.

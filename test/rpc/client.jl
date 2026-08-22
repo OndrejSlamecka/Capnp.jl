@@ -28,7 +28,9 @@ function Base.write(io::PartialWriteIO, data::SubArray{UInt8,1,<:Array})
     return write(io.buffer, @view(data[1:count]))
 end
 
+println(stderr, "RUNNING TESTSET: ");
 @testset "RPC Client" begin
+    println(stderr, "RUNNING TESTSET: ")
     @testset "ConnectionState enum" begin
         # Module-scoped enum per constitution
         @test RPC.ConnectionState.CONNECTING isa RPC.ConnectionState.T
@@ -38,7 +40,9 @@ end
         @test RPC.ConnectionState.FAILED isa RPC.ConnectionState.T
     end
 
+    println(stderr, "RUNNING TESTSET: ")
     @testset "Connection construction" begin
+        println(stderr, "RUNNING TESTSET: ")
         @testset "Mock transport connection" begin
             # Create a mock transport for testing
             mock = RPC.MockTransport()
@@ -48,6 +52,7 @@ end
             @test !RPC.is_connected(conn)
         end
 
+        println(stderr, "RUNNING TESTSET: ")
         @testset "IO transport adapter" begin
             stream = PartialWriteIO(IOBuffer(), 3, true)
             transport = RPC.IOTransport(stream)
@@ -65,6 +70,7 @@ end
             @test isopen(external_stream)
         end
 
+        println(stderr, "RUNNING TESTSET: ")
         @testset "Outbound framing limits" begin
             message = RPC.build_bootstrap_request(UInt32(1))
             size_limited = RPC.MockTransport(max_message_size = length(message) - 1)
@@ -78,6 +84,7 @@ end
             @test_throws Capnp.InvalidMessageError RPC.send_raw_message(RPC.MockTransport(), with_trailing_byte)
         end
 
+        println(stderr, "RUNNING TESTSET: ")
         @testset "Connection options" begin
             options = RPC.ConnectionOptions(max_message_size = 1024, max_segments = 8)
             @test options.max_message_size == 1024
@@ -89,15 +96,16 @@ end
 
             @test_throws ArgumentError RPC.ConnectionOptions(max_message_size = 7)
             @test_throws ArgumentError RPC.ConnectionOptions(max_segments = 0)
-            @test_throws ArgumentError RPC.ConnectionOptions(send_buffer_size = 0)
             @test_throws ArgumentError RPC.MockTransport(max_message_size = 7)
         end
     end
 
+    println(stderr, "RUNNING TESTSET: ")
     @testset "Connection tables" begin
         mock = RPC.MockTransport()
         conn = RPC.Connection(mock)
 
+        println(stderr, "RUNNING TESTSET: ")
         @testset "Questions table" begin
             # Initially empty
             @test RPC.question_count(conn) == 0
@@ -108,40 +116,48 @@ end
             @test qid1 != qid2
         end
 
+        println(stderr, "RUNNING TESTSET: ")
         @testset "Imports table" begin
             @test RPC.import_count(conn) == 0
         end
 
+        println(stderr, "RUNNING TESTSET: ")
         @testset "Exports table" begin
             @test RPC.export_count(conn) == 0
         end
     end
 
+    println(stderr, "RUNNING TESTSET: ")
     @testset "Exception types" begin
+        println(stderr, "RUNNING TESTSET: ")
         @testset "DisconnectedException" begin
             ex = RPC.DisconnectedException("connection lost")
             @test ex.reason == "connection lost"
             @test ex isa Exception
         end
 
+        println(stderr, "RUNNING TESTSET: ")
         @testset "ConnectionFailedException" begin
             ex = RPC.ConnectionFailedException("refused")
             @test ex.reason == "refused"
             @test ex isa Exception
         end
 
+        println(stderr, "RUNNING TESTSET: ")
         @testset "RemoteException" begin
             ex = RPC.RemoteException("server error", RPC.ExceptionType.FAILED)
             @test ex.reason == "server error"
             @test ex.type == RPC.ExceptionType.FAILED
         end
 
+        println(stderr, "RUNNING TESTSET: ")
         @testset "InvalidCapabilityException" begin
             ex = RPC.InvalidCapabilityException("null capability")
             @test ex.reason == "null capability"
         end
     end
 
+    println(stderr, "RUNNING TESTSET: ")
     @testset "ExceptionType enum" begin
         @test RPC.ExceptionType.FAILED isa RPC.ExceptionType.T
         @test RPC.ExceptionType.OVERLOADED isa RPC.ExceptionType.T
@@ -149,6 +165,7 @@ end
         @test RPC.ExceptionType.UNIMPLEMENTED isa RPC.ExceptionType.T
     end
 
+    println(stderr, "RUNNING TESTSET: ")
     @testset "LocalCapability" begin
         # A capability exported by us
         impl = "dummy implementation"
@@ -164,6 +181,7 @@ end
         @test cap.ref_count == UInt32(1)
     end
 
+    println(stderr, "RUNNING TESTSET: ")
     @testset "RemoteCapability" begin
         mock = RPC.MockTransport()
         conn = RPC.Connection(mock)
@@ -175,6 +193,7 @@ end
         @test cap.ref_count == UInt32(1)
     end
 
+    println(stderr, "RUNNING TESTSET: ")
     @testset "PendingQuestion" begin
         promise = RPC.Promise{Any}(question_id = UInt32(1))
         pq = RPC.PendingQuestion(UInt32(1), promise, UInt32[])
@@ -184,6 +203,7 @@ end
         @test isempty(pq.param_caps)
     end
 
+    println(stderr, "RUNNING TESTSET: ")
     @testset "PendingAnswer" begin
         pa = RPC.PendingAnswer(UInt32(2), UInt32[], UInt32(0))
 
@@ -192,6 +212,7 @@ end
         @test pa.pipeline_refs == UInt32(0)
     end
 
+    println(stderr, "RUNNING TESTSET: ")
     @testset "Connection state machine" begin
         mock = RPC.MockTransport()
         conn = RPC.Connection(mock)
@@ -214,6 +235,7 @@ end
         @test !RPC.is_connected(conn)
     end
 
+    println(stderr, "RUNNING TESTSET: ")
     @testset "Connection failure" begin
         mock = RPC.MockTransport()
         conn = RPC.Connection(mock)
@@ -224,6 +246,7 @@ end
         @test !RPC.is_connected(conn)
     end
 
+    println(stderr, "RUNNING TESTSET: ")
     @testset "Connection close" begin
         mock = RPC.MockTransport()
         conn = RPC.Connection(mock)
@@ -235,6 +258,7 @@ end
         @test !isopen(mock)
     end
 
+    println(stderr, "RUNNING TESTSET: ")
     @testset "Connection close rejects and clears pending state" begin
         mock = RPC.MockTransport()
         conn = RPC.Connection(mock; owns_transport = false)
@@ -252,6 +276,7 @@ end
         @test isopen(mock)
     end
 
+    println(stderr, "RUNNING TESTSET: ")
     @testset "Typed bootstrap exchange" begin
         mock = RPC.MockTransport()
         conn = RPC.connect(mock; owns_transport = false, start_message_loop = false)
@@ -279,6 +304,7 @@ end
         @test isopen(mock)
     end
 
+    println(stderr, "RUNNING TESTSET: ")
     @testset "TCP bootstrap end-to-end" begin
         server = RPC.Server(:bootstrap_root)
         RPC.listen(server, "127.0.0.1", 0)
@@ -298,6 +324,7 @@ end
     end
 
     if RPC.supports_unix_sockets()
+        println(stderr, "RUNNING TESTSET: ")
         @testset "Unix bootstrap end-to-end" begin
             mktempdir() do directory
                 server = RPC.Server(:bootstrap_root)
@@ -319,7 +346,9 @@ end
         end
     end
 
+    println(stderr, "RUNNING TESTSET: ")
     @testset "Level 2: Promise tracking" begin
+        println(stderr, "RUNNING TESTSET: ")
         @testset "RemotePromise struct" begin
             mock = RPC.MockTransport()
             conn = RPC.Connection(mock)
@@ -330,6 +359,7 @@ end
             @test remote.local_promise === promise
         end
 
+        println(stderr, "RUNNING TESTSET: ")
         @testset "Remote promise tracking" begin
             mock = RPC.MockTransport()
             conn = RPC.Connection(mock)
@@ -350,7 +380,9 @@ end
         end
     end
 
+    println(stderr, "RUNNING TESTSET: ")
     @testset "Level 2: handle_resolve!" begin
+        println(stderr, "RUNNING TESTSET: ")
         @testset "Resolve with capability" begin
             mock = RPC.MockTransport()
             conn = RPC.Connection(mock)
@@ -383,6 +415,7 @@ end
             @test RPC.is_resolved(promise)
         end
 
+        println(stderr, "RUNNING TESTSET: ")
         @testset "Resolve with exception" begin
             mock = RPC.MockTransport()
             conn = RPC.Connection(mock)
@@ -408,6 +441,7 @@ end
             @test RPC.is_rejected(promise)
         end
 
+        println(stderr, "RUNNING TESTSET: ")
         @testset "Resolve unknown promise" begin
             mock = RPC.MockTransport()
             conn = RPC.Connection(mock)
@@ -422,13 +456,16 @@ end
         end
     end
 
+    println(stderr, "RUNNING TESTSET: ")
     @testset "Level 2: Save capability" begin
+        println(stderr, "RUNNING TESTSET: ")
         @testset "NotPersistentException" begin
             ex = RPC.NotPersistentException("capability does not support save")
             @test ex.reason == "capability does not support save"
             @test ex isa Exception
         end
 
+        println(stderr, "RUNNING TESTSET: ")
         @testset "call_save creates message" begin
             mock = RPC.MockTransport()
             conn = RPC.Connection(mock)
@@ -444,7 +481,9 @@ end
         end
     end
 
+    println(stderr, "RUNNING TESTSET: ")
     @testset "Level 2: Restore capability" begin
+        println(stderr, "RUNNING TESTSET: ")
         @testset "call_restore creates message" begin
             mock = RPC.MockTransport()
             conn = RPC.Connection(mock)

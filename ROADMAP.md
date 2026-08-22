@@ -63,7 +63,7 @@ Goal: make the RPC engine independent of the concrete full-duplex byte stream.
 - [x] Make connection ownership explicit. Connections own and close their
       transport by default; callers adapting an externally-owned stream can opt
       out.
-- [ ] Apply or remove currently inert options. In particular,
+- [x] Apply or remove currently inert options. In particular,
       `send_buffer_size`, `receive_buffer_size`, `connection_timeout`,
       `traversal_limit`, and `nesting_limit` are validated or stored today but
       are not all enforced.
@@ -97,12 +97,12 @@ adding TLS.
 
 - [x] Replace the placeholder `bootstrap` implementation with a typed bootstrap
       capability returned from an actual `Bootstrap`/`Return` exchange.
-- [ ] Implement generated client calls instead of emitting the current
+- [x] Implement generated client calls instead of emitting the current
       "not implemented" path.
 - [ ] Run and supervise the client receive loop. The loop is now started by the
       connection façade and rejects pending questions on failure; cancellation,
       bounded supervision, and exhaustive exactly-once tests remain.
-- [ ] Complete `Return`, `Finish`, `Release`, `Resolve`, exception, cancellation,
+- [x] Complete `Return`, `Finish`, `Release`, `Resolve`, exception, cancellation,
       and disconnect handling.
 - [ ] Implement promise pipelining and promised-answer transforms with explicit
       lifecycle tests.
@@ -114,7 +114,7 @@ adding TLS.
       rather than silently replaying non-idempotent calls.
 - [ ] Complete persistent capability ownership and restoration semantics; owner
       extraction is currently a placeholder.
-- [ ] Replace `throw("...")` and assertions reachable from wire data with typed
+- [x] Replace `throw("...")` and assertions reachable from wire data with typed
       exceptions such as `InvalidMessageError` or RPC protocol errors.
 
 Acceptance criteria:

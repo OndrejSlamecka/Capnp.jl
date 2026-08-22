@@ -30,7 +30,7 @@ include("../../example/calculator.capnp.jl")
         client = Calculator_Client(cap)
 
         # Call the method
-        promise = Calculator_addAsync(client, function(payload, loc)
+        promise = Calculator_addAsync(client, function (payload, loc)
             # Set params
             # In capnp, params struct is allocated automatically
             Capnp.write_bits(payload, 0, Float64, 10.0)
@@ -39,15 +39,15 @@ include("../../example/calculator.capnp.jl")
 
         @test promise isa Promise
         @test length(conn.questions) == 1
-        
+
         # Simulate server returning answer
         qid = promise._question_id
-        
+
         # Build mock parsed return message
         cap_table = ParsedCapDescriptor[]
         # We need a parsed struct pointer, but mock transport isn't fully integrated here
         # so let's just make sure the promise resolves when a return message is handled
-        
+
         # Since full binary message building is complex, we just verify the client stub
         # created the promise and dispatched the right method_id (0 for add)
         question = get_question(conn, qid)

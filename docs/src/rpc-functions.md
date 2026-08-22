@@ -6,5 +6,5 @@ The RPC layer is incomplete. See [Supported functionality](@ref) before relying 
 Modules = [Capnp.RPC]
 Public = true
 Private = false
-Order = [:macro, :function]
+Order = [:macro, :type, :function]
 ```

@@ -34,10 +34,14 @@ function bootstrap_async(conn::Connection, ::Type{T}) where {T}
     typed_promise = Promise{T}(question_id = qid)
     add_question!(conn, PendingQuestion(qid, raw_promise, ExportId[]))
 
-    on_resolve!(raw_promise, function (value)
+    on_resolve!(raw_promise, function (payload)
         try
-            value isa RemoteCapability || throw(InvalidCapabilityException("Bootstrap did not return a remote capability"))
-            resolve!(typed_promise, T === RemoteCapability ? value : T(value))
+            if isempty(payload.traverser.capabilities)
+                throw(InvalidCapabilityException("Bootstrap did not return a remote capability"))
+            end
+            cap = payload.traverser.capabilities[1]
+            cap isa RemoteCapability || throw(InvalidCapabilityException("Bootstrap did not return a remote capability"))
+            resolve!(typed_promise, T === RemoteCapability ? cap : T(cap))
         catch err
             reject!(typed_promise, err isa Exception ? err : ErrorException(string(err)))
         end
@@ -62,27 +66,12 @@ bootstrap(conn::Connection, ::Type{T}) where {T} = fetch(bootstrap_async(conn, T
 Configuration options for RPC connections.
 """
 struct ConnectionOptions
-    send_buffer_size::Int
-    receive_buffer_size::Int
     max_message_size::Int
     max_segments::Int
-    traversal_limit::Int
-    nesting_limit::Int
 
-    function ConnectionOptions(;
-        send_buffer_size::Int = 65536,
-        receive_buffer_size::Int = 65536,
-        max_message_size::Int = Capnp.DEFAULT_MAX_MESSAGE_SIZE,
-        max_segments::Int = Capnp.DEFAULT_MAX_SEGMENTS,
-        traversal_limit::Int = 64 * 1024 * 1024,   # 64 MiB
-        nesting_limit::Int = 64,
-    )
-        send_buffer_size > 0 || throw(ArgumentError("send_buffer_size must be positive"))
-        receive_buffer_size > 0 || throw(ArgumentError("receive_buffer_size must be positive"))
-        traversal_limit > 0 || throw(ArgumentError("traversal_limit must be positive"))
-        nesting_limit > 0 || throw(ArgumentError("nesting_limit must be positive"))
+    function ConnectionOptions(; max_message_size::Int = Capnp.DEFAULT_MAX_MESSAGE_SIZE, max_segments::Int = Capnp.DEFAULT_MAX_SEGMENTS)
         Capnp._validate_reader_limits(max_message_size, max_segments)
-        new(send_buffer_size, receive_buffer_size, max_message_size, max_segments, traversal_limit, nesting_limit)
+        new(max_message_size, max_segments)
     end
 end
 
@@ -168,12 +157,10 @@ function handle_message!(conn::Connection, message::Capnp.MessageReader)
                         reject!(question.promise, RemoteException(exc_reason, exc_type))
                     end
                     remove_question!(conn, return_msg.answer_id)
-                    
+
                     # Send Finish message to acknowledge Return and free peer resources
-                    finish_builder = build_finish_message(return_msg.answer_id, false)
-                    io = IOBuffer()
-                    Capnp.writeMessageToStream(finish_builder, io)
-                    send_raw_message(conn.transport, take!(io))
+                    finish_msg = build_finish_message(return_msg.answer_id, false)
+                    send_raw_message(conn.transport, finish_msg)
                 end
             end
             return nothing
@@ -609,8 +596,7 @@ export call, add_capability_to_message!
 
 Call an RPC method on a RemoteCapability or a Promise (pipelining).
 """
-function call(cap::Union{RemoteCapability, Promise}, interface_id::UInt64, method_id::UInt16;
-              data_word_count::UInt16 = UInt16(0), pointer_count::UInt16 = UInt16(0), params_builder::Function = (p, l) -> nothing)
+function call(cap::Union{RemoteCapability,Promise}, interface_id::UInt64, method_id::UInt16; data_word_count::UInt16 = UInt16(0), pointer_count::UInt16 = UInt16(0), params_builder::Function = (p, l) -> nothing)
     conn = cap.connection
     if conn === nothing
         error("Cannot call on a capability or promise without a connection")
@@ -626,10 +612,9 @@ function call(cap::Union{RemoteCapability, Promise}, interface_id::UInt64, metho
 
     qid = next_question_id!(conn)
 
-    builder = build_call(qid, target, interface_id, method_id, params_builder;
-                         data_word_count=data_word_count, pointer_count=pointer_count)
+    builder = build_call(qid, target, interface_id, method_id, params_builder; data_word_count = data_word_count, pointer_count = pointer_count)
 
-    promise = Promise{Any}(question_id=qid, connection=conn)
+    promise = Promise{Any}(question_id = qid, connection = conn)
     question = PendingQuestion(qid, promise, ExportId[])
     add_question!(conn, question)
 
@@ -646,11 +631,11 @@ function add_capability_to_message!(builder, client)
     # Register the capability in the builder and return its index
     # We must construct a ParsedCapDescriptor based on the capability
     desc = if cap isa RemoteCapability
-        ParsedCapDescriptor(CapDescriptorType.RECEIVER_HOSTED, receiver_hosted=cap.import_id)
+        ParsedCapDescriptor(CapDescriptorType.RECEIVER_HOSTED, receiver_hosted = cap.import_id)
     elseif cap isa Promise
         # If it's a promise, it's a receiver answer
         pa = ParsedPromisedAnswer(cap._question_id, PipelineOp[])
-        ParsedCapDescriptor(CapDescriptorType.RECEIVER_ANSWER, receiver_answer=pa)
+        ParsedCapDescriptor(CapDescriptorType.RECEIVER_ANSWER, receiver_answer = pa)
     else
         # Sender hosted not implemented for full local objects yet
         error("Exporting local capabilities not fully implemented")

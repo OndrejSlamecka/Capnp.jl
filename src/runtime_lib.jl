@@ -144,7 +144,7 @@ mutable struct BufferMessageReader <: Reader
 
     function BufferMessageReader(buffer::Vector{UInt8}; max_message_size::Int = DEFAULT_MAX_MESSAGE_SIZE, max_segments::Int = DEFAULT_MAX_SEGMENTS)
         _validate_reader_limits(max_message_size, max_segments)
-        
+
         length(buffer) >= 8 || throw(InvalidMessageError("message is shorter than the minimum framing header"))
 
         # Parse header from buffer (same format as MessageReader)
@@ -462,7 +462,7 @@ function read_struct_pointer(ptr, byte_section_words, ptrix)
 
         StructPointer(ptr.traverser, segment, offset, data_words, ptr_words)
     else
-        throw("Not a struct at byte $offset of segment $segment, A = $(bytes & 0b11)")
+        throw(InvalidMessageError("Not a struct at byte $offset of segment $segment, A = $(bytes & 0b11)"))
     end
 end
 
@@ -601,13 +601,13 @@ function Base.iterate(ptr::SimpleListPointer{T}, state = 0) where {T<:CapnpType}
                     ptr_words = UInt16((landing_bytes >> 48) & 0xff)
                     item = StructPointer(ptr.traverser, UInt32(segment_id), struct_offset, data_words, ptr_words)
                 else
-                    throw("Far pointer landing pad is not a struct pointer")
+                    throw(InvalidMessageError("Far pointer landing pad is not a struct pointer"))
                 end
             else
-                throw("Expected struct or far pointer in list, got type $(bytes & 0b11)")
+                throw(InvalidMessageError("Expected struct or far pointer in list, got type $(bytes & 0b11)"))
             end
         else
-            throw("Iteration over simple lists only supports bits types or pointer types (element_size=$(ptr.element_size)).")
+            throw(InvalidMessageError("Iteration over simple lists only supports bits types or pointer types (element_size=$(ptr.element_size))."))
         end
 
         (item, state + 1)
@@ -693,7 +693,7 @@ function read_list_pointer(ptr, byte_section_words, ptrix, element_type = CapnpV
             SimpleListPointer{element_type,typeof(ptr.traverser)}(ptr.traverser, segment, offset, element_size, list_size)
         end
     else
-        throw("Not a list $(bytes & 0b11) at offset $(ptr.offset) and after $(byte_section_words) word byte section and at $(ptrix) pointer index of segment $(ptr.segment)")
+        throw(InvalidMessageError("Not a list $(bytes & 0b11) at offset $(ptr.offset) and after $(byte_section_words) word byte section and at $(ptrix) pointer index of segment $(ptr.segment)"))
     end
 end
 
@@ -817,7 +817,7 @@ function read_capability_pointer(ptr, byte_section_words, ptrix)
 
         CapabilityPointer(ptr.traverser, ptr.segment, ptr.offset + byte_section_words + ptrix, cap_index)
     else
-        throw("Not a capability pointer at segment $(ptr.segment), offset $(ptr.offset + byte_section_words + ptrix)")
+        throw(InvalidMessageError("Not a capability pointer at segment $(ptr.segment), offset $(ptr.offset + byte_section_words + ptrix)"))
     end
 end
 

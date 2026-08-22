@@ -39,26 +39,13 @@ Configuration options for RPC servers.
 """
 struct ServerOptions
     max_connections::Int
-    connection_timeout::Int  # milliseconds
-    send_buffer_size::Int
-    receive_buffer_size::Int
     max_message_size::Int
     max_segments::Int
 
-    function ServerOptions(;
-        max_connections::Int = 1000,
-        connection_timeout::Int = 30000,
-        send_buffer_size::Int = 65536,
-        receive_buffer_size::Int = 65536,
-        max_message_size::Int = Capnp.DEFAULT_MAX_MESSAGE_SIZE,
-        max_segments::Int = Capnp.DEFAULT_MAX_SEGMENTS,
-    )
+    function ServerOptions(; max_connections::Int = 1000, max_message_size::Int = Capnp.DEFAULT_MAX_MESSAGE_SIZE, max_segments::Int = Capnp.DEFAULT_MAX_SEGMENTS)
         max_connections > 0 || throw(ArgumentError("max_connections must be positive"))
-        connection_timeout > 0 || throw(ArgumentError("connection_timeout must be positive"))
-        send_buffer_size > 0 || throw(ArgumentError("send_buffer_size must be positive"))
-        receive_buffer_size > 0 || throw(ArgumentError("receive_buffer_size must be positive"))
         Capnp._validate_reader_limits(max_message_size, max_segments)
-        new(max_connections, connection_timeout, send_buffer_size, receive_buffer_size, max_message_size, max_segments)
+        new(max_connections, max_message_size, max_segments)
     end
 end
 
@@ -217,7 +204,9 @@ function serve(server::Server)
     try
         while is_running(server)
             try
+                println(stderr, "WAITING TO ACCEPT")
                 socket = accept(server.tcp_server)
+                println(stderr, "ACCEPTED CONNECTION")
                 handle_new_connection(server, socket)
             catch e
                 if e isa EOFError || !is_running(server)
@@ -285,7 +274,9 @@ Handle messages from a connected client.
 function handle_client(server::Server, conn::Connection)
     try
         while is_connected(conn) && is_running(server)
+            println(stderr, "WAITING FOR MESSAGE")
             message = receive_message(conn.transport)
+            println(stderr, "RECEIVED FROM TRANSPORT")
             handle_server_message!(server, conn, message)
         end
     catch e
@@ -307,6 +298,7 @@ Parses the RPC message type and dispatches to appropriate handler.
 function handle_server_message!(server::Server, conn::Connection, message::Capnp.MessageReader)
     try
         # Parse the incoming RPC message
+        println(stderr, "RECEIVED MESSAGE")
         parsed = parse_rpc_message(message)
 
         if parsed.type == MessageType.BOOTSTRAP
@@ -322,7 +314,10 @@ function handle_server_message!(server::Server, conn::Connection, message::Capnp
             @warn "Received unsupported RPC message type" type=parsed.type
         end
     catch e
-        @warn "Error handling RPC message" exception=(e, catch_backtrace())
+        println(stderr, "SERVER ERROR: ", e)
+        for (i, frame) in enumerate(stacktrace(catch_backtrace()))
+            println(stderr, i, " ", frame)
+        end
     end
 end
 
