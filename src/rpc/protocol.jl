@@ -1742,3 +1742,41 @@ function build_finish_message(question_id::QuestionId, release_result_caps::Bool
 end
 
 export build_finish_message
+
+"""
+    build_release_message(import_id::ImportId, reference_count::UInt32)
+
+Build a Release message.
+"""
+function build_release_message(import_id::ImportId, reference_count::UInt32)
+    segment = fill!(Vector{UInt8}(undef, 32), 0)
+
+    # Word 0: Root pointer to Message struct at word 1
+    root_ptr = UInt64(0) | (UInt64(1) << 32) | (UInt64(1) << 48)
+    copyto!(segment, 1, reinterpret(UInt8, [root_ptr]), 1, 8)
+
+    # Word 1: Message struct data section (discriminant = RELEASE = 6)
+    segment[9] = 0x06
+
+    # Word 2: Message pointer section -> Release struct at word 3
+    # data_word_count = 1, pointer_count = 0
+    release_ptr = UInt64(0) | (UInt64(1) << 32) | (UInt64(0) << 48)
+    copyto!(segment, 17, reinterpret(UInt8, [release_ptr]), 1, 8)
+
+    # Word 3: Release struct data
+    # id = import_id at offset 0
+    copyto!(segment, 25, reinterpret(UInt8, [UInt32(import_id)]), 1, 4)
+    # referenceCount = reference_count at offset 4
+    copyto!(segment, 29, reinterpret(UInt8, [reference_count]), 1, 4)
+
+    # Add frame header
+    message = Vector{UInt8}(undef, 8 + length(segment))
+    copyto!(message, 1, reinterpret(UInt8, [UInt32(0)]), 1, 4)
+    copyto!(message, 5, reinterpret(UInt8, [UInt32(4)]), 1, 4)
+    copyto!(message, 9, segment, 1, length(segment))
+
+    return message
+end
+
+export build_release_message
+

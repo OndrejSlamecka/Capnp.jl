@@ -92,6 +92,28 @@ mutable struct RemoteCapability
 end
 
 """
+    incref!(cap::RemoteCapability)
+
+Increment the reference count of a remote capability.
+"""
+function incref!(cap::RemoteCapability)
+    cap.ref_count += 1
+    return cap
+end
+
+"""
+    decref!(cap::RemoteCapability) -> Bool
+
+Decrement the reference count of a remote capability.
+Returns true if the capability should be released (ref_count reached 0).
+"""
+function decref!(cap::RemoteCapability)
+    cap.ref_count == 0 && throw(InvalidCapabilityException("Capability reference count is already zero"))
+    cap.ref_count -= 1
+    return cap.ref_count == 0
+end
+
+"""
     PendingQuestion
 
 Represents an outgoing RPC call waiting for a response.

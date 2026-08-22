@@ -83,6 +83,7 @@ export handle_message!, handle_return!, handle_exception!, handle_resolve!, hand
 export start_message_loop!
 export NotPersistentException, call_save, call_save_sync
 export call_restore, call_restore_sync
+export release!
 
 # Exports - Server RPC
 export Server, ServerOptions, CallContext

@@ -134,13 +134,23 @@ function handle_message!(conn::Connection, message::Capnp.MessageReader)
                         for cap_desc in return_msg.cap_table
                             if cap_desc.kind == CapDescriptorType.SENDER_HOSTED
                                 import_id = cap_desc.sender_hosted
-                                cap = RemoteCapability(import_id, UInt64(0), conn)
-                                add_import!(conn, import_id, cap)
+                                cap = get_import(conn, import_id)
+                                if cap === nothing
+                                    cap = RemoteCapability(import_id, UInt64(0), conn)
+                                    add_import!(conn, import_id, cap)
+                                else
+                                    incref!(cap)
+                                end
                                 push!(reader.capabilities, cap)
                             elseif cap_desc.kind == CapDescriptorType.SENDER_PROMISE
                                 import_id = cap_desc.sender_promise
-                                cap = RemoteCapability(import_id, UInt64(0), conn)
-                                add_import!(conn, import_id, cap)
+                                cap = get_import(conn, import_id)
+                                if cap === nothing
+                                    cap = RemoteCapability(import_id, UInt64(0), conn)
+                                    add_import!(conn, import_id, cap)
+                                else
+                                    incref!(cap)
+                                end
                                 push!(reader.capabilities, cap)
                             elseif cap_desc.kind == CapDescriptorType.RECEIVER_HOSTED
                                 export_id = cap_desc.receiver_hosted
@@ -156,6 +166,17 @@ function handle_message!(conn::Connection, message::Capnp.MessageReader)
                         exc_reason = return_msg.exception_reason !== nothing ? return_msg.exception_reason : "Unknown error"
                         reject!(question.promise, RemoteException(exc_reason, exc_type))
                     end
+                    
+                    # Handle releaseParamCaps
+                    if return_msg.release_param_caps
+                        for cap_id in question.param_caps
+                            cap = get_export(conn, cap_id)
+                            if cap !== nothing && decref!(cap)
+                                remove_export!(conn, cap_id)
+                            end
+                        end
+                    end
+                    
                     remove_question!(conn, return_msg.answer_id)
 
                     # Send Finish message to acknowledge Return and free peer resources
@@ -253,8 +274,13 @@ function handle_resolve!(conn::Connection, resolve::ParsedResolve)
             new_import_id = cap_desc.sender_hosted
             if new_import_id !== nothing
                 # Create or reference the remote capability
-                remote_cap = RemoteCapability(new_import_id, UInt64(0), conn)
-                add_import!(conn, new_import_id, remote_cap)
+                remote_cap = get_import(conn, new_import_id)
+                if remote_cap === nothing
+                    remote_cap = RemoteCapability(new_import_id, UInt64(0), conn)
+                    add_import!(conn, new_import_id, remote_cap)
+                else
+                    incref!(remote_cap)
+                end
                 resolve!(remote.local_promise, remote_cap)
             else
                 reject!(remote.local_promise, InvalidCapabilityException("senderHosted ID is null"))
@@ -524,8 +550,13 @@ function call_restore(conn::Connection, restorer_import_id::ImportId, sturdy_ref
         if value isa ParsedRestoreResults
             if value.success && value.import_id !== nothing
                 # Create a RemoteCapability for the restored capability
-                remote_cap = RemoteCapability(value.import_id, UInt64(0), conn)
-                add_import!(conn, value.import_id, remote_cap)
+                remote_cap = get_import(conn, value.import_id)
+                if remote_cap === nothing
+                    remote_cap = RemoteCapability(value.import_id, UInt64(0), conn)
+                    add_import!(conn, value.import_id, remote_cap)
+                else
+                    incref!(remote_cap)
+                end
                 resolve!(result_promise, remote_cap)
             else
                 # Restoration failed
@@ -588,7 +619,7 @@ export handle_message!, handle_return!, handle_exception!, handle_resolve!, hand
 export start_message_loop!
 export NotPersistentException, call_save, call_save_sync
 export call_restore, call_restore_sync
-export call, add_capability_to_message!
+export call, add_capability_to_message!, release!
 
 """
     call(cap::Union{RemoteCapability, Promise}, interface_id::UInt64, method_id::UInt16;
@@ -642,4 +673,40 @@ function add_capability_to_message!(builder, client)
     end
     push!(builder.capabilities, desc)
     return UInt32(length(builder.capabilities) - 1)
+end
+
+"""
+    release!(cap::RemoteCapability)
+
+Release a reference to a remote capability. If the reference count reaches zero,
+a Release message is sent to the remote peer and the capability is removed from
+the local import table.
+"""
+function release!(cap::RemoteCapability)
+    if decref!(cap)
+        # Send Release message with count 1
+        msg = build_release_message(cap.import_id, UInt32(1))
+        
+        # We need to send it if the connection is still alive
+        if cap.connection.transport !== nothing # using a simple check
+            try
+                send_raw_message(cap.connection.transport, msg)
+            catch
+                # Ignore transport errors during release
+            end
+        end
+        
+        remove_import!(cap.connection, cap.import_id)
+    else
+        # We released one local reference but still have more, so we send a Release
+        # message to the remote peer to let them know we dropped one of our copies.
+        msg = build_release_message(cap.import_id, UInt32(1))
+        if cap.connection.transport !== nothing
+            try
+                send_raw_message(cap.connection.transport, msg)
+            catch
+                # Ignore transport errors during release
+            end
+        end
+    end
 end

@@ -89,6 +89,15 @@ function set_exception!(ctx::CallContext, reason::String, type::ExceptionType.T)
     ctx.has_exception = true
     ctx.exception_reason = reason
     ctx.exception_type = type
+    
+    # Cleanup any result capabilities exported before the exception
+    for cap_id in ctx.result_caps
+        cap = get_export(ctx.connection, cap_id)
+        if cap !== nothing && decref!(cap)
+            remove_export!(ctx.connection, cap_id)
+        end
+    end
+    empty!(ctx.result_caps)
 end
 
 """
