@@ -108,8 +108,47 @@ function handle_message!(conn::Connection, message::Capnp.MessageReader)
 
     # Dispatch based on message type
     if parsed.type == MessageType.RETURN
-        # Handle Return message (contains answer_id, results or exception)
-        # TODO: Full implementation needs to parse Return details
+        return_msg = parsed.return_msg
+        if return_msg !== nothing
+            question = get_question(conn, return_msg.answer_id)
+            if question !== nothing
+                if return_msg.kind == ReturnType.RESULTS
+                    # Populate the reader's capabilities array with instantiated RemoteCapabilities
+                    reader = return_msg.payload_ptr.traverser
+                    for cap_desc in return_msg.cap_table
+                        if cap_desc.kind == CapDescriptorType.SENDER_HOSTED
+                            import_id = cap_desc.sender_hosted
+                            cap = RemoteCapability(import_id, UInt64(0), conn)
+                            add_import!(conn, import_id, cap)
+                            push!(reader.capabilities, cap)
+                        elseif cap_desc.kind == CapDescriptorType.SENDER_PROMISE
+                            import_id = cap_desc.sender_promise
+                            cap = RemoteCapability(import_id, UInt64(0), conn)
+                            add_import!(conn, import_id, cap)
+                            push!(reader.capabilities, cap)
+                        elseif cap_desc.kind == CapDescriptorType.RECEIVER_HOSTED
+                            export_id = cap_desc.receiver_hosted
+                            cap = get_export(conn, export_id)
+                            push!(reader.capabilities, cap)
+                        else
+                            push!(reader.capabilities, nothing)
+                        end
+                    end
+                    resolve!(question.promise, return_msg.payload_ptr)
+                elseif return_msg.kind == ReturnType.EXCEPTION
+                    exc_type = return_msg.exception_type !== nothing ? return_msg.exception_type : ExceptionType.FAILED
+                    exc_reason = return_msg.exception_reason !== nothing ? return_msg.exception_reason : "Unknown error"
+                    reject!(question.promise, RemoteException(exc_reason, exc_type))
+                end
+                remove_question!(conn, return_msg.answer_id)
+                
+                # Send Finish message to acknowledge Return and free peer resources
+                finish_builder = build_finish_message(return_msg.answer_id, false)
+                io = IOBuffer()
+                Capnp.writeMessageToStream(finish_builder, io)
+                send_raw_message(conn.transport, take!(io))
+            end
+        end
         return nothing
     elseif parsed.type == MessageType.RESOLVE
         # Handle Resolve message (Level 2 promise resolution)
@@ -512,3 +551,60 @@ export handle_message!, handle_return!, handle_exception!, handle_resolve!, hand
 export start_message_loop!
 export NotPersistentException, call_save, call_save_sync
 export call_restore, call_restore_sync
+export call, add_capability_to_message!
+
+"""
+    call(cap::Union{RemoteCapability, Promise}, interface_id::UInt64, method_id::UInt16;
+         data_word_count::UInt16 = UInt16(0), pointer_count::UInt16 = UInt16(0), params_builder::Function = (p, l) -> nothing) -> Promise
+
+Call an RPC method on a RemoteCapability or a Promise (pipelining).
+"""
+function call(cap::Union{RemoteCapability, Promise}, interface_id::UInt64, method_id::UInt16;
+              data_word_count::UInt16 = UInt16(0), pointer_count::UInt16 = UInt16(0), params_builder::Function = (p, l) -> nothing)
+    conn = cap.connection
+    if conn === nothing
+        error("Cannot call on a capability or promise without a connection")
+    end
+
+    if cap isa RemoteCapability
+        target = ParsedMessageTarget(MessageTargetType.IMPORTED_CAP, cap.import_id)
+    else
+        # PromisedAnswer
+        pa = ParsedPromisedAnswer(cap._question_id, PipelineOp[])
+        target = ParsedMessageTarget(MessageTargetType.PROMISED_ANSWER, pa)
+    end
+
+    qid = next_question_id!(conn)
+
+    builder = build_call(qid, target, interface_id, method_id, params_builder;
+                         data_word_count=data_word_count, pointer_count=pointer_count)
+
+    promise = Promise{Any}(question_id=qid, connection=conn)
+    question = PendingQuestion(qid, promise, ExportId[])
+    add_question!(conn, question)
+
+    io = IOBuffer()
+    Capnp.writeMessageToStream(builder, io)
+    send_raw_message(conn.transport, take!(io))
+
+    return promise
+end
+
+function add_capability_to_message!(builder, client)
+    # Get the capability from the client
+    cap = client.cap
+    # Register the capability in the builder and return its index
+    # We must construct a ParsedCapDescriptor based on the capability
+    desc = if cap isa RemoteCapability
+        ParsedCapDescriptor(CapDescriptorType.RECEIVER_HOSTED, receiver_hosted=cap.import_id)
+    elseif cap isa Promise
+        # If it's a promise, it's a receiver answer
+        pa = ParsedPromisedAnswer(cap._question_id, PipelineOp[])
+        ParsedCapDescriptor(CapDescriptorType.RECEIVER_ANSWER, receiver_answer=pa)
+    else
+        # Sender hosted not implemented for full local objects yet
+        error("Exporting local capabilities not fully implemented")
+    end
+    push!(builder.capabilities, desc)
+    return UInt32(length(builder.capabilities) - 1)
+end

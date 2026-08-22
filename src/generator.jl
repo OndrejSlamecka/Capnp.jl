@@ -449,21 +449,31 @@ function generateMethod(env::Environment, node::Node{InterfaceNodeProps}, method
 
     # Async method (returns Promise) for client
     cprintln(env, "\"\"\"")
-    cprintln(env, "    $(node.jlName)_$(method.name)Async(client::$(node.jlName)_Client, params) -> Promise")
+    cprintln(env, "    $(node.jlName)_$(method.name)Async(client::$(node.jlName)_Client, params_builder=nothing) -> Promise")
     cprintln(env, "")
     cprintln(env, "Call $(method.name) on the remote capability (async, returns Promise).")
     cprintln(env, "\"\"\"")
-    cprintln(env, "function $(node.jlName)_$(method.name)Async(client::$(node.jlName)_Client, params=nothing)")
-    cprintln(env, "    # Interface ID: $(node.id)")
-    cprintln(env, "    # Method ID: $(method_id)")
-    cprintln(env, "    # TODO: Send Call message via RPC connection")
-    cprintln(env, "    error(\"RPC method calls not yet implemented\")")
+    cprintln(env, "function $(node.jlName)_$(method.name)Async(client::$(node.jlName)_Client, params_builder=nothing)")
+    cprintln(env, "    Capnp.RPC.call(client.cap, 0x$(string(node.id, base=16)), UInt16($(method_id));")
+    if param_node !== nothing
+        cprintln(env, "                   data_word_count=UInt16($(param_node.nodeProperties.dataWordCount)),")
+        cprintln(env, "                   pointer_count=UInt16($(param_node.nodeProperties.pointerCount)),")
+    else
+        cprintln(env, "                   data_word_count=UInt16(0), pointer_count=UInt16(0),")
+    end
+    cprintln(env, "                   params_builder=params_builder !== nothing ? params_builder : (p,l)->nothing)")
     cprintln(env, "end")
 
     # Pipelined method call (on Promise)
-    cprintln(env, "function $(node.jlName)_$(method.name)(client_promise, params=nothing)")
-    cprintln(env, "    # Pipelined call on promise - creates chained promise")
-    cprintln(env, "    error(\"Pipelined RPC calls not yet implemented\")")
+    cprintln(env, "function $(node.jlName)_$(method.name)(client_promise::Promise, params_builder=nothing)")
+    cprintln(env, "    Capnp.RPC.call(client_promise, 0x$(string(node.id, base=16)), UInt16($(method_id));")
+    if param_node !== nothing
+        cprintln(env, "                   data_word_count=UInt16($(param_node.nodeProperties.dataWordCount)),")
+        cprintln(env, "                   pointer_count=UInt16($(param_node.nodeProperties.pointerCount)),")
+    else
+        cprintln(env, "                   data_word_count=UInt16(0), pointer_count=UInt16(0),")
+    end
+    cprintln(env, "                   params_builder=params_builder !== nothing ? params_builder : (p,l)->nothing)")
     cprintln(env, "end")
 
     # Server method signature (to be implemented)
@@ -693,6 +703,39 @@ function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFi
     cprintln(env, "function $(node.jlName)_set$(uppercasefirst(field.name))(ptr, txt)")
     cprintln(env, "    Base.depwarn(\"$(node.jlName)_set$(uppercasefirst(field.name)) is deprecated, use set_$(field_snake)!(ptr, txt, Val{:$(node.jlName)}) instead\", :$(node.jlName)_set$(uppercasefirst(field.name)))")
     cprintln(env, "    set_$(field_snake)!(ptr, txt, Val{:$(node.jlName)})")
+    cprintln(env, "end")
+end
+
+function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFieldProps}, type::SchemaInterface)
+    field_snake = to_snake_case(field.name)
+    typeNode = env.nodes[type.typeId]
+
+    # New API: getter
+    cprintln(env, "function get_$(field_snake)(ptr, ::Type{Val{:$(node.jlName)}})")
+    cprintln(env, "    cap_ptr = Capnp.read_capability_pointer(ptr, $(node.nodeProperties.dataWordCount), $(field.fieldProperties.offset))")
+    cprintln(env, "    if cap_ptr !== nothing && cap_ptr.cap_index < length(ptr.traverser.capabilities)")
+    cprintln(env, "        cap = ptr.traverser.capabilities[cap_ptr.cap_index + 1]")
+    cprintln(env, "        return $(typeNode.jlName)_Client(cap)")
+    cprintln(env, "    end")
+    cprintln(env, "    nothing")
+    cprintln(env, "end")
+    # Legacy API
+    cprintln(env, "function $(node.jlName)_get$(uppercasefirst(field.name))(ptr)")
+    cprintln(env, "    Base.depwarn(\"$(node.jlName)_get$(uppercasefirst(field.name)) is deprecated, use get_$(field_snake)(ptr, Val{:$(node.jlName)}) instead\", :$(node.jlName)_get$(uppercasefirst(field.name)))")
+    cprintln(env, "    get_$(field_snake)(ptr, Val{:$(node.jlName)})")
+    cprintln(env, "end")
+
+    # New API: setter
+    cprintln(env, "function set_$(field_snake)!(ptr, client, ::Type{Val{:$(node.jlName)}})")
+    cprintln(env, "    idx = Capnp.RPC.add_capability_to_message!(ptr.traverser, client)")
+    cprintln(env, "    pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + $(node.nodeProperties.dataWordCount + field.fieldProperties.offset))")
+    cprintln(env, "    Capnp.write_capability_pointer(pointer_location, ptr.traverser, idx)")
+    generateDiscriminantSetter(env, "ptr", node.nodeProperties, field)
+    cprintln(env, "end")
+    # Legacy API
+    cprintln(env, "function $(node.jlName)_set$(uppercasefirst(field.name))(ptr, client)")
+    cprintln(env, "    Base.depwarn(\"$(node.jlName)_set$(uppercasefirst(field.name)) is deprecated, use set_$(field_snake)!(ptr, client, Val{:$(node.jlName)}) instead\", :$(node.jlName)_set$(uppercasefirst(field.name)))")
+    cprintln(env, "    set_$(field_snake)!(ptr, client, Val{:$(node.jlName)})")
     cprintln(env, "end")
 end
 

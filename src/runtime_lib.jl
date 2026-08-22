@@ -15,7 +15,8 @@ end
 
 # Structures for reading
 # TODO: think about a variant that uses a preallocated buffer
-struct MessageReader <: Reader
+mutable struct MessageReader <: Reader
+    capabilities::Vector{Any}
     segments::Vector{Segment}
 
     function MessageReader(io::IO)
@@ -44,7 +45,7 @@ struct MessageReader <: Reader
             push!(segments, data)
         end
 
-        new(segments)
+        new(Any[], segments)
     end
 end
 
@@ -61,14 +62,15 @@ reader = BufferMessageReader(bytes)
 # Access data without copying
 ```
 """
-struct BufferMessageReader <: Reader
+mutable struct BufferMessageReader <: Reader
+    capabilities::Vector{Any}
     segments::Vector{SubArray{UInt8, 1, Vector{UInt8}, Tuple{UnitRange{Int64}}, true}}
     _buffer::Vector{UInt8}  # Keep reference to prevent GC
 
     function BufferMessageReader(buffer::Vector{UInt8})
         if length(buffer) < 8
             # Minimum: 4 bytes header + 4 bytes segment size
-            return new([view(buffer, 1:0)], buffer)
+            return new(Any[], [view(buffer, 1:0)], buffer)
         end
 
         # Parse header from buffer (same format as MessageReader)
@@ -81,7 +83,7 @@ struct BufferMessageReader <: Reader
         end
 
         if length(buffer) < header_size
-            return new([view(buffer, 1:0)], buffer)
+            return new(Any[], [view(buffer, 1:0)], buffer)
         end
 
         # Read segment sizes
@@ -104,7 +106,7 @@ struct BufferMessageReader <: Reader
             current_offset += size_bytes
         end
 
-        new(segments, buffer)
+        new(Any[], segments, buffer)
     end
 end
 
@@ -123,7 +125,9 @@ mutable struct AllocMessageBuilder <: Writer
     current_segment::UInt32
     current_offset::UInt32
 
-    AllocMessageBuilder() = new([zeros(1024)], 1, 0) # the c++ lib uses 1024
+    capabilities::Vector{Any}
+
+    AllocMessageBuilder() = new([zeros(1024)], 1, 0, Any[]) # the c++ lib uses 1024
 end
 
 function writeMessageToStream(builder::AllocMessageBuilder, io)
@@ -178,6 +182,7 @@ mutable struct BufferMessageBuilder <: Writer
     current_segment::UInt32
     current_offset::UInt32
     _header_size::Int
+    capabilities::Vector{Any}
 
     function BufferMessageBuilder(buffer::Vector{UInt8})
         # Reserve 8 bytes for header (4 bytes num_segments + 4 bytes segment_size)
@@ -190,7 +195,7 @@ mutable struct BufferMessageBuilder <: Writer
         segment_view = view(buffer, (header_size + 1):length(buffer))
         segments = [segment_view]
 
-        new(segments, buffer, 1, 0, header_size)
+        new(segments, buffer, 1, 0, header_size, Any[])
     end
 end
 

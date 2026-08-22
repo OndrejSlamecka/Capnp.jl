@@ -186,6 +186,18 @@ end
 
 Parsed MessageTarget from a Call message.
 """
+struct ParsedReturn
+    answer_id::AnswerId
+    release_param_caps::Bool
+    kind::ReturnType.T
+    # If kind == RESULTS
+    payload_ptr::Union{Capnp.StructPointer, Nothing}
+    cap_table::Vector{ParsedCapDescriptor}
+    # If kind == EXCEPTION
+    exception_reason::Union{String, Nothing}
+    exception_type::Union{ExceptionType.T, Nothing}
+end
+
 struct ParsedMessageTarget
     kind::MessageTargetType.T
     imported_cap::Union{ImportId, Nothing}
@@ -261,6 +273,7 @@ struct ParsedMessage
     finish::Union{ParsedFinish, Nothing}
     release::Union{ParsedRelease, Nothing}
     resolve::Union{ParsedResolve, Nothing}  # Level 2
+    return_msg::Union{ParsedReturn, Nothing}
 end
 
 """
@@ -306,9 +319,11 @@ function parse_rpc_message(reader::Capnp.MessageReader)
         return parse_release(seg, ptr_section_start)
     elseif msg_type == MessageType.RESOLVE
         return parse_resolve(seg, ptr_section_start)
+    elseif msg_type == MessageType.RETURN
+        return parse_return(reader, seg, struct_start, ptr_section_start)
     else
         # Return an unimplemented message for unsupported types
-        return ParsedMessage(msg_type, nothing, nothing, nothing, nothing, nothing)
+        return ParsedMessage(msg_type, nothing, nothing, nothing, nothing, nothing, nothing)
     end
 end
 
@@ -391,7 +406,7 @@ function parse_bootstrap(seg::Vector{UInt8}, ptr_section_start::Int)
     question_id = read_data_field(seg, boot_start, 0, UInt32)
 
     bootstrap = ParsedBootstrap(QuestionId(question_id))
-    return ParsedMessage(MessageType.BOOTSTRAP, bootstrap, nothing, nothing, nothing, nothing)
+    return ParsedMessage(MessageType.BOOTSTRAP, bootstrap, nothing, nothing, nothing, nothing, nothing)
 end
 
 """
@@ -442,7 +457,7 @@ function parse_call(seg::Vector{UInt8}, _msg_struct_start::Int, msg_ptr_section_
         params
     )
 
-    return ParsedMessage(MessageType.CALL, nothing, call, nothing, nothing, nothing)
+    return ParsedMessage(MessageType.CALL, nothing, call, nothing, nothing, nothing, nothing)
 end
 
 """
@@ -604,7 +619,7 @@ function parse_finish(_seg::Vector{UInt8}, _msg_struct_start::Int)
     # TODO: Need to properly locate the Finish struct pointer
     # For now, assume it's at Message pointer 0
     finish = ParsedFinish(QuestionId(0), true)
-    return ParsedMessage(MessageType.FINISH, nothing, nothing, finish, nothing, nothing)
+    return ParsedMessage(MessageType.FINISH, nothing, nothing, finish, nothing, nothing, nothing)
 end
 
 """
@@ -619,7 +634,7 @@ function parse_release(seg::Vector{UInt8}, ptr_section_start::Int)
 
     if release_ptr === nothing || release_ptr == 0
         return ParsedMessage(MessageType.RELEASE, nothing, nothing, nothing,
-                           ParsedRelease(ImportId(0), UInt32(1)))
+                           ParsedRelease(ImportId(0), UInt32(1)), nothing, nothing)
     end
 
     # Decode the Release struct
@@ -631,7 +646,7 @@ function parse_release(seg::Vector{UInt8}, ptr_section_start::Int)
     ref_count = read_data_field(seg, rel_start, 4, UInt32)
 
     release = ParsedRelease(ImportId(id), ref_count)
-    return ParsedMessage(MessageType.RELEASE, nothing, nothing, nothing, release, nothing)
+    return ParsedMessage(MessageType.RELEASE, nothing, nothing, nothing, release, nothing, nothing)
 end
 
 """
@@ -716,7 +731,7 @@ function parse_resolve(seg::Vector{UInt8}, ptr_section_start::Int)
         resolve = ParsedResolve(ExportId(promise_id), kind, nothing, exception_reason, exception_type)
     end
 
-    return ParsedMessage(MessageType.RESOLVE, nothing, nothing, nothing, nothing, resolve)
+    return ParsedMessage(MessageType.RESOLVE, nothing, nothing, nothing, nothing, resolve, nothing)
 end
 
 
@@ -1273,69 +1288,14 @@ function build_save_call(question_id::QuestionId, target_import_id::ImportId)
     persistent_interface_id = 0xc8cb212fcd9f5691
     save_method_id = UInt16(0)
 
-    # Build a Call message:
-    # - Message: discriminant = CALL (2), 1 data word, 1 pointer
-    # - Call: questionId, target, interfaceId, methodId, params
-    # - Target: importedCap with target_import_id
+    target = ParsedMessageTarget(MessageTargetType.IMPORTED_CAP, target_import_id)
 
-    # Layout:
-    # Word 0: Root pointer to Message
-    # Word 1: Message data (discriminant = CALL = 2)
-    # Word 2: Message pointer -> Call
-    # Word 3-5: Call data (questionId, methodId, interfaceId)
-    # Word 6: Call pointers [target, params]
-    # Word 7: Target struct pointer -> Target data
-    # Word 8: Params struct pointer (null/empty for save with no owner)
-    # Word 9: Target data (discriminant = importedCap, import_id)
+    builder = build_call(question_id, target, persistent_interface_id, save_method_id, 
+                         (params, loc) -> nothing; data_word_count=UInt16(0), pointer_count=UInt16(0))
 
-    segment = Vector{UInt8}(undef, 80)  # 10 words
-    fill!(segment, 0)
-
-    # Word 0: Root pointer to Message at word 1
-    root_ptr = UInt64(0) | (UInt64(1) << 32) | (UInt64(1) << 48)
-    copyto!(segment, 1, reinterpret(UInt8, [root_ptr]), 1, 8)
-
-    # Word 1: Message discriminant = CALL = 2
-    segment[9] = 0x02
-
-    # Word 2: Message pointer -> Call (3 data words, 2 pointers)
-    call_ptr = UInt64(0) | (UInt64(3) << 32) | (UInt64(2) << 48)
-    copyto!(segment, 17, reinterpret(UInt8, [call_ptr]), 1, 8)
-
-    # Word 3-5: Call data section
-    # questionId at offset 0
-    copyto!(segment, 25, reinterpret(UInt8, [UInt32(question_id)]), 1, 4)
-    # methodId at offset 4
-    copyto!(segment, 29, reinterpret(UInt8, [save_method_id]), 1, 2)
-    # interfaceId at offset 8
-    copyto!(segment, 33, reinterpret(UInt8, [persistent_interface_id]), 1, 8)
-
-    # Word 6-7: Call pointer section
-    # Pointer 0: target -> Target struct at word 8
-    target_ptr = UInt64(1 << 2) | (UInt64(1) << 32) | (UInt64(0) << 48)  # offset=1, 1 data, 0 ptrs
-    copyto!(segment, 49, reinterpret(UInt8, [target_ptr]), 1, 8)
-
-    # Pointer 1: params -> null (empty params for save without owner)
-    # Leave as 0 (null pointer)
-
-    # Word 8-9: Target struct (importedCap)
-    # discriminant = 0 (importedCap) at offset 0
-    segment[65] = 0x00
-    # importedCap ID at offset 4
-    copyto!(segment, 69, reinterpret(UInt8, [UInt32(target_import_id)]), 1, 4)
-
-    used_size = 80
-
-    # Build message with header
-    num_segments = UInt32(0)
-    segment_size = UInt32(used_size ÷ 8)
-
-    message = Vector{UInt8}(undef, 8 + used_size)
-    copyto!(message, 1, reinterpret(UInt8, [num_segments]), 1, 4)
-    copyto!(message, 5, reinterpret(UInt8, [segment_size]), 1, 4)
-    copyto!(message, 9, segment, 1, used_size)
-
-    return message
+    io = IOBuffer()
+    Capnp.writeMessageToStream(builder, io)
+    return take!(io)
 end
 
 """
@@ -1430,83 +1390,27 @@ Note: In Cap'n Proto, restore is typically done via the bootstrap capability
 which acts as a restorer. The sturdy_ref contains the data needed to find the capability.
 """
 function build_restore_call(question_id::QuestionId, restorer_import_id::ImportId, sturdy_ref_data::Vector{UInt8})
-    # Build a Call message with the sturdyRef as params
-    # The restorer interface exposes a method that takes a SturdyRef and returns the capability
+    target = ParsedMessageTarget(MessageTargetType.IMPORTED_CAP, restorer_import_id)
+    restorer_interface_id = UInt64(0)
+    
+    # In handwritten build_restore_call, it passed sturdy_ref_data as the Payload.content pointer itself (a List pointer).
+    # Since we modified build_call to pass `content_ptr_loc`, we can write the list pointer directly.
+    builder = build_call(question_id, target, restorer_interface_id, UInt16(0), 
+                         (params, content_ptr_loc) -> begin
+        if !isempty(sturdy_ref_data)
+            # Write a data list directly to content_ptr_loc
+            list_loc, list_seg, list_off = Capnp.alloc(params.traverser, content_ptr_loc, length(sturdy_ref_data))
+            list_ptr = Capnp.SimpleListPointer{UInt8, typeof(params.traverser)}(params.traverser, list_seg, list_off, Capnp.Byte, UInt32(length(sturdy_ref_data)))
+            Capnp.write_list_pointer(content_ptr_loc, list_ptr)
+            # Copy data
+            segment = params.traverser.segments[list_seg]
+            copyto!(segment, list_off * 8 + 1, sturdy_ref_data, 1, length(sturdy_ref_data))
+        end
+    end; data_word_count=UInt16(0), pointer_count=UInt16(0))
 
-    # For simplicity, we use a minimal Call structure
-    # In a full implementation, this would match the actual Persistent schema
-
-    ref_words = cld(length(sturdy_ref_data), 8)
-
-    # Layout:
-    # Word 0: Root pointer to Message
-    # Word 1: Message data (discriminant = CALL = 2)
-    # Word 2: Message pointer -> Call
-    # Word 3-5: Call data (questionId, methodId, interfaceId)
-    # Word 6-7: Call pointer section [target, params]
-    # Word 8: Target struct (importedCap)
-    # Word 9: Params (Payload with SturdyRef data)
-    # Word 10+: SturdyRef data
-
-    base_words = 10
-    total_words = base_words + ref_words
-    segment = Vector{UInt8}(undef, total_words * 8)
-    fill!(segment, 0)
-
-    # Word 0: Root pointer
-    root_ptr = UInt64(0) | (UInt64(1) << 32) | (UInt64(1) << 48)
-    copyto!(segment, 1, reinterpret(UInt8, [root_ptr]), 1, 8)
-
-    # Word 1: Message discriminant = CALL = 2
-    segment[9] = 0x02
-
-    # Word 2: Message pointer -> Call (3 data words, 2 pointers)
-    call_ptr = UInt64(0) | (UInt64(3) << 32) | (UInt64(2) << 48)
-    copyto!(segment, 17, reinterpret(UInt8, [call_ptr]), 1, 8)
-
-    # Word 3-5: Call data
-    copyto!(segment, 25, reinterpret(UInt8, [UInt32(question_id)]), 1, 4)
-    # method 0 = restore
-    # interfaceId for RealmGateway or similar restorer
-    # Using a generic restorer interface ID (could be customized)
-    restorer_interface_id = UInt64(0)  # Generic/custom restorer
-
-    copyto!(segment, 33, reinterpret(UInt8, [restorer_interface_id]), 1, 8)
-
-    # Word 6-7: Call pointer section
-    # target -> Target at word 8
-    target_ptr = UInt64(1 << 2) | (UInt64(1) << 32) | (UInt64(0) << 48)
-    copyto!(segment, 49, reinterpret(UInt8, [target_ptr]), 1, 8)
-
-    # params -> Payload at word 9
-    params_ptr = UInt64(1 << 2) | (UInt64(0) << 32) | (UInt64(2) << 48)  # 0 data, 2 ptrs
-    copyto!(segment, 57, reinterpret(UInt8, [params_ptr]), 1, 8)
-
-    # Word 8: Target (importedCap)
-    segment[65] = 0x00  # discriminant = importedCap
-    copyto!(segment, 69, reinterpret(UInt8, [UInt32(restorer_import_id)]), 1, 4)
-
-    # Word 9: Payload pointer section (content, capTable)
-    # content -> Data list at word 10
-    if !isempty(sturdy_ref_data)
-        content_ptr = UInt64(1) | (UInt64(0) << 2) | (UInt64(2) << 32) | (UInt64(length(sturdy_ref_data)) << 35)
-        copyto!(segment, 73, reinterpret(UInt8, [content_ptr]), 1, 8)
-        # Write sturdy ref data at word 10
-        copyto!(segment, 81, sturdy_ref_data, 1, length(sturdy_ref_data))
-    end
-
-    used_size = total_words * 8
-
-    # Build message with header
-    num_segments = UInt32(0)
-    segment_size = UInt32(total_words)
-
-    message = Vector{UInt8}(undef, 8 + used_size)
-    copyto!(message, 1, reinterpret(UInt8, [num_segments]), 1, 4)
-    copyto!(message, 5, reinterpret(UInt8, [segment_size]), 1, 4)
-    copyto!(message, 9, segment, 1, used_size)
-
-    return message
+    io = IOBuffer()
+    Capnp.writeMessageToStream(builder, io)
+    return take!(io)
 end
 
 """
@@ -1559,3 +1463,247 @@ export build_return_message, build_capability_return, build_bootstrap_return, bu
 export build_resolve_message, build_resolve_exception
 export ParsedSaveResults, build_save_call, parse_save_results
 export ParsedRestoreResults, build_restore_call, parse_restore_results
+export build_call
+"""
+    build_call(question_id::QuestionId, target::ParsedMessageTarget,
+               interface_id::UInt64, method_id::UInt16,
+               params_builder::Function;
+               send_results_to::SendResultsToType.T = SendResultsToType.CALLER,
+               allow_third_party_tail_call::Bool = false,
+               data_word_count::UInt16 = UInt16(0),
+               pointer_count::UInt16 = UInt16(0)) -> AllocMessageBuilder
+
+Build a generic Call message and return the MessageBuilder.
+The params_builder callback receives the pre-allocated StructPointer for the method parameters.
+"""
+function build_call(question_id::QuestionId, target::ParsedMessageTarget,
+                    interface_id::UInt64, method_id::UInt16,
+                    params_builder::Function;
+                    send_results_to::SendResultsToType.T = SendResultsToType.CALLER,
+                    allow_third_party_tail_call::Bool = false,
+                    data_word_count::UInt16 = UInt16(0),
+                    pointer_count::UInt16 = UInt16(0))
+    builder = Capnp.AllocMessageBuilder()
+
+    # Root pointer
+    root_ptr_loc = Capnp.WirePointer(1, 0)
+    Capnp.alloc(builder, root_ptr_loc, 8)
+
+    # Message struct (1 data word, 1 pointer)
+    msg_loc, msg_seg, msg_off = Capnp.alloc(builder, root_ptr_loc, 8 * (1 + 1))
+    msg_ptr = Capnp.StructPointer(builder, msg_seg, msg_off, UInt16(1), UInt16(1))
+    Capnp.write_root_struct_pointer(msg_ptr)
+    
+    # Message discriminant = CALL (2)
+    Capnp.write_bits(msg_ptr, 0, UInt16, 2)
+
+    # Call struct (3 data words, 2 pointers)
+    call_ptr_loc = Capnp.WirePointer(msg_seg, msg_off + 1)
+    call_loc, call_seg, call_off = Capnp.alloc(builder, call_ptr_loc, 8 * (3 + 2))
+    call_ptr = Capnp.StructPointer(builder, call_seg, call_off, UInt16(3), UInt16(2))
+    Capnp.write_struct_pointer(call_ptr_loc, call_ptr)
+
+    Capnp.write_bits(call_ptr, 0, UInt32, question_id)
+    Capnp.write_bits(call_ptr, 4*8, UInt16, method_id)
+    Capnp.write_bits(call_ptr, 6*8, UInt16, UInt16(Int(send_results_to)))
+    Capnp.write_bits(call_ptr, 8*8, UInt64, interface_id)
+    Capnp.write_bool(call_ptr, 16*8, allow_third_party_tail_call)
+
+    # MessageTarget struct (1 data word, 1 pointer)
+    target_ptr_loc = Capnp.WirePointer(call_seg, call_off + 3)
+    target_loc, target_seg, target_off = Capnp.alloc(builder, target_ptr_loc, 8 * (1 + 1))
+    target_ptr = Capnp.StructPointer(builder, target_seg, target_off, UInt16(1), UInt16(1))
+    Capnp.write_struct_pointer(target_ptr_loc, target_ptr)
+    
+    Capnp.write_bits(target_ptr, 0, UInt16, UInt16(Int(target.kind)))
+    if target.kind == MessageTargetType.IMPORTED_CAP && target.imported_cap !== nothing
+        Capnp.write_bits(target_ptr, 4*8, UInt32, target.imported_cap)
+    elseif target.kind == MessageTargetType.PROMISED_ANSWER
+        pa_ptr_loc = Capnp.WirePointer(target_seg, target_off + 1)
+        pa_loc, pa_seg, pa_off = Capnp.alloc(builder, pa_ptr_loc, 8 * (1 + 1))
+        pa_ptr = Capnp.StructPointer(builder, pa_seg, pa_off, UInt16(1), UInt16(1))
+        Capnp.write_struct_pointer(pa_ptr_loc, pa_ptr)
+        Capnp.write_bits(pa_ptr, 0, UInt32, target.promised_answer.question_id)
+        # Transform array
+        transform_ptr_loc = Capnp.WirePointer(pa_seg, pa_off + 1)
+        if !isempty(target.promised_answer.transform)
+            # Not implemented for generic transform yet
+            # transform_loc, transform_seg, transform_off = Capnp.alloc(...)
+        end
+    end
+
+    # Payload struct (0 data words, 2 pointers)
+    payload_ptr_loc = Capnp.WirePointer(call_seg, call_off + 4)
+    payload_loc, payload_seg, payload_off = Capnp.alloc(builder, payload_ptr_loc, 8 * (0 + 2))
+    payload_ptr = Capnp.StructPointer(builder, payload_seg, payload_off, UInt16(0), UInt16(2))
+    Capnp.write_struct_pointer(payload_ptr_loc, payload_ptr)
+
+    # Params struct (data_word_count data words, pointer_count pointers)
+    content_ptr_loc = Capnp.WirePointer(payload_seg, payload_off + 0)
+    params_loc, params_seg, params_off = Capnp.alloc(builder, content_ptr_loc, 8 * (data_word_count + pointer_count))
+    params_struct_ptr = Capnp.StructPointer(builder, params_seg, params_off, data_word_count, pointer_count)
+    Capnp.write_struct_pointer(content_ptr_loc, params_struct_ptr)
+
+    # Invoke user callback to fill params
+    params_builder(params_struct_ptr, content_ptr_loc)
+
+    # CapTable handling
+    if !isempty(builder.capabilities)
+        captable_ptr_loc = Capnp.WirePointer(payload_seg, payload_off + 1)
+        num_caps = length(builder.capabilities)
+        # CapDescriptor: 1 data word, 1 pointer -> 2 words per element
+        # Composite list
+        cap_list_loc, cap_list_seg, cap_list_off = Capnp.alloc(builder, captable_ptr_loc, 8 * (1 + num_caps * 2))
+        cap_list_ptr = Capnp.CompositeListPointer(builder, cap_list_seg, cap_list_off, UInt32(num_caps), UInt16(1), UInt16(1))
+        Capnp.write_list_pointer(captable_ptr_loc, cap_list_ptr)
+        
+        for (i, cap_desc) in enumerate(builder.capabilities)
+            # Element struct pointer
+            item_ptr = cap_list_ptr[i]
+            # Write kind and fields based on what it is
+            if cap_desc isa ParsedCapDescriptor
+                Capnp.write_bits(item_ptr, 0, UInt16, UInt16(Int(cap_desc.kind)))
+                if cap_desc.kind == CapDescriptorType.SENDER_HOSTED && cap_desc.sender_hosted !== nothing
+                    Capnp.write_bits(item_ptr, 4*8, UInt32, cap_desc.sender_hosted)
+                elseif cap_desc.kind == CapDescriptorType.SENDER_PROMISE && cap_desc.sender_promise !== nothing
+                    Capnp.write_bits(item_ptr, 4*8, UInt32, cap_desc.sender_promise)
+                elseif cap_desc.kind == CapDescriptorType.RECEIVER_HOSTED && cap_desc.receiver_hosted !== nothing
+                    Capnp.write_bits(item_ptr, 4*8, UInt32, cap_desc.receiver_hosted)
+                elseif cap_desc.kind == CapDescriptorType.RECEIVER_ANSWER && cap_desc.receiver_answer !== nothing
+                    # Write PromisedAnswer at pointer 0
+                    pa_loc = Capnp.WirePointer(item_ptr.segment, item_ptr.offset + 1)
+                    pa_alloc_loc, pa_seg, pa_off = Capnp.alloc(builder, pa_loc, 8 * (1 + 1))
+                    pa_ptr = Capnp.StructPointer(builder, pa_seg, pa_off, UInt16(1), UInt16(1))
+                    Capnp.write_struct_pointer(pa_loc, pa_ptr)
+                    Capnp.write_bits(pa_ptr, 0, UInt32, cap_desc.receiver_answer.question_id)
+                end
+            end
+        end
+    end
+
+    return builder
+end
+
+function parse_return(reader::Capnp.MessageReader, seg::Vector{UInt8}, struct_start::Int, ptr_section_start::Int)
+    answer_id = read_data_field(seg, struct_start, 0, UInt32)
+    release_param_caps = read_data_field(seg, struct_start, 4, UInt8) == 0 # default true, XOR encoding
+    kind_raw = read_data_field(seg, struct_start, 6, UInt16)
+    kind = ReturnType.T(kind_raw)
+
+    if kind == ReturnType.RESULTS
+        # Pointer 0 is Payload
+        payload_ptr_raw = get_struct_pointer(seg, ptr_section_start)
+        if payload_ptr_raw !== nothing && payload_ptr_raw != 0
+            payload_offset, payload_data_size, payload_ptr_count = decode_struct_pointer(payload_ptr_raw)
+            payload_start = ptr_section_start + 1 + payload_offset
+            
+            # Create a proper StructPointer for Payload
+            # It has 0 data words, 2 pointers (content, capTable)
+            payload_seg_idx = 1 # single segment assumption for parsing
+            # The offset in StructPointer is 0-based words from segment start
+            payload_word_idx = payload_start - 1
+            payload_ptr = Capnp.StructPointer(reader, payload_seg_idx, UInt32(payload_word_idx), UInt16(payload_data_size), UInt16(payload_ptr_count))
+            
+            # Read capTable (pointer 1 of Payload)
+            cap_table = ParsedCapDescriptor[]
+            cap_list_ptr_raw = get_struct_pointer(seg, payload_start + 1)
+            if cap_list_ptr_raw !== nothing && cap_list_ptr_raw != 0
+                list_type = cap_list_ptr_raw & 0x3
+                if list_type == 1
+                    list_offset = Int((cap_list_ptr_raw >> 2) & 0x3FFFFFFF)
+                    if list_offset & 0x20000000 != 0
+                        list_offset -= 0x40000000
+                    end
+                    size_code = Int((cap_list_ptr_raw >> 32) & 0x7)
+                    count = Int((cap_list_ptr_raw >> 35) & 0x1FFFFFFF)
+                    
+                    if size_code == 7 # composite list
+                        list_start = payload_start + 1 + 1 + list_offset # +1 for word offset, +1 for tag word
+                        # tag word
+                        tag = get_struct_pointer(seg, list_start - 1)
+                        elem_data = Int((tag >> 32) & 0xFFFF)
+                        elem_ptrs = Int((tag >> 48) & 0xFFFF)
+                        elem_count = Int((tag >> 2) & 0x3FFFFFFF)
+                        
+                        for i in 0:elem_count-1
+                            elem_start = list_start + i * (elem_data + elem_ptrs)
+                            push!(cap_table, parse_cap_descriptor(seg, elem_start, elem_data))
+                        end
+                    end
+                end
+            end
+            
+            return ParsedMessage(MessageType.RETURN, nothing, nothing, nothing, nothing, nothing, 
+                ParsedReturn(AnswerId(answer_id), release_param_caps, kind, payload_ptr, cap_table, nothing, nothing))
+        end
+    elseif kind == ReturnType.EXCEPTION
+        exc_ptr = get_struct_pointer(seg, ptr_section_start)
+        exception_reason = ""
+        exception_type = ExceptionType.FAILED
+
+        if exc_ptr !== nothing && exc_ptr != 0
+            exc_offset, exc_data_size, _ = decode_struct_pointer(exc_ptr)
+            exc_start = ptr_section_start + 1 + exc_offset
+            exc_ptr_section = exc_start + exc_data_size
+
+            type_raw = read_data_field(seg, exc_start, 4, UInt16)
+            if type_raw <= 3
+                exception_type = ExceptionType.T(type_raw)
+            end
+
+            text_ptr = get_struct_pointer(seg, exc_ptr_section)
+            if text_ptr !== nothing && text_ptr != 0
+                list_type = text_ptr & 0x3
+                if list_type == 1
+                    list_offset = Int((text_ptr >> 2) & 0x3FFFFFFF)
+                    if list_offset & 0x20000000 != 0
+                        list_offset -= 0x40000000
+                    end
+                    elem_count = Int((text_ptr >> 35) & 0x1FFFFFFF)
+                    text_start = (exc_ptr_section + list_offset) * 8 + 1
+                    if text_start > 0 && text_start + elem_count - 1 <= length(seg)
+                        text_bytes = seg[text_start:text_start + elem_count - 2]
+                        exception_reason = String(text_bytes)
+                    end
+                end
+            end
+        end
+        return ParsedMessage(MessageType.RETURN, nothing, nothing, nothing, nothing, nothing,
+            ParsedReturn(AnswerId(answer_id), release_param_caps, kind, nothing, ParsedCapDescriptor[], exception_reason, exception_type))
+    end
+    
+    return ParsedMessage(MessageType.RETURN, nothing, nothing, nothing, nothing, nothing,
+        ParsedReturn(AnswerId(answer_id), release_param_caps, kind, nothing, ParsedCapDescriptor[], nothing, nothing))
+end
+
+"""
+    build_finish_message(question_id::QuestionId, release_result_caps::Bool=false)
+
+Build a Finish message.
+"""
+function build_finish_message(question_id::QuestionId, release_result_caps::Bool=false)
+    builder = AllocMessageBuilder()
+
+    # Create root Message struct
+    root_ptr = init_root!(builder, Val{:Message})
+
+    # Set discriminant to finish (4)
+    set_type!(root_ptr, MessageType.FINISH, Val{:Message})
+
+    # Message.finish is a struct Finish
+    # Data section: 1 word (8 bytes) for questionId and releaseResultCaps
+    # Pointers: 0
+    finish_ptr_loc = WirePointer(root_ptr.segment, root_ptr.offset + 1)
+    finish_ptr_loc, segment, offset = alloc(builder, finish_ptr_loc, 8)
+    finish_ptr = StructPointer(builder, segment, offset, UInt16(1), UInt16(0))
+    write_struct_pointer(WirePointer(root_ptr.segment, root_ptr.offset + 1), finish_ptr)
+
+    # questionId @0 :UInt32;
+    write_bits(finish_ptr, 0, UInt32, question_id)
+    # releaseResultCaps @1 :Bool = true;
+    write_bool(finish_ptr, 32, release_result_caps)
+
+    return builder
+end
+
+export build_finish_message

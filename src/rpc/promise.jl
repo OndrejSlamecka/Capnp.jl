@@ -51,13 +51,14 @@ mutable struct Promise{T}
     error::Union{Exception, Nothing}
     waiters::Vector{Condition}
     _question_id::Union{QuestionId, Nothing}
+    connection::Any
     lock::ReentrantLock
     # Level 2: Callbacks for promise resolution
     on_resolve_callbacks::Vector{Function}  # Called with resolved value
     on_reject_callbacks::Vector{Function}   # Called with exception
 
-    function Promise{T}(; question_id::Union{QuestionId, Nothing}=nothing) where T
-        new{T}(PromiseState.PENDING, nothing, nothing, Condition[], question_id, ReentrantLock(),
+    function Promise{T}(; question_id::Union{QuestionId, Nothing}=nothing, connection=nothing) where T
+        new{T}(PromiseState.PENDING, nothing, nothing, Condition[], question_id, connection, ReentrantLock(),
                Function[], Function[])
     end
 end
