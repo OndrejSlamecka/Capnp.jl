@@ -207,16 +207,6 @@ struct ParsedMessageTarget
 end
 
 """
-    ParsedParams
-
-Parsed parameters for a method call (e.g., Calculator.add params).
-"""
-struct ParsedParams
-    left::Float64
-    right::Float64
-end
-
-"""
     ParsedCall
 
 Parsed Call message data.
@@ -226,7 +216,7 @@ struct ParsedCall
     target::ParsedMessageTarget
     interface_id::UInt64
     method_id::UInt16
-    params::Union{ParsedParams,Nothing}
+    params::Any
 end
 
 """
@@ -315,7 +305,7 @@ function parse_rpc_message(reader::Capnp.MessageReader)
     if msg_type == MessageType.BOOTSTRAP
         return parse_bootstrap(seg, ptr_section_start)
     elseif msg_type == MessageType.CALL
-        return parse_call(seg, struct_start, ptr_section_start)
+        return parse_call(reader, seg, struct_start, ptr_section_start)
     elseif msg_type == MessageType.FINISH
         return parse_finish(seg, ptr_section_start)
     elseif msg_type == MessageType.RELEASE
@@ -423,7 +413,7 @@ Call struct layout in Message pointer section at pointer 0:
   - target: MessageTarget at pointer 0
   - params: Payload at pointer 1
 """
-function parse_call(seg::Vector{UInt8}, _msg_struct_start::Int, msg_ptr_section_start::Int)
+function parse_call(reader::Capnp.MessageReader, seg::Vector{UInt8}, _msg_struct_start::Int, msg_ptr_section_start::Int)
     # The Call data is pointed to by pointer 0 in Message's pointer section
     call_ptr = get_struct_pointer(seg, msg_ptr_section_start)
 
@@ -450,7 +440,7 @@ function parse_call(seg::Vector{UInt8}, _msg_struct_start::Int, msg_ptr_section_
     target = parse_message_target(seg, call_ptr_section)
 
     # Parse params (Payload at pointer 1 of Call)
-    params = parse_params(seg, call_ptr_section + 1)
+    params = parse_params(reader, seg, call_ptr_section + 1)
 
     call = ParsedCall(QuestionId(question_id), target, interface_id, method_id, params)
 
@@ -467,7 +457,7 @@ For Calculator methods, params struct layout:
 - Word 0: left (Float64)
 - Word 1: right (Float64)
 """
-function parse_params(seg::Vector{UInt8}, payload_ptr_word::Int)
+function parse_params(reader::Capnp.MessageReader, seg::Vector{UInt8}, payload_ptr_word::Int)
     # Get Payload pointer
     payload_ptr = get_struct_pointer(seg, payload_ptr_word)
     if payload_ptr === nothing || payload_ptr == 0
@@ -487,14 +477,12 @@ function parse_params(seg::Vector{UInt8}, payload_ptr_word::Int)
     end
 
     # Decode content pointer to get params struct location
-    content_offset, _content_data_size, _content_ptr_count = decode_struct_pointer(content_ptr)
+    content_offset, content_data_size, content_ptr_count = decode_struct_pointer(content_ptr)
     params_start = payload_start + 1 + content_offset
 
-    # Read left and right Float64 values
-    left = read_data_field(seg, params_start, 0, Float64)
-    right = read_data_field(seg, params_start, 8, Float64)
-
-    return ParsedParams(left, right)
+    # Return a generic StructPointer representing the params
+    # segment_id is 1 because we only support single-segment messages currently in RPC
+    return Capnp.StructPointer(reader, UInt32(1), UInt32(params_start - 1), UInt16(content_data_size), UInt16(content_ptr_count))
 end
 
 """
@@ -1497,7 +1485,7 @@ export MessageType, ReturnType, MessageTargetType, SendResultsToType
 export ResolveType, CapDescriptorType, PromisedAnswerOpType
 export PromisedAnswerOp, ParsedPromisedAnswer, ParsedCapDescriptor
 export ParsedBootstrap, ParsedMessageTarget, ParsedCall, ParsedFinish, ParsedRelease, ParsedResolve, ParsedReturn, ParsedMessage
-export ParsedParams
+
 export parse_rpc_message, parse_cap_descriptor, parse_promised_answer
 export build_bootstrap_request, build_return_message, build_capability_return, build_bootstrap_return, build_exception_return
 export build_resolve_message, build_resolve_exception

@@ -102,7 +102,7 @@ export MessageType, ReturnType, MessageTargetType, SendResultsToType
 export ResolveType, CapDescriptorType, PromisedAnswerOpType
 export PromisedAnswerOp, ParsedPromisedAnswer, ParsedCapDescriptor
 export ParsedBootstrap, ParsedMessageTarget, ParsedCall, ParsedFinish, ParsedRelease, ParsedResolve, ParsedReturn, ParsedMessage
-export ParsedParams
+
 export parse_rpc_message, parse_cap_descriptor, parse_promised_answer
 export build_bootstrap_request, build_return_message, build_bootstrap_return
 export build_resolve_message, build_resolve_exception

@@ -55,8 +55,8 @@ include("../../example/calculator.capnp.jl")
     struct PipeliningTestCalculator <: Calculator_Server end
 
     function Main.Calculator_add(::PipeliningTestCalculator, ctx::RPC.CallContext, params)
-        left = params.left
-        right = params.right
+        left = Main.AddParams_getLeft(params)
+        right = Main.AddParams_getRight(params)
         result = left + right
         RPC.set_result!(ctx, result)
     end
