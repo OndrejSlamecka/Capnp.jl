@@ -41,11 +41,13 @@ struct ServerOptions
     max_connections::Int
     max_message_size::Int
     max_segments::Int
+    inbound_queue_size::Int
+    outbound_queue_size::Int
 
-    function ServerOptions(; max_connections::Int = 1000, max_message_size::Int = Capnp.DEFAULT_MAX_MESSAGE_SIZE, max_segments::Int = Capnp.DEFAULT_MAX_SEGMENTS)
+    function ServerOptions(; max_connections::Int = 1000, max_message_size::Int = Capnp.DEFAULT_MAX_MESSAGE_SIZE, max_segments::Int = Capnp.DEFAULT_MAX_SEGMENTS, inbound_queue_size::Int = 64, outbound_queue_size::Int = 64)
         max_connections > 0 || throw(ArgumentError("max_connections must be positive"))
         Capnp._validate_reader_limits(max_message_size, max_segments)
-        new(max_connections, max_message_size, max_segments)
+        new(max_connections, max_message_size, max_segments, inbound_queue_size, outbound_queue_size)
     end
 end
 
@@ -215,9 +217,7 @@ function serve(server::Server)
     try
         while is_running(server)
             try
-                println(stderr, "WAITING TO ACCEPT")
                 socket = accept(server.tcp_server)
-                println(stderr, "ACCEPTED CONNECTION")
                 handle_new_connection(server, socket)
             catch e
                 if e isa EOFError || !is_running(server)
@@ -259,7 +259,7 @@ function handle_new_connection(server::Server, socket)
     else
         UnixTransport(socket, ""; max_message_size = server.options.max_message_size, max_segments = server.options.max_segments)
     end
-    conn = Connection(transport)
+    conn = Connection(transport; owns_transport=true, inbound_queue_size=server.options.inbound_queue_size, outbound_queue_size=server.options.outbound_queue_size)
 
     # Call connection handler if set
     if server.connection_handler !== nothing
@@ -283,15 +283,13 @@ end
 Handle messages from a connected client.
 """
 function handle_client(server::Server, conn::Connection)
+    conn.message_handler = (c, m) -> handle_server_message!(server, c, m)
+    start_message_loop!(conn)
+    # wait for the connection to close
     try
-        while is_connected(conn) && is_running(server)
-            println(stderr, "WAITING FOR MESSAGE")
-            message = receive_message(conn.transport)
-            println(stderr, "RECEIVED FROM TRANSPORT")
-            handle_server_message!(server, conn, message)
-        end
+        wait(conn.process_task)
     catch e
-        if !(e isa DisconnectedException || e isa EOFError)
+        if !(e isa TaskFailedException && (e.task.exception isa EOFError || e.task.exception isa DisconnectedException))
             @warn "Error handling client" exception=e
         end
     finally
@@ -309,7 +307,6 @@ Parses the RPC message type and dispatches to appropriate handler.
 function handle_server_message!(server::Server, conn::Connection, message::Capnp.MessageReader)
     try
         # Parse the incoming RPC message
-        println(stderr, "RECEIVED MESSAGE")
         parsed = parse_rpc_message(message)
 
         if parsed.type == MessageType.BOOTSTRAP
@@ -325,9 +322,7 @@ function handle_server_message!(server::Server, conn::Connection, message::Capnp
             @warn "Received unsupported RPC message type" type=parsed.type
         end
     catch e
-        println(stderr, "SERVER ERROR: ", e)
         for (i, frame) in enumerate(stacktrace(catch_backtrace()))
-            println(stderr, i, " ", frame)
         end
     end
 end
@@ -343,7 +338,7 @@ function handle_bootstrap_message!(server::Server, conn::Connection, bootstrap::
 
     # Build and send Return message with the capability
     response = build_bootstrap_return(bootstrap.question_id, export_id)
-    send_raw_message(conn.transport, response)
+    queue_message!(conn, response)
 end
 
 """
@@ -391,7 +386,7 @@ function handle_call_message!(server::Server, conn::Connection, call::ParsedCall
     else
         # Check if this is a Persistent.save() call (Level 2)
         if is_save_call(call)
-            handle_save_call!(server, conn, ctx, cap)
+            handle_save_call!(server, conn, ctx, cap, call)
         else
             # Dispatch the call to the implementation
             try
@@ -443,7 +438,7 @@ Build and send a Return message based on the call context.
 """
 function send_return_response!(conn::Connection, ctx::CallContext)
     response = build_return_message(ctx.question_id, ctx.result; has_exception = ctx.has_exception, exception_reason = ctx.exception_reason)
-    send_raw_message(conn.transport, response)
+    queue_message!(conn, response)
 end
 
 """
@@ -579,7 +574,7 @@ function send_resolve!(conn::Connection, promise_id::ExportId, export_id::Export
     # Build and send the Resolve message
     # The resolved capability uses senderHosted to indicate it's now fully available
     message = build_resolve_message(promise_id, CapDescriptorType.SENDER_HOSTED, export_id)
-    send_raw_message(conn.transport, message)
+    queue_message!(conn, message)
 end
 
 """
@@ -589,7 +584,7 @@ Send a Resolve message with an exception when a promised capability fails to res
 """
 function send_resolve_exception!(conn::Connection, promise_id::ExportId, reason::String, exc_type::ExceptionType.T)
     message = build_resolve_exception(promise_id, reason, exc_type)
-    send_raw_message(conn.transport, message)
+    queue_message!(conn, message)
 end
 
 """
@@ -670,7 +665,7 @@ This implements C004-SERVER-PERSISTENCE contract.
 If the capability is persistent, generates a SturdyRef and returns it.
 If not persistent, returns an UNIMPLEMENTED exception.
 """
-function handle_save_call!(server::Server, conn::Connection, ctx::CallContext, cap)
+function handle_save_call!(server::Server, conn::Connection, ctx::CallContext, cap, call::ParsedCall)
     # Check if we have a restorer configured
     restorer = get_restorer(server)
     if restorer === nothing

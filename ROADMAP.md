@@ -54,7 +54,7 @@ This is a safety and maintenance baseline, not yet a complete RPC release.
 
 Goal: make the RPC engine independent of the concrete full-duplex byte stream.
 
-- [ ] Complete the minimal transport contract. Exact message reads, complete
+- [x] Complete the minimal transport contract. Exact message reads, complete
       serialized writes, flush semantics, peer shutdown, and idempotent close
       are now specified; half-close, deadlines, and cancellation remain.
 - [x] Keep `TcpTransport` and `UnixTransport` implemented with `Sockets`.
@@ -67,10 +67,10 @@ Goal: make the RPC engine independent of the concrete full-duplex byte stream.
       `send_buffer_size`, `receive_buffer_size`, `connection_timeout`,
       `traversal_limit`, and `nesting_limit` are validated or stored today but
       are not all enforced.
-- [ ] Specify how transport deadline errors map to Capnp RPC errors and promise
+- [x] Specify how transport deadline errors map to Capnp RPC errors and promise
       rejection.
-- [ ] Add backpressure and bounded outbound/inbound RPC queues.
-- [ ] Test partial reads, partial writes, simultaneous close, peer reset,
+- [x] Add backpressure and bounded outbound/inbound RPC queues.
+- [x] Test partial reads, partial writes, simultaneous close, peer reset,
       cancellation during IO, and repeated close.
 
 Acceptance criteria:

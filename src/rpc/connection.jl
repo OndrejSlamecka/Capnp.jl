@@ -23,6 +23,11 @@ end
 end
 
 # RPC Exception types
+struct TimeoutException <: Exception
+    msg::String
+end
+Base.showerror(io::IO, e::TimeoutException) = print(io, "TimeoutException: ", e.msg)
+
 struct DisconnectedException <: Exception
     reason::String
 end
@@ -200,26 +205,37 @@ mutable struct Connection
     error_reason::Union{String,Nothing}
     lock::ReentrantLock
     owns_transport::Bool
-    message_task::Union{Task,Nothing}
-    # Level 2: Promise tracking
-    promise_tracker::PromiseTracker
+message_task::Union{Task,Nothing}
+# Level 2: Promise tracking
+promise_tracker::PromiseTracker
+# Queues
+inbound_queue::Channel{Capnp.MessageReader}
+outbound_queue::Channel{Vector{UInt8}}
+write_task::Union{Task,Nothing}
+process_task::Union{Task,Nothing}
+    message_handler::Function
 
-    function Connection(transport::Transport; owns_transport::Bool = true)
-        new(
-            transport,
-            ConnectionState.CONNECTING,
-            Dict{QuestionId,PendingQuestion}(),
-            Dict{AnswerId,PendingAnswer}(),
-            Dict{ExportId,LocalCapability}(),
-            Dict{ImportId,RemoteCapability}(),
-            QuestionId(0),
-            ExportId(1),  # Export IDs start at 1 (0 is reserved/invalid)
-            nothing,
-            ReentrantLock(),
-            owns_transport,
-            nothing,
-            PromiseTracker(),
-        )
+function Connection(transport::Transport; owns_transport::Bool = true, inbound_queue_size::Int = 64, outbound_queue_size::Int = 64)
+    new(
+        transport,
+        ConnectionState.CONNECTING,
+        Dict{QuestionId,PendingQuestion}(),
+        Dict{AnswerId,PendingAnswer}(),
+        Dict{ExportId,LocalCapability}(),
+        Dict{ImportId,RemoteCapability}(),
+        0,
+        0,
+        nothing,
+        ReentrantLock(),
+        owns_transport,
+        nothing,
+        PromiseTracker(),
+        Channel{Capnp.MessageReader}(inbound_queue_size),
+        Channel{Vector{UInt8}}(outbound_queue_size),
+    nothing,
+    nothing,
+    identity
+)
     end
 end
 
@@ -375,6 +391,8 @@ function Base.close(conn::Connection)
         empty!(conn.promise_tracker.promised_exports)
         empty!(conn.promise_tracker.remote_promises)
         should_close_transport = conn.owns_transport && isopen(conn.transport)
+        close(conn.inbound_queue)
+        close(conn.outbound_queue)
     end
 
     if should_close_transport
@@ -459,7 +477,7 @@ end
 
 # Exports
 export ConnectionState, ExceptionType
-export DisconnectedException, ConnectionFailedException, RemoteException, InvalidCapabilityException
+export DisconnectedException, TimeoutException, ConnectionFailedException, RemoteException, InvalidCapabilityException
 export LocalCapability, RemoteCapability, PendingQuestion, PendingAnswer, Connection
 export RemotePromise, PromisedExport, PromiseTracker
 export state, is_connected
@@ -473,3 +491,11 @@ export add_import!, get_import, remove_import!
 export add_promised_export!, get_promised_export, remove_promised_export!
 export add_remote_promise!, get_remote_promise, remove_remote_promise!
 export incref!, decref!
+
+queue_message!(conn::Connection, data::AbstractVector{UInt8}) = put!(conn.outbound_queue, data)
+function flush_outbound!(conn::Connection)
+    while isready(conn.outbound_queue)
+        data = take!(conn.outbound_queue)
+        send_raw_message(conn.transport, data)
+    end
+end

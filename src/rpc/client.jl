@@ -49,7 +49,7 @@ function bootstrap_async(conn::Connection, ::Type{T}) where {T}
     on_reject!(raw_promise, err -> reject!(typed_promise, err))
 
     try
-        send_raw_message(conn.transport, build_bootstrap_request(qid))
+        queue_message!(conn, build_bootstrap_request(qid))
     catch err
         remove_question!(conn, qid)
         reject!(raw_promise, err isa Exception ? err : ErrorException(string(err)))
@@ -68,10 +68,12 @@ Configuration options for RPC connections.
 struct ConnectionOptions
     max_message_size::Int
     max_segments::Int
+    inbound_queue_size::Int
+    outbound_queue_size::Int
 
-    function ConnectionOptions(; max_message_size::Int = Capnp.DEFAULT_MAX_MESSAGE_SIZE, max_segments::Int = Capnp.DEFAULT_MAX_SEGMENTS)
+    function ConnectionOptions(; max_message_size::Int = Capnp.DEFAULT_MAX_MESSAGE_SIZE, max_segments::Int = Capnp.DEFAULT_MAX_SEGMENTS, inbound_queue_size::Int = 64, outbound_queue_size::Int = 64)
         Capnp._validate_reader_limits(max_message_size, max_segments)
-        new(max_message_size, max_segments)
+        new(max_message_size, max_segments, inbound_queue_size, outbound_queue_size)
     end
 end
 
@@ -101,9 +103,9 @@ end
 Create an RPC connection over an already-configured transport. This is the
 advanced extension point for custom streams and optional Reseau TLS support.
 """
-function connect(transport::Transport; owns_transport::Bool = true, start_message_loop::Bool = true)
+function connect(transport::Transport; owns_transport::Bool = true, start_message_loop::Bool = true, options::ConnectionOptions = ConnectionOptions())
     isopen(transport) || throw(ConnectionFailedException("Transport is not open"))
-    conn = Connection(transport; owns_transport)
+    conn = Connection(transport; owns_transport, inbound_queue_size=options.inbound_queue_size, outbound_queue_size=options.outbound_queue_size)
     set_connected!(conn)
     start_message_loop && start_message_loop!(conn)
     return conn
@@ -177,7 +179,7 @@ function handle_message!(conn::Connection, message::Capnp.MessageReader)
                         # Not implemented yet, reject for now
                         reject!(question.promise, RemoteException("Accept from third party", ExceptionType.UNIMPLEMENTED))
                     end
-                    
+
                     # Handle releaseParamCaps
                     if return_msg.release_param_caps
                         for cap_id in question.param_caps
@@ -187,12 +189,12 @@ function handle_message!(conn::Connection, message::Capnp.MessageReader)
                             end
                         end
                     end
-                    
+
                     remove_question!(conn, return_msg.answer_id)
 
                     # Send Finish message to acknowledge Return and free peer resources
                     finish_msg = build_finish_message(return_msg.answer_id, false)
-                    send_raw_message(conn.transport, finish_msg)
+                    queue_message!(conn, finish_msg)
                 end
             end
             return nothing
@@ -376,13 +378,42 @@ function start_message_loop!(conn::Connection)
     end
     existing_task !== nothing && return existing_task
 
+    conn.write_task = @async begin
+        try
+            for data in conn.outbound_queue
+                send_raw_message(conn.transport, data)
+            end
+        catch e
+            close(conn)
+            e isa DisconnectedException || set_failed!(conn, string(e))
+        end
+    end
+
+    conn.process_task = @async begin
+        try
+            for message in conn.inbound_queue
+                if conn.message_handler !== identity
+                    conn.message_handler(conn, message)
+                else
+                    handle_message!(conn, message)
+                end
+            end
+        catch e
+    _reject_pending_questions!(conn, e isa Exception ? e : ErrorException(string(e)))
+    close(conn)
+    e isa DisconnectedException || set_failed!(conn, string(e))
+end
+    end
+
     task = @async begin
         try
             while is_connected(conn)
                 message = receive_message(conn.transport)
-                handle_message!(conn, message)
+                put!(conn.inbound_queue, message)
             end
         catch e
+            close(conn.inbound_queue)
+            close(conn.outbound_queue)
             _reject_pending_questions!(conn, e isa Exception ? e : ErrorException(string(e)))
             close(conn)
             e isa DisconnectedException || set_failed!(conn, string(e))
@@ -453,7 +484,7 @@ function call_save(conn::Connection, import_id::ImportId)
     add_question!(conn, question)
 
     # Send the message
-    send_raw_message(conn.transport, message)
+    queue_message!(conn, message)
 
     # Return a typed promise that will convert the result
     result_promise = Promise{DefaultSturdyRef}()
@@ -552,7 +583,7 @@ function call_restore(conn::Connection, restorer_import_id::ImportId, sturdy_ref
     add_question!(conn, question)
 
     # Send the message
-    send_raw_message(conn.transport, message)
+    queue_message!(conn, message)
 
     # Return a typed promise that will convert the result
     result_promise = Promise{RemoteCapability}()
@@ -642,7 +673,7 @@ function _send_cancel_finish!(conn::Connection, qid::QuestionId)
     # The RPC spec states that a canceled call still requires sending a Finish message.
     # The releaseResultCaps flag is set to false because we are not waiting for results.
     msg = build_finish_message(qid, false)
-    send_raw_message(conn.transport, msg)
+    queue_message!(conn, msg)
 end
 
 """
@@ -680,7 +711,7 @@ function call(cap::Union{RemoteCapability,Promise}, interface_id::UInt64, method
 
     io = IOBuffer()
     Capnp.writeMessageToStream(builder, io)
-    send_raw_message(conn.transport, take!(io))
+    queue_message!(conn, take!(io))
 
     return promise
 end
@@ -720,16 +751,16 @@ function release!(cap::RemoteCapability)
     if decref!(cap)
         # Send Release message with count 1
         msg = build_release_message(cap.import_id, UInt32(1))
-        
+
         # We need to send it if the connection is still alive
         if cap.connection.transport !== nothing # using a simple check
             try
-                send_raw_message(cap.connection.transport, msg)
+                queue_message!(cap.connection, msg)
             catch
                 # Ignore transport errors during release
             end
         end
-        
+
         remove_import!(cap.connection, cap.import_id)
     else
         # We released one local reference but still have more, so we send a Release
@@ -737,10 +768,20 @@ function release!(cap::RemoteCapability)
         msg = build_release_message(cap.import_id, UInt32(1))
         if cap.connection.transport !== nothing
             try
-                send_raw_message(cap.connection.transport, msg)
+                queue_message!(cap.connection, msg)
             catch
                 # Ignore transport errors during release
             end
         end
     end
+end
+
+"""
+    connect(host::AbstractString, port::Integer, tls_config::TLSConfig; options::ConnectionOptions=ConnectionOptions()) -> Connection
+    
+Establish a TLS-secured Cap'n Proto RPC connection. 
+Requires the `Reseau` package to be loaded.
+"""
+function connect(host::AbstractString, port::Integer, tls_config::AbstractTLSConfig; options::ConnectionOptions = ConnectionOptions())
+    error("TLS connections require the Reseau package to be loaded. Run `using Reseau`.")
 end

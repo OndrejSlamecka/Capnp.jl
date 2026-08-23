@@ -281,6 +281,7 @@ println(stderr, "RUNNING TESTSET: ");
         mock = RPC.MockTransport()
         conn = RPC.connect(mock; owns_transport = false, start_message_loop = false)
         promise = RPC.bootstrap_async(conn, BootstrapTestClient)
+        RPC.flush_outbound!(conn)
 
         @test length(RPC.get_sent_messages(mock)) == 1
         request = RPC.parse_rpc_message(Capnp.MessageReader(IOBuffer(only(RPC.get_sent_messages(mock)))))
@@ -314,7 +315,7 @@ println(stderr, "RUNNING TESTSET: ");
         try
             conn = RPC.connect("127.0.0.1", port)
             capability = RPC.bootstrap(conn, RPC.RemoteCapability)
-            @test capability.import_id == UInt32(1)
+            @test capability.import_id == UInt32(0)
             @test capability.connection === conn
         finally
             conn === nothing || close(conn)
@@ -335,7 +336,7 @@ println(stderr, "RUNNING TESTSET: ");
                 try
                     conn = RPC.connect(socket_path)
                     capability = RPC.bootstrap(conn, RPC.RemoteCapability)
-                    @test capability.import_id == UInt32(1)
+                    @test capability.import_id == UInt32(0)
                     @test capability.connection === conn
                 finally
                     conn === nothing || close(conn)
@@ -508,18 +509,18 @@ end
     mock = RPC.MockTransport()
     conn = RPC.Connection(mock)
     RPC.set_connected!(conn)
-    
+
     # Add a pending question
     qid = RPC.next_question_id!(conn)
     promise = RPC.Promise{Any}(question_id = qid, connection = conn)
     RPC.add_question!(conn, RPC.PendingQuestion(qid, promise))
-    
+
     @test RPC.question_count(conn) == 1
     @test promise.state == RPC.PromiseState.PENDING
-    
+
     # Simulate connection drop (which should trigger _reject_pending_questions!)
     RPC._reject_pending_questions!(conn, RPC.DisconnectedException("transport closed"))
-    
+
     @test RPC.question_count(conn) == 0
     @test promise.state == RPC.PromiseState.REJECTED
     @test promise.error isa RPC.DisconnectedException

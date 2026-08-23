@@ -179,10 +179,16 @@ Block until the promise is settled, then return the value or throw the error.
 """
 function Base.fetch(p::Promise{T}) where {T}
     wait(p)
-    if p.state == PromiseState.RESOLVED
-        return p.result::T
-    else
-        throw(p.error)
+    lock(p.lock) do
+        if p.state == PromiseState.RESOLVED
+            return p.result::T
+        else
+            err = p.error
+            if err === nothing
+                error("Promise rejected without an error")
+            end
+            throw(err)
+        end
     end
 end
 
