@@ -215,10 +215,10 @@ macOS and Windows coverage after the protocol test is stable.
 Goal: prove that generated RPC applications, including the optional TLS path,
 can be compiled under Julia's trimming constraints.
 
-- [ ] Add a minimal plain-TCP RPC application compiled with `--trim=safe`.
-- [ ] Add a second application that loads `CapnpReseauExt`, performs a verified
+- [x] Add a minimal plain-TCP RPC application compiled with `--trim=safe`.
+- [x] Add a second application that loads `CapnpReseauExt`, performs a verified
       TLS or mTLS call, and exits cleanly.
-- [ ] Eliminate runtime `eval`, dynamic method creation, reflective dispatch,
+- [x] Eliminate runtime `eval`, dynamic method creation, reflective dispatch,
       and avoidable `Any` from paths reachable by compiled applications.
 - [ ] Make generated schema and RPC code inference-friendly and precompilable.
 - [ ] Verify certificate and OpenSSL artifacts are bundled correctly on Linux,
