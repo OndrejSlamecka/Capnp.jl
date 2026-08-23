@@ -1,4 +1,4 @@
-#!/usr/bin/env -S julia --project
+#!/usr/bin/env -S julia --project=@.
 
 # The main plugin entry point called by capnp when you do `capnp -o./capnp-jl`.
 

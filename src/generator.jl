@@ -29,7 +29,7 @@ function generate(request::CodeGeneratorRequest)
         # Generate recursively with file node at the root of the tree
         generateNode(env, file_node)
 
-        open(file.filename * ".jl", "w") do io
+        mkpath(dirname(file.filename * ".jl")); open(file.filename * ".jl", "w") do io
             println(io, String(take!(env.buffer)))
         end
     end
@@ -599,11 +599,11 @@ function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFi
 
     # New API: getter
     cprintln(env, "function get_$(field_snake)(ptr, ::Type{Val{:$(node.jlName)}})")
-    cprintln(env, "    p = Capnp.read_list_pointer(ptr, $(node.nodeProperties.dataWordCount), $(Int(field.fieldProperties.offset)), $(runtimeElementType))")
+    cprintln(env, "    p = Capnp.read_list_pointer(ptr, ptr.data_word_count, $(Int(field.fieldProperties.offset)), $(runtimeElementType))")
     if elementType isa SchemaStruct
         strct = env.nodes[elementType.typeId]
         # Use >= for schema evolution compatibility (newer schemas may add fields)
-        cprintln(env, "    @assert isempty(p) || p isa Capnp.SimpleListPointer ||")
+        cprintln(env, "    @assert length(p) == 0 || p isa Capnp.SimpleListPointer ||")
         cprintln(env, "       (p isa Capnp.CompositeListPointer && p.data_word_count >= $(strct.jlName)_data_word_count) && p.pointer_count >= $(strct.jlName)_pointer_count")
     end
     cprintln(env, "    p")
@@ -619,7 +619,7 @@ function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFi
     elseif is_capnp_bits(field.fieldProperties.type.elementType)
         # New API: init
         cprintln(env, "function init_$(field_snake)!(ptr, size, ::Type{Val{:$(node.jlName)}})")
-        cprintln(env, "    pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + $(node.nodeProperties.dataWordCount + field.fieldProperties.offset))")
+        cprintln(env, "    pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + ptr.data_word_count + $(field.fieldProperties.offset))")
         cprintln(env, "    pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, $(capnp_sizeof(field.fieldProperties.type.elementType)) * size)")
         cprintln(env, "    child_ptr = Capnp.SimpleListPointer{$(runtimeElementType), typeof(ptr.traverser)}(ptr.traverser, segment, offset, Capnp.$(elementsize(field.fieldProperties.type.elementType)), convert(UInt32, size))")
         cprintln(env, "    Capnp.write_list_pointer(pointer_location, child_ptr)")
@@ -635,7 +635,7 @@ function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFi
         slotStructProps = env.nodes[field.fieldProperties.type.elementType.typeId].nodeProperties
         # New API: init
         cprintln(env, "function init_$(field_snake)!(ptr, size, ::Type{Val{:$(node.jlName)}})")
-        cprintln(env, "    pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + $(node.nodeProperties.dataWordCount + field.fieldProperties.offset))")
+        cprintln(env, "    pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + ptr.data_word_count + $(field.fieldProperties.offset))")
         cprintln(env, "    pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, 8*(1 + size * ($(slotStructProps.dataWordCount) + $(slotStructProps.pointerCount))))")
         cprintln(env, "    child_ptr = Capnp.CompositeListPointer(ptr.traverser, segment, offset, convert(UInt32, size), UInt16($(slotStructProps.dataWordCount)), UInt16($(slotStructProps.pointerCount)))")
         cprintln(env, "    Capnp.write_list_pointer(pointer_location, child_ptr)")
@@ -659,7 +659,7 @@ function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFi
 
     # New API: getter
     cprintln(env, "function get_$(field_snake)(ptr::Capnp.StructPointer{T}, ::Type{Val{:$(node.jlName)}}) where T <: Reader")
-    cprintln(env, "    p = Capnp.read_struct_pointer(ptr, $(node.nodeProperties.dataWordCount), $(field.fieldProperties.offset))")
+    cprintln(env, "    p = Capnp.read_struct_pointer(ptr, ptr.data_word_count, $(field.fieldProperties.offset))")
     generate_struct_pointer_assert(env, typeNode.jlName, "p")
     cprintln(env, "    p")
     cprintln(env, "end")
@@ -676,7 +676,7 @@ function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFi
 
     # New API: init
     cprintln(env, "function init_$(field_snake)!(ptr, ::Type{Val{:$(node.jlName)}})")
-    cprintln(env, "    pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + $(node.nodeProperties.dataWordCount + field.fieldProperties.offset))")
+    cprintln(env, "    pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + ptr.data_word_count + $(field.fieldProperties.offset))")
     cprintln(env, "    pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, 8*$(slotStructProps.dataWordCount + slotStructProps.pointerCount))")
     cprintln(env, "    child_ptr = Capnp.StructPointer(ptr.traverser, segment, offset, UInt16($(slotStructProps.dataWordCount)), UInt16($(slotStructProps.pointerCount)))")
     cprintln(env, "    Capnp.write_struct_pointer(pointer_location, child_ptr)")
@@ -695,7 +695,7 @@ function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFi
 
     # New API: getter
     cprintln(env, "function get_$(field_snake)(ptr, ::Type{Val{:$(node.jlName)}})")
-    cprintln(env, "    p = Capnp.read_list_pointer(ptr, $(node.nodeProperties.dataWordCount), $(Int(field.fieldProperties.offset)))")
+    cprintln(env, "    p = Capnp.read_list_pointer(ptr, ptr.data_word_count, $(Int(field.fieldProperties.offset)))")
     cprintln(env, "    Capnp.read_text(p)")
     cprintln(env, "end")
     # Legacy API
@@ -706,7 +706,7 @@ function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFi
 
     # New API: setter
     cprintln(env, "function set_$(field_snake)!(ptr, txt, ::Type{Val{:$(node.jlName)}})")
-    cprintln(env, "    pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + $(node.nodeProperties.dataWordCount + field.fieldProperties.offset))")
+    cprintln(env, "    pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + ptr.data_word_count + $(field.fieldProperties.offset))")
     cprintln(env, "    pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, length(txt) + 1)")
     cprintln(env, "    child_ptr = Capnp.SimpleListPointer{UInt8, typeof(ptr.traverser)}(ptr.traverser, segment, offset, Capnp.Byte, UInt32(length(txt) + 1))")
     cprintln(env, "    Capnp.write_list_pointer(pointer_location, child_ptr)")
@@ -726,7 +726,7 @@ function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFi
 
     # New API: getter
     cprintln(env, "function get_$(field_snake)(ptr, ::Type{Val{:$(node.jlName)}})")
-    cprintln(env, "    cap_ptr = Capnp.read_capability_pointer(ptr, $(node.nodeProperties.dataWordCount), $(field.fieldProperties.offset))")
+    cprintln(env, "    cap_ptr = Capnp.read_capability_pointer(ptr, ptr.data_word_count, $(field.fieldProperties.offset))")
     cprintln(env, "    if cap_ptr !== nothing && cap_ptr.cap_index < length(ptr.traverser.capabilities)")
     cprintln(env, "        cap = ptr.traverser.capabilities[cap_ptr.cap_index + 1]")
     cprintln(env, "        return $(typeNode.jlName)_Client(cap)")
@@ -748,7 +748,7 @@ function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFi
     # New API: setter
     cprintln(env, "function set_$(field_snake)!(ptr, client, ::Type{Val{:$(node.jlName)}})")
     cprintln(env, "    idx = Capnp.RPC.add_capability_to_message!(ptr.traverser, client)")
-    cprintln(env, "    pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + $(node.nodeProperties.dataWordCount + field.fieldProperties.offset))")
+    cprintln(env, "    pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + ptr.data_word_count + $(field.fieldProperties.offset))")
     cprintln(env, "    Capnp.write_capability_pointer(pointer_location, ptr.traverser, idx)")
     generateDiscriminantSetter(env, "ptr", node.nodeProperties, field)
     cprintln(env, "end")
