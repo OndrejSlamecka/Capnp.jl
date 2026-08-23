@@ -158,11 +158,11 @@ code should not mention `Reseau.TCP` or `Reseau.TLS`; direct construction of an
       while retaining the original exception as diagnostic context.
 - [x] Ensure read, write, handshake, and accept deadlines can be configured and
       cancelled independently.
-- [ ] Redact private keys, tokens, and sensitive certificate material from
+- [x] Redact private keys, tokens, and sensitive certificate material from
       logging and exception display.
-- [ ] Add extension-specific precompile workloads without introducing runtime
+- [x] Add extension-specific precompile workloads without introducing runtime
       code generation.
-- [ ] Document explicit loading: base users get `Sockets`; users who install and
+- [x] Document explicit loading: base users get `Sockets`; users who install and
       load Reseau activate secure transports.
 
 Acceptance criteria:

@@ -143,4 +143,13 @@ function Capnp.RPC.listen(server::RPC.Server, host::AbstractString, port::Intege
     return server
 end
 
+
+Base.closewrite(t::ReseauTransport) = Base.closewrite(t.socket)
+
+# Precompile workloads
+if Base.VERSION >= v"1.9"
+    precompile(Capnp.RPC.connect, (String, Int, Capnp.RPC.TLSConfig))
+    precompile(Capnp.RPC.listen, (Capnp.RPC.Server, String, Int, Capnp.RPC.TLSListenerConfig))
+end
+
 end
