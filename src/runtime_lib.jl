@@ -3,8 +3,11 @@
 const Segment = Vector{UInt8}
 const DEFAULT_MAX_MESSAGE_SIZE = 64 * 1024 * 1024
 const DEFAULT_MAX_SEGMENTS = 512
+const DEFAULT_TRAVERSAL_LIMIT_WORDS = 8 * 1024 * 1024
+const DEFAULT_NESTING_LIMIT = 64
 
 """Raised when a byte stream is not a valid, safely bounded Cap'n Proto message."""
+
 struct InvalidMessageError <: Exception
     message::String
 end
@@ -39,6 +42,16 @@ end
 abstract type MessageTraverser end
 abstract type Reader <: MessageTraverser end
 abstract type Writer <: MessageTraverser end
+
+struct InvalidMessageError <: Exception
+    msg::String
+end
+_decrement_traversal_limit!(traverser::Writer, words::Integer) = nothing
+function _decrement_traversal_limit!(traverser::Reader, words::Integer)
+    traverser.traversal_limit_words -= Int(words)
+    traverser.traversal_limit_words >= 0 || throw(InvalidMessageError("Message traversal limit exceeded"))
+end
+
 
 abstract type CapnpPointer end
 
@@ -86,8 +99,10 @@ end
 mutable struct MessageReader <: Reader
     capabilities::Vector{Any}
     segments::Vector{Segment}
+    traversal_limit_words::Int
+    nesting_limit::Int
 
-    function MessageReader(io::IO; max_message_size::Int = DEFAULT_MAX_MESSAGE_SIZE, max_segments::Int = DEFAULT_MAX_SEGMENTS)
+    function MessageReader(io::IO; max_message_size::Int = DEFAULT_MAX_MESSAGE_SIZE, max_segments::Int = DEFAULT_MAX_SEGMENTS, traversal_limit_words::Int = DEFAULT_TRAVERSAL_LIMIT_WORDS, nesting_limit::Int = DEFAULT_NESTING_LIMIT)
         _validate_reader_limits(max_message_size, max_segments)
 
         # num segments
@@ -120,7 +135,7 @@ mutable struct MessageReader <: Reader
             segments[i] = data
         end
 
-        new(Any[], segments)
+        new(Any[], segments, traversal_limit_words, nesting_limit)
     end
 end
 
@@ -141,8 +156,10 @@ mutable struct BufferMessageReader <: Reader
     capabilities::Vector{Any}
     segments::Vector{SubArray{UInt8,1,Vector{UInt8},Tuple{UnitRange{Int64}},true}}
     _buffer::Vector{UInt8}  # Keep reference to prevent GC
+    traversal_limit_words::Int
+    nesting_limit::Int
 
-    function BufferMessageReader(buffer::Vector{UInt8}; max_message_size::Int = DEFAULT_MAX_MESSAGE_SIZE, max_segments::Int = DEFAULT_MAX_SEGMENTS)
+    function BufferMessageReader(buffer::Vector{UInt8}; max_message_size::Int = DEFAULT_MAX_MESSAGE_SIZE, max_segments::Int = DEFAULT_MAX_SEGMENTS, traversal_limit_words::Int = DEFAULT_TRAVERSAL_LIMIT_WORDS, nesting_limit::Int = DEFAULT_NESTING_LIMIT)
         _validate_reader_limits(max_message_size, max_segments)
 
         length(buffer) >= 8 || throw(InvalidMessageError("message is shorter than the minimum framing header"))
@@ -181,7 +198,7 @@ mutable struct BufferMessageReader <: Reader
             current_offset += size_bytes
         end
 
-        new(Any[], segments, buffer)
+        new(Any[], segments, buffer, traversal_limit_words, nesting_limit)
     end
 end
 
@@ -410,8 +427,8 @@ function resolve_pointer(ptr, byte_section_words, ptrix)::Tuple{Int64,UInt32,UIn
         else # B == 1
             # in this case we need to read the far bytes as another far pointer and use its segment_id and pointed_to_offset
             # furthermore behind this another far pointer there's the struct description (the bytes to read)
-            @assert is_far_pointer(far_bytes)
-            @assert far_bytes & 0b100 == 0
+            is_far_pointer(far_bytes) || throw(InvalidMessageError("Expected far pointer landing pad"))
+            (far_bytes & 0b100) == 0 || throw(InvalidMessageError("Double far pointer landing pad cannot be another double far pointer"))
 
             far_far_offset = Int((UInt64(far_bytes) >> 3) & 0x1fff_ffff)
             far_segment_id = Int(UInt32(UInt64(far_bytes) >> 32)) + 1 # numbered from zero -> need +1 for Julia
@@ -460,7 +477,9 @@ function read_struct_pointer(ptr, byte_section_words, ptrix)
         data_words = UInt16((bytes >> 32) & 0xff)
         ptr_words = UInt16((bytes >> 48) & 0xff)
 
-        StructPointer(ptr.traverser, segment, offset, data_words, ptr_words)
+        _checked_byte_range(_checked_segment(ptr.traverser.segments, segment), 8 * offset, 8 * (Int(data_words) + Int(ptr_words)))
+_decrement_traversal_limit!(ptr.traverser, Int(data_words) + Int(ptr_words))
+StructPointer(ptr.traverser, segment, offset, data_words, ptr_words)
     else
         throw(InvalidMessageError("Not a struct at byte $offset of segment $segment, A = $(bytes & 0b11)"))
     end
@@ -485,7 +504,7 @@ function write_struct_pointer(pointer_location::WirePointer, ptr)
     position_bytes = 8 * position_words
 
     bytes = _checked_load(Int64, ptr.traverser.segments, pointer_location.segment, position_bytes)
-    @assert bytes & 0b11 == 0
+    (bytes & 0b11) == 0 || throw(InvalidMessageError("Invalid list tag"))
 
     A = Int64(0)
     B = Int64(ptr.offset) - Int64(position_words) - 1 # the difference between position and allocated space
@@ -626,7 +645,7 @@ end
 function read_list_tag(segment, offset)
     bytes = _checked_load(Int64, segment, Int(offset) * 8)
 
-    @assert bytes & 0b11 == 0
+    (bytes & 0b11) == 0 || throw(InvalidMessageError("Invalid list tag"))
 
     length = (bytes & 0xff_ff) >> 2
     data_word_count = (bytes >> 32) & 0xff
@@ -650,7 +669,7 @@ end
 
 # Text is a special kind of list
 function read_text(ptr::SimpleListPointer)
-    @assert ptr.element_size == Byte
+    ptr.element_size == Byte || throw(InvalidMessageError("Text pointer must point to a list of bytes"))
     if ptr.length == 0
         ""
     else
@@ -664,7 +683,7 @@ function read_text(ptr::SimpleListPointer)
 end
 
 function write_text(ptr::ListPointer, text)
-    @assert ptr.element_size == Byte
+    ptr.element_size == Byte || throw(InvalidMessageError("Text pointer must point to a list of bytes"))
     segment = _checked_segment(ptr.traverser.segments, ptr.segment)
     bytes = codeunits(String(text))
     byte_offset = 8 * Int(ptr.offset)
@@ -715,7 +734,7 @@ function write_list_pointer(pointer_location::WirePointer, ptr::SimpleListPointe
     position_bytes = 8 * position_words
 
     bytes = _checked_load(Int64, ptr.traverser.segments, pointer_location.segment, position_bytes)
-    @assert bytes & 0b11 == 0 "Non-empty pointer type bits at segment $(pointer_location.segment), byte $(position_bytes), $(Int64(bytes))"
+    (bytes & 0b11) == 0 || throw(InvalidMessageError("Non-empty pointer type bits at segment $(pointer_location.segment), byte $(position_bytes), $(Int64(bytes))"))
 
     A = Int64(1) # list pointer indicator
     B = Int64(ptr.offset) - Int64(position_words) - 1 # offset, the difference between position and allocated space
@@ -734,7 +753,7 @@ function write_list_pointer(pointer_location::WirePointer, ptr::CompositeListPoi
     position_bytes = 8 * position_words
 
     bytes = _checked_load(Int64, ptr.traverser.segments, pointer_location.segment, position_bytes)
-    @assert bytes & 0b11 == 0 "Non-empty pointer type bits at segment $(pointer_location.segment), byte $(position_bytes)"
+    (bytes & 0b11) == 0 || throw(InvalidMessageError("Non-empty pointer type bits at segment $(pointer_location.segment), byte $(position_bytes)"))
 
     A = Int64(1) # list pointer
     B = Int64(ptr.offset) - Int64(position_words) - 1 # offset, the difference between position and allocated space
@@ -810,7 +829,7 @@ function read_capability_pointer(ptr, byte_section_words, ptrix)
         nothing
     elseif is_capability_pointer(bytes)
         # Bits 2-31 must be 0
-        @assert (bytes & 0x_ff_ff_ff_fc) == 0 "Invalid capability pointer: bits 2-31 must be 0"
+        (bytes & 0x_ff_ff_ff_fc) == 0 || throw(InvalidMessageError("Invalid capability pointer: bits 2-31 must be 0"))
 
         # Capability index is in the upper 32 bits
         cap_index = UInt32(bytes >> 32)
