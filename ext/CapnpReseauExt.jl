@@ -63,15 +63,29 @@ end
 
 # Implement connect for TLSConfig
 function Capnp.RPC.connect(host::AbstractString, port::Integer, tls_config::RPC.TLSConfig; options::RPC.ConnectionOptions = RPC.ConnectionOptions())
-    config = Reseau.TLS.Config(;
-        server_name = tls_config.sni !== nothing ? tls_config.sni : host,
-        verify_peer = tls_config.verify_host,
-        verify_hostname = tls_config.verify_host,
-        ca_file = tls_config.ca_roots,
-        cert_file = tls_config.client_cert,
-        key_file = tls_config.client_key,
-        alpn_protocols = tls_config.alpn_protocols !== nothing ? tls_config.alpn_protocols : String[],
-        handshake_timeout_ns = tls_config.handshake_timeout_ns !== nothing ? tls_config.handshake_timeout_ns : UInt64(10_000_000_000),
+    cache13c = Reseau.TLS._TLSSessionCache{Reseau.TLS._TLS13ClientSession}(ReentrantLock(), Dict{String, Reseau.TLS._TLS13ClientSession}(), String[], 64)
+    cache13s = Reseau.TLS._TLSSessionCache{Reseau.TLS._TLS13ServerSession}(ReentrantLock(), Dict{String, Reseau.TLS._TLS13ServerSession}(), String[], 64)
+    cache12c = Reseau.TLS._TLSSessionCache{Reseau.TLS._TLS12ClientSession}(ReentrantLock(), Dict{String, Reseau.TLS._TLS12ClientSession}(), String[], 64)
+    cache12s = Reseau.TLS._TLSSessionCache{Reseau.TLS._TLS12ServerSession}(ReentrantLock(), Dict{String, Reseau.TLS._TLS12ServerSession}(), String[], 64)
+    config = Reseau.TLS.Config(
+        tls_config.sni !== nothing ? (tls_config.sni::String) : String(host),
+        tls_config.verify_host::Bool,
+        tls_config.verify_host::Bool,
+        Reseau.TLS.ClientAuthMode.NoClientCert,
+        tls_config.client_cert::String,
+        tls_config.client_key::String,
+        tls_config.ca_roots::String,
+        nothing,
+        tls_config.alpn_protocols !== nothing ? (tls_config.alpn_protocols::Vector{String}) : String[],
+        UInt16[],
+        Int64(tls_config.handshake_timeout_ns !== nothing ? tls_config.handshake_timeout_ns : UInt64(10_000_000_000)),
+        nothing,
+        nothing,
+        false,
+        Reseau.TLS._TLSSessionTicketKeyState(),
+        cache13c, cache13s, cache12c, cache12s,
+        Reseau.TLS._TLSLocalIdentityState(),
+        Reseau.TLS._TLSLocalIdentityState()
     )
 
     # Reseau.TLS.connect accepts an address string in the format "host:port"
@@ -90,13 +104,29 @@ end
 # Implement listen for TLSListenerConfig
 function Capnp.RPC.listen(server::RPC.Server, host::AbstractString, port::Integer, tls_config::RPC.TLSListenerConfig)
     client_auth = tls_config.require_client_cert ? Reseau.TLS.ClientAuthMode.RequireAndVerifyClientCert : Reseau.TLS.ClientAuthMode.NoClientCert
-    config = Reseau.TLS.Config(;
-        cert_file = tls_config.server_cert,
-        key_file = tls_config.server_key,
-        client_ca_file = tls_config.ca_roots,
-        client_auth = client_auth,
-        alpn_protocols = tls_config.alpn_protocols !== nothing ? tls_config.alpn_protocols : String[],
-        handshake_timeout_ns = tls_config.handshake_timeout_ns !== nothing ? tls_config.handshake_timeout_ns : UInt64(10_000_000_000),
+    cache13c = Reseau.TLS._TLSSessionCache{Reseau.TLS._TLS13ClientSession}(ReentrantLock(), Dict{String, Reseau.TLS._TLS13ClientSession}(), String[], 64)
+    cache13s = Reseau.TLS._TLSSessionCache{Reseau.TLS._TLS13ServerSession}(ReentrantLock(), Dict{String, Reseau.TLS._TLS13ServerSession}(), String[], 64)
+    cache12c = Reseau.TLS._TLSSessionCache{Reseau.TLS._TLS12ClientSession}(ReentrantLock(), Dict{String, Reseau.TLS._TLS12ClientSession}(), String[], 64)
+    cache12s = Reseau.TLS._TLSSessionCache{Reseau.TLS._TLS12ServerSession}(ReentrantLock(), Dict{String, Reseau.TLS._TLS12ServerSession}(), String[], 64)
+    config = Reseau.TLS.Config(
+        nothing,
+        false,
+        false,
+        client_auth,
+        tls_config.server_cert::String,
+        tls_config.server_key::String,
+        nothing,
+        tls_config.ca_roots::String,
+        tls_config.alpn_protocols !== nothing ? (tls_config.alpn_protocols::Vector{String}) : String[],
+        UInt16[],
+        Int64(tls_config.handshake_timeout_ns !== nothing ? tls_config.handshake_timeout_ns : UInt64(10_000_000_000)),
+        nothing,
+        nothing,
+        false,
+        Reseau.TLS._TLSSessionTicketKeyState(),
+        cache13c, cache13s, cache12c, cache12s,
+        Reseau.TLS._TLSLocalIdentityState(),
+        Reseau.TLS._TLSLocalIdentityState()
     )
 
     listener = Reseau.TCP.listen("tcp", "$host:$port")
@@ -106,14 +136,18 @@ function Capnp.RPC.listen(server::RPC.Server, host::AbstractString, port::Intege
 
     server.listener_task = @async begin
         try
+            ccall(:puts, Cint, (Cstring,), "SERVER LOOP STARTED")
             while RPC.is_running(server)
                 client_sock = Reseau.TCP.accept(listener)
+                ccall(:puts, Cint, (Cstring,), "SERVER ACCEPTED CLIENT")
 
                 @async begin
                     try
                         tls_sock = Reseau.TLS.server(client_sock, config)
                         # Handshake is performed on first read/write or explicitly via handshake!
+                        ccall(:puts, Cint, (Cstring,), "SERVER STARTING HANDSHAKE")
                         Reseau.TLS.handshake!(tls_sock)
+                        ccall(:puts, Cint, (Cstring,), "SERVER HANDSHAKE DONE")
 
                         if tls_config.read_timeout_ns !== nothing
                             Reseau.TLS.set_read_deadline!(tls_sock, time_ns() + tls_config.read_timeout_ns)
@@ -126,15 +160,13 @@ function Capnp.RPC.listen(server::RPC.Server, host::AbstractString, port::Intege
                         RPC.add_client!(server, conn)
                         RPC.start_message_loop!(conn)
                     catch e
-                        @error "Error accepting TLS connection" exception=(e, catch_backtrace())
+                        ccall(:puts, Cint, (Cstring,), "SERVER ERROR ACCEPTING TLS CONNECTION")
                         close(client_sock)
                     end
                 end
             end
         catch e
-            if RPC.is_running(server)
-                @error "Server listener error" exception=(e, catch_backtrace())
-            end
+            ccall(:puts, Cint, (Cstring,), "SERVER LISTENER ERROR")
         finally
             close(listener)
         end
