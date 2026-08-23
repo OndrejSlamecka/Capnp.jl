@@ -105,7 +105,7 @@ advanced extension point for custom streams and optional Reseau TLS support.
 """
 function connect(transport::Transport; owns_transport::Bool = true, start_message_loop::Bool = true, options::ConnectionOptions = ConnectionOptions())
     isopen(transport) || throw(ConnectionFailedException("Transport is not open"))
-    conn = Connection(transport; owns_transport, inbound_queue_size=options.inbound_queue_size, outbound_queue_size=options.outbound_queue_size)
+    conn = Connection(transport; owns_transport, inbound_queue_size = options.inbound_queue_size, outbound_queue_size = options.outbound_queue_size)
     set_connected!(conn)
     start_message_loop && start_message_loop!(conn)
     return conn
@@ -399,10 +399,10 @@ function start_message_loop!(conn::Connection)
                 end
             end
         catch e
-    _reject_pending_questions!(conn, e isa Exception ? e : ErrorException(string(e)))
-    close(conn)
-    e isa DisconnectedException || set_failed!(conn, string(e))
-end
+            _reject_pending_questions!(conn, e isa Exception ? e : ErrorException(string(e)))
+            close(conn)
+            e isa DisconnectedException || set_failed!(conn, string(e))
+        end
     end
 
     task = @async begin

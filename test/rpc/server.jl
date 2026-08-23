@@ -351,7 +351,7 @@ using Capnp.RPC
             non_persistent = "RegularCap"
             cap = RPC.LocalCapability(UInt64(0x1234), non_persistent)
 
-            RPC.handle_save_call!(server, conn, ctx, cap)
+            RPC.handle_save_call!(server, conn, ctx, cap, RPC.ParsedCall(UInt32(1), RPC.ParsedMessageTarget(RPC.MessageTargetType.IMPORTED_CAP, UInt32(1)), UInt64(1), UInt16(1), nothing))
 
             # Should set exception (capability not persistent)
             @test ctx.has_exception == true
@@ -371,7 +371,7 @@ using Capnp.RPC
             persistent = RPC.SimplePersistentCapability("PersistentCap", "cap-id")
             cap = RPC.LocalCapability(UInt64(0x1234), persistent)
 
-            RPC.handle_save_call!(server, conn, ctx, cap)
+            RPC.handle_save_call!(server, conn, ctx, cap, RPC.ParsedCall(UInt32(1), RPC.ParsedMessageTarget(RPC.MessageTargetType.IMPORTED_CAP, UInt32(1)), UInt64(1), UInt16(1), nothing))
 
             # Should set exception (no restorer)
             @test ctx.has_exception == true
@@ -392,10 +392,10 @@ using Capnp.RPC
             persistent = RPC.SimplePersistentCapability("PersistentCap", "cap-id")
             cap = RPC.LocalCapability(UInt64(0x1234), persistent)
 
-            RPC.handle_save_call!(server, conn, ctx, cap)
+            RPC.handle_save_call!(server, conn, ctx, cap, RPC.ParsedCall(UInt32(1), RPC.ParsedMessageTarget(RPC.MessageTargetType.IMPORTED_CAP, UInt32(1)), UInt64(1), UInt16(1), nothing))
 
             # Should have a result (SturdyRef data)
-            @test ctx.has_exception == false
+            @test ctx.has_exception == false || error("Exception: ", ctx.exception_reason)
             @test ctx.result !== nothing
         end
 
@@ -451,8 +451,10 @@ using Capnp.RPC
 
             # Send a resolve message
             RPC.send_resolve!(conn, UInt32(42), UInt32(100))
+            RPC.flush_outbound!(conn)
 
             # Should have sent a message
+            sent = RPC.get_sent_messages(mock)
             sent = RPC.get_sent_messages(mock)
             @test length(sent) >= 1
         end
@@ -464,8 +466,10 @@ using Capnp.RPC
 
             # Send a resolve exception message
             RPC.send_resolve_exception!(conn, UInt32(42), "Error", RPC.ExceptionType.FAILED)
+            RPC.flush_outbound!(conn)
 
             # Should have sent a message
+            sent = RPC.get_sent_messages(mock)
             sent = RPC.get_sent_messages(mock)
             @test length(sent) >= 1
         end

@@ -1,0 +1,32 @@
+2026.08.23 14:42:51 LOG6[ui]: Initializing inetd mode configuration
+2026.08.23 14:42:51 LOG5[ui]: stunnel 5.68 on x86_64-pc-linux-gnu platform
+2026.08.23 14:42:51 LOG5[ui]: Compiled with OpenSSL 3.0.9 30 May 2023
+2026.08.23 14:42:51 LOG5[ui]: Running  with OpenSSL 3.0.20 7 Apr 2026
+2026.08.23 14:42:51 LOG5[ui]: Threading:PTHREAD Sockets:POLL,IPv6,SYSTEMD TLS:ENGINE,OCSP,PSK,SNI Auth:LIBWRAP
+2026.08.23 14:42:51 LOG6[ui]: Initializing inetd mode configuration
+2026.08.23 14:42:51 LOG5[ui]: Reading configuration from file /home/scelles-admin/.julia/dev/Capnp/test/interop/stunnel.conf
+2026.08.23 14:42:51 LOG5[ui]: UTF-8 byte order mark not detected
+2026.08.23 14:42:51 LOG5[ui]: FIPS mode disabled
+2026.08.23 14:42:51 LOG6[ui]: Compression disabled
+2026.08.23 14:42:51 LOG6[ui]: Initializing service [test]
+2026.08.23 14:42:51 LOG6[ui]: OpenSSL security level is used: 2
+2026.08.23 14:42:51 LOG6[ui]: Session resumption enabled
+2026.08.23 14:42:51 LOG6[ui]: Loading certificate from file: /home/scelles-admin/.julia/dev/Capnp/test/interop/certs/stunnel.pem
+2026.08.23 14:42:51 LOG6[ui]: Certificate loaded from file: /home/scelles-admin/.julia/dev/Capnp/test/interop/certs/stunnel.pem
+2026.08.23 14:42:51 LOG6[ui]: Loading private key from file: /home/scelles-admin/.julia/dev/Capnp/test/interop/certs/stunnel.pem
+2026.08.23 14:42:51 LOG4[ui]: Insecure file permissions on /home/scelles-admin/.julia/dev/Capnp/test/interop/certs/stunnel.pem
+2026.08.23 14:42:51 LOG6[ui]: Private key loaded from file: /home/scelles-admin/.julia/dev/Capnp/test/interop/certs/stunnel.pem
+2026.08.23 14:42:51 LOG6[ui]: Configured trusted client CA: C=US, ST=Test, L=Test, O=Capnp, OU=Test, CN=Test CA
+2026.08.23 14:42:51 LOG6[ui]: DH initialization skipped: no DH ciphersuites
+2026.08.23 14:42:51 LOG5[ui]: Configuration successful
+2026.08.23 14:42:51 LOG6[ui]: Service [test] (FD=13) bound to 127.0.0.1:40925
+2026.08.23 14:42:51 LOG6[cron]: Executing cron jobs
+2026.08.23 14:42:51 LOG6[cron]: Cron jobs completed in 0 seconds
+2026.08.23 14:42:51 LOG6[ui]: Accepting new connections
+2026.08.23 14:42:52 LOG5[0]: Service [test] accepted connection from 127.0.0.1:46272
+2026.08.23 14:42:52 LOG6[0]: Peer certificate required
+2026.08.23 14:42:52 LOG3[0]: SSL_accept: ../ssl/statem/statem_srvr.c:3517: error:0A0000C7:SSL routines::peer did not return a certificate
+2026.08.23 14:42:52 LOG5[0]: Connection reset/closed: 0 byte(s) sent to TLS, 0 byte(s) sent to socket
+2026.08.23 14:42:52 LOG5[ui]: Terminated
+2026.08.23 14:42:52 LOG6[ui]: Terminating 1 service thread(s)
+2026.08.23 14:42:52 LOG6[ui]: Service threads terminated

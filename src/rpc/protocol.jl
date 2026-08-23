@@ -601,18 +601,18 @@ Finish struct layout:
 function parse_finish(seg::Vector{UInt8}, ptr_section_start::Int)
     # Get the Finish struct pointer from Message pointer section
     finish_ptr = get_struct_pointer(seg, ptr_section_start)
-    
+
     if finish_ptr === nothing || finish_ptr == 0
         throw(RemoteException("Invalid Finish message: null pointer", ExceptionType.FAILED))
     end
-    
+
     data_offset, data_size, _ptr_count = decode_struct_pointer(finish_ptr)
     struct_start = ptr_section_start + 1 + data_offset
-    
+
     if data_size >= 1
         # questionId: UInt32 at offset 0
         qid = QuestionId(read_data_field(seg, struct_start, 0, UInt32))
-        
+
         # releaseResultCaps: Bool at offset 4 (bit 0), default is true (XOR decoded)
         release_caps = true
         # Offset 4 is in the first word, so data_size >= 1 is sufficient
@@ -622,7 +622,7 @@ function parse_finish(seg::Vector{UInt8}, ptr_section_start::Int)
         end
         return ParsedMessage(MessageType.FINISH, nothing, nothing, ParsedFinish(qid, release_caps), nothing, nothing, nothing)
     end
-    
+
     return ParsedMessage(MessageType.FINISH, nothing, nothing, ParsedFinish(QuestionId(0), true), nothing, nothing, nothing)
 end
 
@@ -1788,4 +1788,3 @@ function build_release_message(import_id::ImportId, reference_count::UInt32)
 end
 
 export build_release_message
-

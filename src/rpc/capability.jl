@@ -360,10 +360,10 @@ end
 Register a capability for later restoration.
 Returns a SturdyRef that can be used to restore the capability.
 """
-function register!(restorer::DefaultRestorer, object_id::Vector{UInt8}, capability, owner::DefaultOwner = DefaultOwner())
+function register!(restorer::DefaultRestorer, object_id::Vector{UInt8}, capability, owner::Union{DefaultOwner,Nothing} = DefaultOwner())
     lock(restorer.registry.lock) do
         restorer.registry.capabilities[object_id] = capability
-        restorer.registry.owners[object_id] = owner
+        restorer.registry.owners[object_id] = owner === nothing ? DefaultOwner() : owner
     end
     return DefaultSturdyRef(restorer.host_id, object_id)
 end

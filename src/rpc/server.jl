@@ -259,7 +259,7 @@ function handle_new_connection(server::Server, socket)
     else
         UnixTransport(socket, ""; max_message_size = server.options.max_message_size, max_segments = server.options.max_segments)
     end
-    conn = Connection(transport; owns_transport=true, inbound_queue_size=server.options.inbound_queue_size, outbound_queue_size=server.options.outbound_queue_size)
+    conn = Connection(transport; owns_transport = true, inbound_queue_size = server.options.inbound_queue_size, outbound_queue_size = server.options.outbound_queue_size)
 
     # Call connection handler if set
     if server.connection_handler !== nothing

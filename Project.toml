@@ -7,14 +7,22 @@ version = "0.2.0"
 Sockets = "6462fe0b-24de-5631-8697-dd941f90decc"
 
 [extras]
+Reseau = "802f3686-a58f-41ce-bb0c-3c43c75bba36"
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Aqua", "Test"]
+test = ["Aqua", "Test", "Reseau"]
 
 [compat]
+Reseau = "1"
 Aqua = "0.8"
 Sockets = "1.10"
 Test = "1.10"
 julia = "1.10"
+
+[weakdeps]
+Reseau = "802f3686-a58f-41ce-bb0c-3c43c75bba36"
+
+[extensions]
+CapnpReseauExt = "Reseau"

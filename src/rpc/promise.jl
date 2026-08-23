@@ -201,11 +201,7 @@ on the result of the parent promise.
 function call_pipelined(parent::Promise, ops::Vector{PipelineOp})
     new_ops = copy(parent.pipeline_ops)
     append!(new_ops, ops)
-    child = Promise{Any}(
-        question_id = parent._question_id,
-        connection = parent.connection,
-        pipeline_ops = new_ops
-    )
+    child = Promise{Any}(question_id = parent._question_id, connection = parent.connection, pipeline_ops = new_ops)
     return child
 end
 
@@ -224,7 +220,7 @@ function cancel(p::Promise)
         end
         return p._question_id, p.connection
     end
-    
+
     if qid !== nothing && conn !== nothing
         # Send Finish message with releaseResultCaps = false (cancel)
         # Cap'n Proto RPC says: "If a client wishes to cancel a question, it simply sends a Finish message."
@@ -236,7 +232,7 @@ function cancel(p::Promise)
             @warn "Failed to send cancel message" exception=e
         end
     end
-    
+
     return
 end
 

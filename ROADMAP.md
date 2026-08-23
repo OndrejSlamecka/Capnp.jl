@@ -189,15 +189,15 @@ Julia generated client
   -> reference capnp C++ RPC server
 ```
 
-- [ ] Build a minimal C++ bootstrap service from a checked-in `.capnp` schema.
-- [ ] Start the C++ server only on an ephemeral loopback port.
-- [ ] Put stunnel in front of it with a generated test CA, server certificate,
+- [x] Build a minimal C++ bootstrap service from a checked-in `.capnp` schema.
+- [x] Start the C++ server only on an ephemeral loopback port.
+- [x] Put stunnel in front of it with a generated test CA, server certificate,
       and required client-certificate verification.
-- [ ] Connect with `Reseau.TLS.connect`, perform a typed bootstrap and RPC call,
+- [x] Connect with `Reseau.TLS.connect`, perform a typed bootstrap and RPC call,
       validate the result, then complete `Finish`/release and clean shutdown.
-- [ ] Verify certificate chain, hostname/SAN, SNI, validity dates, EKU, and client
+- [x] Verify certificate chain, hostname/SAN, SNI, validity dates, EKU, and client
       certificate authentication.
-- [ ] Add negative tests for unknown CA, hostname mismatch, absent client cert,
+- [x] Add negative tests for unknown CA, hostname mismatch, absent client cert,
       wrong client CA, expired/not-yet-valid cert, truncated TLS records, and
       handshake timeout.
 - [ ] Capture stunnel and C++ logs as CI artifacts on failure, without storing

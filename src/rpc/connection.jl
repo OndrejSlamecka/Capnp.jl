@@ -205,37 +205,37 @@ mutable struct Connection
     error_reason::Union{String,Nothing}
     lock::ReentrantLock
     owns_transport::Bool
-message_task::Union{Task,Nothing}
-# Level 2: Promise tracking
-promise_tracker::PromiseTracker
-# Queues
-inbound_queue::Channel{Capnp.MessageReader}
-outbound_queue::Channel{Vector{UInt8}}
-write_task::Union{Task,Nothing}
-process_task::Union{Task,Nothing}
+    message_task::Union{Task,Nothing}
+    # Level 2: Promise tracking
+    promise_tracker::PromiseTracker
+    # Queues
+    inbound_queue::Channel{Capnp.MessageReader}
+    outbound_queue::Channel{Vector{UInt8}}
+    write_task::Union{Task,Nothing}
+    process_task::Union{Task,Nothing}
     message_handler::Function
 
-function Connection(transport::Transport; owns_transport::Bool = true, inbound_queue_size::Int = 64, outbound_queue_size::Int = 64)
-    new(
-        transport,
-        ConnectionState.CONNECTING,
-        Dict{QuestionId,PendingQuestion}(),
-        Dict{AnswerId,PendingAnswer}(),
-        Dict{ExportId,LocalCapability}(),
-        Dict{ImportId,RemoteCapability}(),
-        0,
-        0,
-        nothing,
-        ReentrantLock(),
-        owns_transport,
-        nothing,
-        PromiseTracker(),
-        Channel{Capnp.MessageReader}(inbound_queue_size),
-        Channel{Vector{UInt8}}(outbound_queue_size),
-    nothing,
-    nothing,
-    identity
-)
+    function Connection(transport::Transport; owns_transport::Bool = true, inbound_queue_size::Int = 64, outbound_queue_size::Int = 64)
+        new(
+            transport,
+            ConnectionState.CONNECTING,
+            Dict{QuestionId,PendingQuestion}(),
+            Dict{AnswerId,PendingAnswer}(),
+            Dict{ExportId,LocalCapability}(),
+            Dict{ImportId,RemoteCapability}(),
+            0,
+            0,
+            nothing,
+            ReentrantLock(),
+            owns_transport,
+            nothing,
+            PromiseTracker(),
+            Channel{Capnp.MessageReader}(inbound_queue_size),
+            Channel{Vector{UInt8}}(outbound_queue_size),
+            nothing,
+            nothing,
+            identity,
+        )
     end
 end
 

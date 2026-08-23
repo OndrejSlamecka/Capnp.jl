@@ -362,7 +362,7 @@ function generateNode(env::Environment, node::Node{InterfaceNodeProps})
     cprintln(env, "    end")
     cprintln(env, "    return false")
     cprintln(env, "end")
-    
+
     cprintln(env, "")
     cprintln(env, "function Capnp.RPC.dispatch_method!(impl::$(node.jlName)_Server, interface_id::UInt64, method_id::UInt16, context::Capnp.RPC.CallContext, params)")
     cprintln(env, "    if $(node.jlName)_interface_dispatch(impl, interface_id, method_id, context, params)")

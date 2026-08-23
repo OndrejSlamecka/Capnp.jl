@@ -279,3 +279,15 @@ function set_write_deadline!(t::Transport, deadline_ns::Union{UInt64,Nothing})
     # Fallback does nothing
     return nothing
 end
+"""
+    closewrite(t::Transport)
+
+Half-close the transport, indicating no more data will be written.
+"""
+function Base.closewrite(t::Transport)
+    # Fallback does nothing
+    nothing
+end
+
+Base.closewrite(t::TcpTransport) = Sockets.closewrite(t.socket)
+Base.closewrite(t::UnixTransport) = Sockets.closewrite(t.socket)

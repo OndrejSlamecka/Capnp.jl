@@ -83,33 +83,33 @@ include("../../example/calculator.capnp.jl")
                 end
             end
         end
-        
+
         conn = nothing
         try
             conn = RPC.connect("127.0.0.1", port)
             client_cap = RPC.bootstrap(conn, RPC.RemoteCapability)
             client = Calculator_Client(client_cap)
-            
+
             # Call getSubCalculatorAsync
             sub_promise = Calculator_getSubCalculatorAsync(client)
-            
+
             # Use pipelining on the promise!
             # The calculator capability is at pointer index 0 in the implicit result struct
             pipelined_promise = RPC.call_pipelined(sub_promise, [RPC.PipelineOp(RPC.PipelineOpKind.GET_POINTER_FIELD, UInt16(0))])
             pipelined_client = Calculator_Client(pipelined_promise)
-            
-            add_promise = Calculator_addAsync(pipelined_client, function(payload, loc)
+
+            add_promise = Calculator_addAsync(pipelined_client, function (payload, loc)
                 Capnp.write_bits(payload, 0, Float64, 5.0)
                 Capnp.write_bits(payload, 8, Float64, 6.0)
             end)
-            
+
             # Fetch the final result
             add_result = fetch(add_promise)
-            
+
             # The result is a struct, we get the value
             # Since generator doesn't emit CalculatorResult_getValue properly if it's implicit, wait, we can just use the manual parser or check if it succeeds
             @test add_result isa Any
-            
+
             # If fetch succeeds without RemoteException, pipelining worked!
         finally
             conn === nothing || close(conn)

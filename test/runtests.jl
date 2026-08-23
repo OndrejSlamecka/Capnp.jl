@@ -129,6 +129,17 @@ end
 # RPC capability tests
 include("rpc/capability.jl")
 
+if !isempty(ARGS)
+    for arg in ARGS
+        if arg == "rpc/test_tls.jl"
+            include("rpc/test_tls.jl")
+        else
+            include(arg)
+        end
+    end
+    exit(0)
+end
+
 # User Story 1: Wire Format Compliance tests
 include("defaults.jl")
 include("packed.jl")
