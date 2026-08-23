@@ -22,6 +22,7 @@ include("promise.jl")
 include("transport.jl")
 
 # Connection management (FR-014)
+include("tls.jl")
 include("connection.jl")
 
 # RPC Protocol message parsing (Level 0)
@@ -61,6 +62,7 @@ export send_message, receive_message, send_raw_message
 export inject_message!, get_sent_messages, clear_sent_messages!
 
 # Exports - Connection management
+export TLSConfig, TLSListenerConfig
 export ConnectionState, ExceptionType
 export DisconnectedException, ConnectionFailedException, RemoteException, InvalidCapabilityException
 export LocalCapability, RemoteCapability, PendingQuestion, PendingAnswer, Connection
@@ -78,7 +80,7 @@ export add_remote_promise!, get_remote_promise, remove_remote_promise!
 export incref!, decref!
 
 # Exports - Client RPC
-export connect, bootstrap, bootstrap_async, ConnectionOptions
+export connect, bootstrap, set_read_deadline!, set_write_deadline!, bootstrap_async, ConnectionOptions
 export handle_message!, handle_return!, handle_exception!, handle_resolve!, handle_release!
 export start_message_loop!
 export NotPersistentException, call_save, call_save_sync

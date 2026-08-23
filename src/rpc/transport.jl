@@ -268,3 +268,14 @@ export Transport, TransportContractError, IOTransport, TcpTransport, UnixTranspo
 export send_message, receive_message, send_raw_message
 export inject_message!, get_sent_messages, clear_sent_messages!
 export supports_unix_sockets, default_transport_type
+
+# Deadline API
+function set_read_deadline!(t::Transport, deadline_ns::Union{UInt64,Nothing})
+    # Fallback does nothing
+    return nothing
+end
+
+function set_write_deadline!(t::Transport, deadline_ns::Union{UInt64,Nothing})
+    # Fallback does nothing
+    return nothing
+end

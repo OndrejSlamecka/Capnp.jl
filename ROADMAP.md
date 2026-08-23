@@ -148,15 +148,15 @@ through the transport boundary. Application-facing signatures and generated
 code should not mention `Reseau.TCP` or `Reseau.TLS`; direct construction of an
 `IOTransport` from a Reseau stream remains an advanced escape hatch.
 
-- [ ] Implement a Reseau-backed transport over `Reseau.TLS` with the same
+- [x] Implement a Reseau-backed transport over `Reseau.TLS` with the same
       framing limits as the base transports.
-- [ ] Add client connection methods for hostname-aware TLS dialing, CA roots,
+- [x] Add client connection methods for hostname-aware TLS dialing, CA roots,
       hostname verification, SNI, optional ALPN, client certificates, and keys.
-- [ ] Add TLS listener/server methods with certificate/key configuration and
+- [x] Add TLS listener/server methods with certificate/key configuration and
       optional or required verified client authentication.
-- [ ] Map Reseau deadline and TLS errors into stable Capnp transport/RPC errors
+- [x] Map Reseau deadline and TLS errors into stable Capnp transport/RPC errors
       while retaining the original exception as diagnostic context.
-- [ ] Ensure read, write, handshake, and accept deadlines can be configured and
+- [x] Ensure read, write, handshake, and accept deadlines can be configured and
       cancelled independently.
 - [ ] Redact private keys, tokens, and sensitive certificate material from
       logging and exception display.

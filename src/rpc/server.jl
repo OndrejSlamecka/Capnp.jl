@@ -90,7 +90,7 @@ function set_exception!(ctx::CallContext, reason::String, type::ExceptionType.T)
     ctx.has_exception = true
     ctx.exception_reason = reason
     ctx.exception_type = type
-    
+
     # Cleanup any result capabilities exported before the exception
     for cap_id in ctx.result_caps
         cap = get_export(ctx.connection, cap_id)
@@ -127,7 +127,7 @@ mutable struct Server
     options::ServerOptions
     is_running::Bool
     listener_task::Union{Task,Nothing}
-    tcp_server::Union{Sockets.TCPServer,Sockets.PipeServer,Nothing}
+    tcp_server::Any
     lock::ReentrantLock
     # Level 2: Restorer for persistent capabilities
     restorer::Union{DefaultRestorer,Nothing}
@@ -371,7 +371,7 @@ function handle_call_message!(server::Server, conn::Connection, call::ParsedCall
                 if length(pa.transform) > 0 && pa.transform[1].kind == PromisedAnswerOpType.GET_POINTER_FIELD
                     idx = pa.transform[1].get_pointer_field
                     if idx !== nothing && (idx + 1) <= length(answer.result_caps)
-                        cap = get_export(conn, answer.result_caps[idx + 1])
+                        cap = get_export(conn, answer.result_caps[idx+1])
                     end
                 elseif length(answer.result_caps) > 0
                     # Fallback if no transform is provided but we have a capability
@@ -379,7 +379,7 @@ function handle_call_message!(server::Server, conn::Connection, call::ParsedCall
                 end
             end
         end
-        
+
         # Fallback to bootstrap if not found (legacy behavior)
         if cap === nothing
             cap = get_export(conn, ExportId(1))
@@ -806,3 +806,13 @@ export send_resolve!, send_resolve_exception!
 export set_restorer!, get_restorer
 export handle_save_call!, handle_restore_call!
 export register_persistent!, is_save_call
+
+"""
+    listen(server::Server, host::AbstractString, port::Integer, tls_config::TLSListenerConfig)
+
+Listen for incoming TLS-secured Cap'n Proto RPC connections.
+Requires the `Reseau` package to be loaded.
+"""
+function listen(server::Server, host::AbstractString, port::Integer, tls_config::AbstractTLSListenerConfig)
+    error("TLS listeners require the Reseau package to be loaded. Run `using Reseau`.")
+end
