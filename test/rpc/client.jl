@@ -502,3 +502,25 @@ println(stderr, "RUNNING TESTSET: ");
         end
     end
 end
+
+@testset "Disconnection semantics" begin
+    # Test that in-flight questions are rejected when connection drops
+    mock = RPC.MockTransport()
+    conn = RPC.Connection(mock)
+    RPC.set_connected!(conn)
+    
+    # Add a pending question
+    qid = RPC.next_question_id!(conn)
+    promise = RPC.Promise{Any}(question_id = qid, connection = conn)
+    RPC.add_question!(conn, RPC.PendingQuestion(qid, promise))
+    
+    @test RPC.question_count(conn) == 1
+    @test promise.state == RPC.PromiseState.PENDING
+    
+    # Simulate connection drop (which should trigger _reject_pending_questions!)
+    RPC._reject_pending_questions!(conn, RPC.DisconnectedException("transport closed"))
+    
+    @test RPC.question_count(conn) == 0
+    @test promise.state == RPC.PromiseState.REJECTED
+    @test promise.error isa RPC.DisconnectedException
+end

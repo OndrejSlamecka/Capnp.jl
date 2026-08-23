@@ -108,11 +108,11 @@ adding TLS.
       lifecycle tests.
 - [x] Remove calculator-specific assumptions from server dispatch and generate
       interface/method dispatch tables for arbitrary schemas.
-- [ ] Finish capability-table reference counting, release accounting, and cleanup
+- [x] Finish capability-table reference counting, release accounting, and cleanup
       after failed calls.
-- [ ] Define reconnection semantics. Default to failing in-flight questions
+- [x] Define reconnection semantics. Default to failing in-flight questions
       rather than silently replaying non-idempotent calls.
-- [ ] Complete persistent capability ownership and restoration semantics; owner
+- [x] Complete persistent capability ownership and restoration semantics; owner
       extraction is currently a placeholder.
 - [x] Replace `throw("...")` and assertions reachable from wire data with typed
       exceptions such as `InvalidMessageError` or RPC protocol errors.

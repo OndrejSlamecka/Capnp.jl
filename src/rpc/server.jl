@@ -687,16 +687,22 @@ function handle_save_call!(server::Server, conn::Connection, ctx::CallContext, c
         return
     end
 
+    # Extract sealFor from params (it's the first pointer in SaveParams)
+    seal_for = nothing
+    if call.params !== nothing && call.params.pointer_count >= 1
+        # Extract the AnyPointer
+        seal_for = Capnp.read_struct_pointer(call.params, 0, 0)
+    end
+
     # Check if the owner can save this capability
-    owner = DefaultOwner()  # TODO: Extract owner from params
-    if !can_save(impl, owner)
+    if !can_save(impl, seal_for)
         set_exception!(ctx, "Owner not authorized to save this capability", ExceptionType.FAILED)
         return
     end
 
     # Generate the SturdyRef
     try
-        sturdy_ref = generate_sturdy_ref(impl, owner, restorer)
+        sturdy_ref = generate_sturdy_ref(impl, seal_for, restorer)
         # Serialize the SturdyRef as the result
         result_data = serialize_sturdy_ref(sturdy_ref)
         set_result!(ctx, ParsedSaveResults(result_data))

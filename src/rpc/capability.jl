@@ -474,7 +474,7 @@ Override this to implement custom SturdyRef generation.
 function generate_sturdy_ref(cap::PersistentCapability, owner, restorer::DefaultRestorer)
     # Generate a unique object ID based on object identity
     object_id = Vector{UInt8}(string(objectid(cap)))
-    return register!(restorer, object_id, cap, owner isa DefaultOwner ? owner : DefaultOwner())
+    return register!(restorer, object_id, cap, owner)
 end
 
 """
@@ -512,7 +512,7 @@ end
 Generate a SturdyRef for a SimplePersistentCapability using its stored object_id.
 """
 function generate_sturdy_ref(cap::SimplePersistentCapability, owner, restorer::DefaultRestorer)
-    return register!(restorer, cap.object_id, cap.wrapped, owner isa DefaultOwner ? owner : DefaultOwner())
+    return register!(restorer, cap.object_id, cap.wrapped, owner)
 end
 
 # Export public types and functions
