@@ -25,6 +25,7 @@
 !example/**
 !.github/**
 !src/**
+!ext/**
 !test/**
 
 # --- Specific Exclusions within Allowed Directories ---
