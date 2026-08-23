@@ -20,8 +20,10 @@ mutable struct PackedInputStream <: IO
     buffer::Vector{UInt8}  # Unpacked word buffer
     buffer_pos::Int        # Current position in buffer
     buffer_len::Int        # Valid bytes in buffer
+    zero_words_left::Int   # Remaining zero words to emit from a 0x00 run
+    literal_words_left::Int # Remaining literal words to emit from a 0xff run
 
-    PackedInputStream(io::IO) = new(io, zeros(UInt8, 8), 9, 0)  # pos > len means empty
+    PackedInputStream(io::IO) = new(io, zeros(UInt8, 8), 9, 0, 0, 0)
 end
 
 """
@@ -33,8 +35,13 @@ mutable struct PackedOutputStream <: IO
     inner::IO
     word_buffer::Vector{UInt8}  # Accumulate a word before packing
     word_pos::Int               # Current position in word buffer
+    
+    # State for runs
+    state::Symbol               # :neutral, :zero_run, :literal_run
+    run_count::Int              # Number of additional words in the current run
+    literal_buffer::Vector{UInt8} # Buffer for literal words in a literal run
 
-    PackedOutputStream(io::IO) = new(io, zeros(UInt8, 8), 1)
+    PackedOutputStream(io::IO) = new(io, zeros(UInt8, 8), 1, :neutral, 0, UInt8[])
 end
 
 # Implement IO interface for PackedInputStream
@@ -69,36 +76,40 @@ end
 Unpack the next word from the packed stream into the buffer.
 """
 function unpack_word!(s::PackedInputStream)
-    tag = read(s.inner, UInt8)
-
-    if tag == 0x00
-        # Zero word, optionally followed by count of additional zero words
+    if s.zero_words_left > 0
         fill!(s.buffer, 0x00)
         s.buffer_pos = 1
         s.buffer_len = 8
+        s.zero_words_left -= 1
+        return
+    end
+    if s.literal_words_left > 0
+        readbytes!(s.inner, s.buffer, 8)
+        s.buffer_pos = 1
+        s.buffer_len = 8
+        s.literal_words_left -= 1
+        return
+    end
 
-        # Check for zero run (additional zero words following)
-        if !eof(s.inner)
-            count = read(s.inner, UInt8)
-            if count > 0
-                # Write count additional zero words directly
-                # For now, we just handle the first word; caller will call again
-                # Actually, we need to handle the run properly
-                # This is simplified - a full implementation would buffer more
-            end
-        end
+    tag = read(s.inner, UInt8)
+
+    if tag == 0x00
+        fill!(s.buffer, 0x00)
+        s.buffer_pos = 1
+        s.buffer_len = 8
+        
+        # In Cap'n proto packed encoding, a 0x00 tag is ALWAYS followed by a count byte
+        count = read(s.inner, UInt8)
+        s.zero_words_left = count
     elseif tag == 0xff
-        # All bytes non-zero, followed by 8 literal bytes
         readbytes!(s.inner, s.buffer, 8)
         s.buffer_pos = 1
         s.buffer_len = 8
 
-        # Check for literal run (additional literal words following)
-        if !eof(s.inner)
-            # Literal run count would follow, but we handle one word at a time
-        end
+        # In Cap'n proto packed encoding, a 0xff tag is ALWAYS followed by a count byte
+        count = read(s.inner, UInt8)
+        s.literal_words_left = count
     else
-        # Mixed: tag bits indicate which bytes are non-zero
         fill!(s.buffer, 0x00)
         for i = 0:7
             if (tag >> i) & 0x01 == 1
@@ -157,15 +168,48 @@ function pack_word!(s::PackedOutputStream)
         end
     end
 
+    if s.state == :zero_run
+        if tag == 0x00 && s.run_count < 255
+            s.run_count += 1
+            fill!(s.word_buffer, 0x00)
+            return
+        else
+            # End of zero run
+            write(s.inner, UInt8(0x00))
+            write(s.inner, UInt8(s.run_count))
+            s.state = :neutral
+            s.run_count = 0
+            # Process current word below
+        end
+    elseif s.state == :literal_run
+        if tag == 0x00 || s.run_count == 255
+            # End of literal run
+            write(s.inner, UInt8(0xff))
+            write(s.inner, s.literal_buffer[1:8])
+            write(s.inner, UInt8(s.run_count))
+            if s.run_count > 0
+                write(s.inner, s.literal_buffer[9:end])
+            end
+            empty!(s.literal_buffer)
+            s.state = :neutral
+            s.run_count = 0
+            # Process current word below
+        else
+            s.run_count += 1
+            append!(s.literal_buffer, s.word_buffer)
+            fill!(s.word_buffer, 0x00)
+            return
+        end
+    end
+
+    # Neutral state processing
     if tag == 0x00
-        # All zeros - write tag + zero count (0 for single word)
-        write(s.inner, UInt8(0x00))
-        write(s.inner, UInt8(0x00))  # Zero additional zero words
+        s.state = :zero_run
+        s.run_count = 0
     elseif tag == 0xff
-        # All non-zero - write tag + 8 bytes
-        write(s.inner, UInt8(0xff))
-        write(s.inner, s.word_buffer)
-        # Could add literal run handling here
+        s.state = :literal_run
+        s.run_count = 0
+        append!(s.literal_buffer, s.word_buffer)
     else
         # Mixed - write tag + non-zero bytes
         write(s.inner, tag)
@@ -190,6 +234,25 @@ function Base.flush(s::PackedOutputStream)
         pack_word!(s)
         s.word_pos = 1
     end
+    
+    # Flush any active runs
+    if s.state == :zero_run
+        write(s.inner, UInt8(0x00))
+        write(s.inner, UInt8(s.run_count))
+        s.state = :neutral
+        s.run_count = 0
+    elseif s.state == :literal_run
+        write(s.inner, UInt8(0xff))
+        write(s.inner, s.literal_buffer[1:8])
+        write(s.inner, UInt8(s.run_count))
+        if s.run_count > 0
+            write(s.inner, s.literal_buffer[9:end])
+        end
+        empty!(s.literal_buffer)
+        s.state = :neutral
+        s.run_count = 0
+    end
+    
     flush(s.inner)
 end
 

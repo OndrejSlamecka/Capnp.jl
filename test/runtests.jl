@@ -143,6 +143,7 @@ end
 # User Story 1: Wire Format Compliance tests
 include("defaults.jl")
 include("packed.jl")
+    include("double_far.jl")
 include("generics.jl")
 include("reader_validation.jl")
 include("interop/roundtrip.jl")
