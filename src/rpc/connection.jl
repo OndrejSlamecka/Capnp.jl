@@ -214,8 +214,12 @@ mutable struct Connection
     write_task::Union{Task,Nothing}
     process_task::Union{Task,Nothing}
     message_handler::Function
+    max_questions::Int
+    max_answers::Int
+    max_exports::Int
+    max_imports::Int
 
-    function Connection(transport::Transport; owns_transport::Bool = true, inbound_queue_size::Int = 64, outbound_queue_size::Int = 64)
+    function Connection(transport::Transport; owns_transport::Bool = true, inbound_queue_size::Int = 64, outbound_queue_size::Int = 64, max_questions::Int=1024, max_answers::Int=1024, max_exports::Int=8192, max_imports::Int=8192)
         new(
             transport,
             ConnectionState.CONNECTING,
@@ -235,6 +239,10 @@ mutable struct Connection
             nothing,
             nothing,
             identity,
+            max_questions,
+            max_answers,
+            max_exports,
+            max_imports,
         )
     end
 end
@@ -342,6 +350,7 @@ end
 # Export management
 function add_export!(conn::Connection, eid::ExportId, cap::LocalCapability)
     lock(conn.lock) do
+        length(conn.exports) < conn.max_exports || throw(ErrorException("Maximum number of exports exceeded ($(conn.max_exports))"))
         conn.exports[eid] = cap
     end
 end
@@ -361,6 +370,7 @@ end
 # Import management
 function add_import!(conn::Connection, iid::ImportId, cap::RemoteCapability)
     lock(conn.lock) do
+        length(conn.imports) < conn.max_imports || throw(ErrorException("Maximum number of imports exceeded ($(conn.max_imports))"))
         conn.imports[iid] = cap
     end
 end
