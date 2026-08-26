@@ -101,7 +101,7 @@ function Capnp.RPC.connect(host::AbstractString, port::Integer, tls_config::RPC.
     end
     transport = ReseauTransport(socket; max_message_size = options.max_message_size, max_segments = options.max_segments, traversal_limit_words = options.traversal_limit_words, nesting_limit = options.nesting_limit)
 
-    return RPC.connect(transport)
+    return RPC.connect(transport; options)
 end
 
 # Implement listen for TLSListenerConfig
@@ -165,7 +165,16 @@ function Capnp.RPC.listen(server::RPC.Server, host::AbstractString, port::Intege
                             traversal_limit_words = server.options.traversal_limit_words,
                             nesting_limit = server.options.nesting_limit,
                         )
-                        conn = RPC.Connection(transport; owns_transport = true)
+                        conn = RPC.Connection(
+                            transport;
+                            owns_transport = true,
+                            inbound_queue_size = server.options.inbound_queue_size,
+                            outbound_queue_size = server.options.outbound_queue_size,
+                            max_questions = server.options.max_questions,
+                            max_answers = server.options.max_answers,
+                            max_exports = server.options.max_exports,
+                            max_imports = server.options.max_imports,
+                        )
                         RPC.add_client!(server, conn)
                         RPC.start_message_loop!(conn)
                     catch e

@@ -45,6 +45,29 @@ struct InvalidCapabilityException <: Exception
     reason::String
 end
 
+struct ResourceLimitError <: Exception
+    resource::Symbol
+    limit::Int
+end
+
+Base.showerror(io::IO, error::ResourceLimitError) =
+    print(io, "RPC resource limit exceeded for ", error.resource, " (limit ", error.limit, ")")
+
+function _validate_connection_limits(inbound_queue_size::Int, outbound_queue_size::Int, max_questions::Int, max_answers::Int, max_exports::Int, max_imports::Int)
+    inbound_queue_size > 0 || throw(ArgumentError("inbound_queue_size must be positive"))
+    outbound_queue_size > 0 || throw(ArgumentError("outbound_queue_size must be positive"))
+    max_questions > 0 || throw(ArgumentError("max_questions must be positive"))
+    max_answers > 0 || throw(ArgumentError("max_answers must be positive"))
+    max_exports > 0 || throw(ArgumentError("max_exports must be positive"))
+    max_imports > 0 || throw(ArgumentError("max_imports must be positive"))
+    return nothing
+end
+
+function _check_table_limit(table, key, limit::Int, resource::Symbol)
+    haskey(table, key) || length(table) < limit || throw(ResourceLimitError(resource, limit))
+    return nothing
+end
+
 """
     LocalCapability
 
@@ -220,6 +243,7 @@ mutable struct Connection
     max_imports::Int
 
     function Connection(transport::Transport; owns_transport::Bool = true, inbound_queue_size::Int = 64, outbound_queue_size::Int = 64, max_questions::Int=1024, max_answers::Int=1024, max_exports::Int=8192, max_imports::Int=8192)
+        _validate_connection_limits(inbound_queue_size, outbound_queue_size, max_questions, max_answers, max_exports, max_imports)
         new(
             transport,
             ConnectionState.CONNECTING,
@@ -312,6 +336,7 @@ end
 # Question management
 function add_question!(conn::Connection, question::PendingQuestion)
     lock(conn.lock) do
+        _check_table_limit(conn.questions, question.question_id, conn.max_questions, :questions)
         conn.questions[question.question_id] = question
     end
 end
@@ -331,6 +356,7 @@ end
 # Answer management
 function add_answer!(conn::Connection, answer::PendingAnswer)
     lock(conn.lock) do
+        _check_table_limit(conn.answers, answer.answer_id, conn.max_answers, :answers)
         conn.answers[answer.answer_id] = answer
     end
 end
@@ -350,7 +376,7 @@ end
 # Export management
 function add_export!(conn::Connection, eid::ExportId, cap::LocalCapability)
     lock(conn.lock) do
-        length(conn.exports) < conn.max_exports || throw(ErrorException("Maximum number of exports exceeded ($(conn.max_exports))"))
+        _check_table_limit(conn.exports, eid, conn.max_exports, :exports)
         conn.exports[eid] = cap
     end
 end
@@ -370,7 +396,7 @@ end
 # Import management
 function add_import!(conn::Connection, iid::ImportId, cap::RemoteCapability)
     lock(conn.lock) do
-        length(conn.imports) < conn.max_imports || throw(ErrorException("Maximum number of imports exceeded ($(conn.max_imports))"))
+        _check_table_limit(conn.imports, iid, conn.max_imports, :imports)
         conn.imports[iid] = cap
     end
 end
@@ -426,6 +452,7 @@ Track a promised export that requires a Resolve message.
 """
 function add_promised_export!(conn::Connection, export_id::ExportId, promise::Promise{Any})
     lock(conn.lock) do
+        _check_table_limit(conn.promise_tracker.promised_exports, export_id, conn.max_exports, :promised_exports)
         conn.promise_tracker.promised_exports[export_id] = PromisedExport(export_id, promise)
     end
 end
@@ -459,6 +486,7 @@ Track a remote promise awaiting a Resolve message.
 """
 function add_remote_promise!(conn::Connection, import_id::ImportId, promise::Promise{Any})
     lock(conn.lock) do
+        _check_table_limit(conn.promise_tracker.remote_promises, import_id, conn.max_imports, :remote_promises)
         conn.promise_tracker.remote_promises[import_id] = RemotePromise(import_id, promise)
     end
 end
@@ -487,7 +515,7 @@ end
 
 # Exports
 export ConnectionState, ExceptionType
-export DisconnectedException, TimeoutException, ConnectionFailedException, RemoteException, InvalidCapabilityException
+export DisconnectedException, TimeoutException, ConnectionFailedException, RemoteException, InvalidCapabilityException, ResourceLimitError
 export LocalCapability, RemoteCapability, PendingQuestion, PendingAnswer, Connection
 export RemotePromise, PromisedExport, PromiseTracker
 export state, is_connected

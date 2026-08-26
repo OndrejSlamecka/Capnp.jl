@@ -72,11 +72,16 @@ struct ConnectionOptions
     nesting_limit::Int
     inbound_queue_size::Int
     outbound_queue_size::Int
+    max_questions::Int
+    max_answers::Int
+    max_exports::Int
+    max_imports::Int
 
-    function ConnectionOptions(; max_message_size::Int = Capnp.DEFAULT_MAX_MESSAGE_SIZE, max_segments::Int = Capnp.DEFAULT_MAX_SEGMENTS, traversal_limit_words::Int = Capnp.DEFAULT_TRAVERSAL_LIMIT_WORDS, nesting_limit::Int = Capnp.DEFAULT_NESTING_LIMIT, inbound_queue_size::Int = 64, outbound_queue_size::Int = 64)
+    function ConnectionOptions(; max_message_size::Int = Capnp.DEFAULT_MAX_MESSAGE_SIZE, max_segments::Int = Capnp.DEFAULT_MAX_SEGMENTS, traversal_limit_words::Int = Capnp.DEFAULT_TRAVERSAL_LIMIT_WORDS, nesting_limit::Int = Capnp.DEFAULT_NESTING_LIMIT, inbound_queue_size::Int = 64, outbound_queue_size::Int = 64, max_questions::Int = 1024, max_answers::Int = 1024, max_exports::Int = 8192, max_imports::Int = 8192)
         Capnp._validate_reader_limits(max_message_size, max_segments)
         Capnp._validate_traversal_limits(traversal_limit_words, nesting_limit)
-        new(max_message_size, max_segments, traversal_limit_words, nesting_limit, inbound_queue_size, outbound_queue_size)
+        _validate_connection_limits(inbound_queue_size, outbound_queue_size, max_questions, max_answers, max_exports, max_imports)
+        new(max_message_size, max_segments, traversal_limit_words, nesting_limit, inbound_queue_size, outbound_queue_size, max_questions, max_answers, max_exports, max_imports)
     end
 end
 
@@ -87,7 +92,7 @@ Connect to a Cap'n Proto RPC server via TCP with custom options.
 """
 function connect(host::AbstractString, port::Integer, options::ConnectionOptions)
     transport = TcpTransport(host, port; max_message_size = options.max_message_size, max_segments = options.max_segments, traversal_limit_words = options.traversal_limit_words, nesting_limit = options.nesting_limit)
-    return connect(transport)
+    return connect(transport; options)
 end
 
 """
@@ -97,7 +102,7 @@ Connect to a Cap'n Proto RPC server via Unix domain socket with custom options.
 """
 function connect(socket_path::AbstractString, options::ConnectionOptions)
     transport = UnixTransport(socket_path; max_message_size = options.max_message_size, max_segments = options.max_segments, traversal_limit_words = options.traversal_limit_words, nesting_limit = options.nesting_limit)
-    return connect(transport)
+    return connect(transport; options)
 end
 
 """
@@ -108,7 +113,7 @@ advanced extension point for custom streams and optional Reseau TLS support.
 """
 function connect(transport::Transport; owns_transport::Bool = true, start_message_loop::Bool = true, options::ConnectionOptions = ConnectionOptions())
     isopen(transport) || throw(ConnectionFailedException("Transport is not open"))
-    conn = Connection(transport; owns_transport, inbound_queue_size = options.inbound_queue_size, outbound_queue_size = options.outbound_queue_size)
+    conn = Connection(transport; owns_transport, inbound_queue_size = options.inbound_queue_size, outbound_queue_size = options.outbound_queue_size, max_questions = options.max_questions, max_answers = options.max_answers, max_exports = options.max_exports, max_imports = options.max_imports)
     set_connected!(conn)
     start_message_loop && start_message_loop!(conn)
     return conn

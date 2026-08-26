@@ -64,7 +64,7 @@ export inject_message!, get_sent_messages, clear_sent_messages!
 # Exports - Connection management
 export TLSConfig, TLSListenerConfig
 export ConnectionState, ExceptionType
-export DisconnectedException, TimeoutException, ConnectionFailedException, RemoteException, InvalidCapabilityException
+export DisconnectedException, TimeoutException, ConnectionFailedException, RemoteException, InvalidCapabilityException, ResourceLimitError
 export LocalCapability, RemoteCapability, PendingQuestion, PendingAnswer, Connection
 export RemotePromise, PromisedExport, PromiseTracker
 export is_connected

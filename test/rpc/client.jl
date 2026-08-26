@@ -86,11 +86,17 @@ println(stderr, "RUNNING TESTSET: ");
 
         println(stderr, "RUNNING TESTSET: ")
         @testset "Connection options" begin
-            options = RPC.ConnectionOptions(max_message_size = 1024, max_segments = 8, traversal_limit_words = 256, nesting_limit = 12)
+            options = RPC.ConnectionOptions(max_message_size = 1024, max_segments = 8, traversal_limit_words = 256, nesting_limit = 12, inbound_queue_size = 4, outbound_queue_size = 5, max_questions = 6, max_answers = 7, max_exports = 8, max_imports = 9)
             @test options.max_message_size == 1024
             @test options.max_segments == 8
             @test options.traversal_limit_words == 256
             @test options.nesting_limit == 12
+            @test options.inbound_queue_size == 4
+            @test options.outbound_queue_size == 5
+            @test options.max_questions == 6
+            @test options.max_answers == 7
+            @test options.max_exports == 8
+            @test options.max_imports == 9
 
             mock = RPC.MockTransport(max_message_size = options.max_message_size, max_segments = options.max_segments, traversal_limit_words = options.traversal_limit_words, nesting_limit = options.nesting_limit)
             @test mock.max_message_size == 1024
@@ -102,6 +108,12 @@ println(stderr, "RUNNING TESTSET: ");
             @test_throws ArgumentError RPC.ConnectionOptions(max_segments = 0)
             @test_throws ArgumentError RPC.ConnectionOptions(traversal_limit_words = -1)
             @test_throws ArgumentError RPC.ConnectionOptions(nesting_limit = -1)
+            @test_throws ArgumentError RPC.ConnectionOptions(inbound_queue_size = 0)
+            @test_throws ArgumentError RPC.ConnectionOptions(outbound_queue_size = 0)
+            @test_throws ArgumentError RPC.ConnectionOptions(max_questions = 0)
+            @test_throws ArgumentError RPC.ConnectionOptions(max_answers = 0)
+            @test_throws ArgumentError RPC.ConnectionOptions(max_exports = 0)
+            @test_throws ArgumentError RPC.ConnectionOptions(max_imports = 0)
             @test_throws ArgumentError RPC.MockTransport(max_message_size = 7)
         end
     end
@@ -131,6 +143,59 @@ println(stderr, "RUNNING TESTSET: ");
         @testset "Exports table" begin
             @test RPC.export_count(conn) == 0
         end
+    end
+
+    @testset "Connection resource limits" begin
+        conn = RPC.Connection(RPC.MockTransport(); max_questions = 1, max_answers = 1, max_exports = 1, max_imports = 1)
+
+        question1 = RPC.PendingQuestion(UInt32(1), RPC.Promise{Any}(question_id = UInt32(1)))
+        question2 = RPC.PendingQuestion(UInt32(2), RPC.Promise{Any}(question_id = UInt32(2)))
+        RPC.add_question!(conn, question1)
+        @test RPC.add_question!(conn, question1) === question1
+        @test_throws RPC.ResourceLimitError RPC.add_question!(conn, question2)
+        RPC.remove_question!(conn, UInt32(1))
+        @test RPC.add_question!(conn, question2) === question2
+
+        answer1 = RPC.PendingAnswer(UInt32(1))
+        answer2 = RPC.PendingAnswer(UInt32(2))
+        RPC.add_answer!(conn, answer1)
+        @test RPC.add_answer!(conn, answer1) === answer1
+        @test_throws RPC.ResourceLimitError RPC.add_answer!(conn, answer2)
+        RPC.remove_answer!(conn, UInt32(1))
+        @test RPC.add_answer!(conn, answer2) === answer2
+
+        export1 = RPC.LocalCapability(UInt64(1), "one")
+        export2 = RPC.LocalCapability(UInt64(2), "two")
+        RPC.add_export!(conn, UInt32(1), export1)
+        @test RPC.add_export!(conn, UInt32(1), export2) === export2
+        @test_throws RPC.ResourceLimitError RPC.add_export!(conn, UInt32(2), export2)
+        RPC.remove_export!(conn, UInt32(1))
+        @test RPC.add_export!(conn, UInt32(2), export2) === export2
+
+        import1 = RPC.RemoteCapability(UInt32(1), UInt64(1), conn)
+        import2 = RPC.RemoteCapability(UInt32(2), UInt64(2), conn)
+        RPC.add_import!(conn, UInt32(1), import1)
+        @test RPC.add_import!(conn, UInt32(1), import2) === import2
+        @test_throws RPC.ResourceLimitError RPC.add_import!(conn, UInt32(2), import2)
+        RPC.remove_import!(conn, UInt32(1))
+        @test RPC.add_import!(conn, UInt32(2), import2) === import2
+
+        promised1 = RPC.Promise{Any}()
+        promised2 = RPC.Promise{Any}()
+        RPC.add_promised_export!(conn, UInt32(1), promised1)
+        @test_throws RPC.ResourceLimitError RPC.add_promised_export!(conn, UInt32(2), promised2)
+        RPC.remove_promised_export!(conn, UInt32(1))
+        RPC.add_promised_export!(conn, UInt32(2), promised2)
+
+        remote1 = RPC.Promise{Any}()
+        remote2 = RPC.Promise{Any}()
+        RPC.add_remote_promise!(conn, UInt32(1), remote1)
+        @test_throws RPC.ResourceLimitError RPC.add_remote_promise!(conn, UInt32(2), remote2)
+        RPC.remove_remote_promise!(conn, UInt32(1))
+        RPC.add_remote_promise!(conn, UInt32(2), remote2)
+
+        error = RPC.ResourceLimitError(:questions, 1)
+        @test occursin("questions", sprint(showerror, error))
     end
 
     println(stderr, "RUNNING TESTSET: ")
