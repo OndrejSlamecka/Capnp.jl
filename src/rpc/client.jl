@@ -68,12 +68,15 @@ Configuration options for RPC connections.
 struct ConnectionOptions
     max_message_size::Int
     max_segments::Int
+    traversal_limit_words::Int
+    nesting_limit::Int
     inbound_queue_size::Int
     outbound_queue_size::Int
 
-    function ConnectionOptions(; max_message_size::Int = Capnp.DEFAULT_MAX_MESSAGE_SIZE, max_segments::Int = Capnp.DEFAULT_MAX_SEGMENTS, inbound_queue_size::Int = 64, outbound_queue_size::Int = 64)
+    function ConnectionOptions(; max_message_size::Int = Capnp.DEFAULT_MAX_MESSAGE_SIZE, max_segments::Int = Capnp.DEFAULT_MAX_SEGMENTS, traversal_limit_words::Int = Capnp.DEFAULT_TRAVERSAL_LIMIT_WORDS, nesting_limit::Int = Capnp.DEFAULT_NESTING_LIMIT, inbound_queue_size::Int = 64, outbound_queue_size::Int = 64)
         Capnp._validate_reader_limits(max_message_size, max_segments)
-        new(max_message_size, max_segments, inbound_queue_size, outbound_queue_size)
+        Capnp._validate_traversal_limits(traversal_limit_words, nesting_limit)
+        new(max_message_size, max_segments, traversal_limit_words, nesting_limit, inbound_queue_size, outbound_queue_size)
     end
 end
 
@@ -83,7 +86,7 @@ end
 Connect to a Cap'n Proto RPC server via TCP with custom options.
 """
 function connect(host::AbstractString, port::Integer, options::ConnectionOptions)
-    transport = TcpTransport(host, port; max_message_size = options.max_message_size, max_segments = options.max_segments)
+    transport = TcpTransport(host, port; max_message_size = options.max_message_size, max_segments = options.max_segments, traversal_limit_words = options.traversal_limit_words, nesting_limit = options.nesting_limit)
     return connect(transport)
 end
 
@@ -93,7 +96,7 @@ end
 Connect to a Cap'n Proto RPC server via Unix domain socket with custom options.
 """
 function connect(socket_path::AbstractString, options::ConnectionOptions)
-    transport = UnixTransport(socket_path; max_message_size = options.max_message_size, max_segments = options.max_segments)
+    transport = UnixTransport(socket_path; max_message_size = options.max_message_size, max_segments = options.max_segments, traversal_limit_words = options.traversal_limit_words, nesting_limit = options.nesting_limit)
     return connect(transport)
 end
 

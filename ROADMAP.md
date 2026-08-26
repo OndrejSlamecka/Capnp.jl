@@ -241,7 +241,7 @@ Acceptance criteria:
 Goal: move untrusted-message handling from experimental to explicitly bounded.
 
 - [x] Enforce traversal-word budgets across pointer following and repeated reads.
-- [ ] Enforce nesting limits for structs, lists, far pointers, and RPC payloads.
+- [x] Enforce nesting limits for structs, lists, far pointers, and RPC payloads.
 - [ ] Bound capability-table sizes, outstanding questions/answers, pipeline
       transforms, queued messages, and exception/reason text.
 - [ ] Detect cycles and amplification patterns without quadratic work.

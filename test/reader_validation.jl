@@ -46,6 +46,8 @@ using Capnp
         valid_empty_message = zeros(UInt8, 8)
         @test_throws ArgumentError Capnp.BufferMessageReader(valid_empty_message; max_message_size = 7)
         @test_throws ArgumentError Capnp.BufferMessageReader(valid_empty_message; max_segments = 0)
+        @test_throws ArgumentError Capnp.BufferMessageReader(valid_empty_message; traversal_limit_words = -1)
+        @test_throws ArgumentError Capnp.BufferMessageReader(valid_empty_message; nesting_limit = -1)
     end
 
     @testset "Pointer bounds" begin
@@ -101,5 +103,40 @@ using Capnp
 
         undersized = Capnp.StructPointer(reader, UInt32(1), UInt32(0), UInt16(0), UInt16(0))
         @test_throws Capnp.InvalidMessageError Capnp.validate_struct_pointer(undersized, 1, 0, "Example")
+    end
+
+    @testset "Nesting limits" begin
+        # Two nested non-null struct pointers followed by a null pointer.
+        segment = zeros(UInt8, 24)
+        pointer_with_child = Int64(1) << 48
+        Capnp._checked_store!(segment, 0, pointer_with_child)
+        Capnp._checked_store!(segment, 8, pointer_with_child)
+
+        shallow_reader = Capnp.MessageReader(IOBuffer(zeros(UInt8, 8)); nesting_limit = 1)
+        shallow_reader.segments = [copy(segment)]
+        shallow_root = Capnp.StructPointer(shallow_reader, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
+        shallow_child = Capnp.read_struct_pointer(shallow_root, 0, 0)
+        @test shallow_child.nesting_limit == 0
+        @test_throws Capnp.InvalidMessageError Capnp.read_struct_pointer(shallow_child, 0, 0)
+
+        deep_reader = Capnp.MessageReader(IOBuffer(zeros(UInt8, 8)); nesting_limit = 2)
+        deep_reader.segments = [copy(segment)]
+        deep_root = Capnp.StructPointer(deep_reader, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
+        deep_child = Capnp.read_struct_pointer(deep_root, 0, 0)
+        deep_grandchild = Capnp.read_struct_pointer(deep_child, 0, 0)
+        @test deep_grandchild.nesting_limit == 0
+        @test Capnp.read_struct_pointer(deep_grandchild, 0, 0) === nothing
+
+        # A far pointer consumes the same nesting budget as a direct pointer.
+        far_segment = zeros(UInt8, 8)
+        landing_segment = copy(segment)
+        far_pointer = (Int64(1) << 32) | Int64(0b10)
+        Capnp._checked_store!(far_segment, 0, far_pointer)
+        far_reader = Capnp.MessageReader(IOBuffer(zeros(UInt8, 8)); nesting_limit = 1)
+        far_reader.segments = [far_segment, landing_segment]
+        far_root = Capnp.StructPointer(far_reader, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
+        far_child = Capnp.read_struct_pointer(far_root, 0, 0)
+        @test far_child.segment == UInt32(2)
+        @test_throws Capnp.InvalidMessageError Capnp.read_struct_pointer(far_child, 0, 0)
     end
 end

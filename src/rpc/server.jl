@@ -41,13 +41,16 @@ struct ServerOptions
     max_connections::Int
     max_message_size::Int
     max_segments::Int
+    traversal_limit_words::Int
+    nesting_limit::Int
     inbound_queue_size::Int
     outbound_queue_size::Int
 
-    function ServerOptions(; max_connections::Int = 1000, max_message_size::Int = Capnp.DEFAULT_MAX_MESSAGE_SIZE, max_segments::Int = Capnp.DEFAULT_MAX_SEGMENTS, inbound_queue_size::Int = 64, outbound_queue_size::Int = 64)
+    function ServerOptions(; max_connections::Int = 1000, max_message_size::Int = Capnp.DEFAULT_MAX_MESSAGE_SIZE, max_segments::Int = Capnp.DEFAULT_MAX_SEGMENTS, traversal_limit_words::Int = Capnp.DEFAULT_TRAVERSAL_LIMIT_WORDS, nesting_limit::Int = Capnp.DEFAULT_NESTING_LIMIT, inbound_queue_size::Int = 64, outbound_queue_size::Int = 64)
         max_connections > 0 || throw(ArgumentError("max_connections must be positive"))
         Capnp._validate_reader_limits(max_message_size, max_segments)
-        new(max_connections, max_message_size, max_segments, inbound_queue_size, outbound_queue_size)
+        Capnp._validate_traversal_limits(traversal_limit_words, nesting_limit)
+        new(max_connections, max_message_size, max_segments, traversal_limit_words, nesting_limit, inbound_queue_size, outbound_queue_size)
     end
 end
 
@@ -255,9 +258,9 @@ function handle_new_connection(server::Server, socket)
 
     # Create transport and connection
     transport = if socket isa Sockets.TCPSocket
-        TcpTransport(socket; max_message_size = server.options.max_message_size, max_segments = server.options.max_segments)
+        TcpTransport(socket; max_message_size = server.options.max_message_size, max_segments = server.options.max_segments, traversal_limit_words = server.options.traversal_limit_words, nesting_limit = server.options.nesting_limit)
     else
-        UnixTransport(socket, ""; max_message_size = server.options.max_message_size, max_segments = server.options.max_segments)
+        UnixTransport(socket, ""; max_message_size = server.options.max_message_size, max_segments = server.options.max_segments, traversal_limit_words = server.options.traversal_limit_words, nesting_limit = server.options.nesting_limit)
     end
     conn = Connection(transport; owns_transport = true, inbound_queue_size = server.options.inbound_queue_size, outbound_queue_size = server.options.outbound_queue_size)
 

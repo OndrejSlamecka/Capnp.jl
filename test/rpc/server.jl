@@ -82,10 +82,12 @@ using Capnp.RPC
     end
 
     @testset "ServerOptions" begin
-        options = RPC.ServerOptions(max_connections = 100, max_message_size = 1024, max_segments = 8)
+        options = RPC.ServerOptions(max_connections = 100, max_message_size = 1024, max_segments = 8, traversal_limit_words = 256, nesting_limit = 12)
         @test options.max_connections == 100
         @test options.max_message_size == 1024
         @test options.max_segments == 8
+        @test options.traversal_limit_words == 256
+        @test options.nesting_limit == 12
 
         # Default options
         default_opts = RPC.ServerOptions()
@@ -94,6 +96,8 @@ using Capnp.RPC
         @test_throws ArgumentError RPC.ServerOptions(max_connections = 0)
         @test_throws ArgumentError RPC.ServerOptions(max_message_size = 7)
         @test_throws ArgumentError RPC.ServerOptions(max_segments = 0)
+        @test_throws ArgumentError RPC.ServerOptions(traversal_limit_words = -1)
+        @test_throws ArgumentError RPC.ServerOptions(nesting_limit = -1)
     end
 
     @testset "CallContext" begin

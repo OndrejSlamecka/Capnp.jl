@@ -20,6 +20,12 @@ function _validate_reader_limits(max_message_size::Int, max_segments::Int)
     return nothing
 end
 
+function _validate_traversal_limits(traversal_limit_words::Int, nesting_limit::Int)
+    traversal_limit_words >= 0 || throw(ArgumentError("traversal_limit_words must be non-negative"))
+    nesting_limit >= 0 || throw(ArgumentError("nesting_limit must be non-negative"))
+    return nothing
+end
+
 function _read_le_uint32(buffer::AbstractVector{UInt8}, offset::Int)
     offset >= 1 && offset <= length(buffer) - 3 || throw(InvalidMessageError("truncated framing header"))
     return UInt32(buffer[offset]) | UInt32(buffer[offset+1]) << 8 | UInt32(buffer[offset+2]) << 16 | UInt32(buffer[offset+3]) << 24
@@ -62,6 +68,14 @@ end
 abstract type MessageTraverser end
 abstract type Reader <: MessageTraverser end
 abstract type Writer <: MessageTraverser end
+
+_initial_nesting_limit(traverser::Reader) = traverser.nesting_limit
+_initial_nesting_limit(::Writer) = typemax(Int)
+
+function _descend_nesting_limit(ptr)
+    ptr.nesting_limit > 0 || throw(InvalidMessageError("Message nesting limit exceeded"))
+    return ptr.nesting_limit - 1
+end
 
 _decrement_traversal_limit!(traverser::Writer, words::Integer) = nothing
 function _decrement_traversal_limit!(traverser::Reader, words::Integer)
@@ -121,6 +135,7 @@ mutable struct MessageReader <: Reader
 
     function MessageReader(io::IO; max_message_size::Int = DEFAULT_MAX_MESSAGE_SIZE, max_segments::Int = DEFAULT_MAX_SEGMENTS, traversal_limit_words::Int = DEFAULT_TRAVERSAL_LIMIT_WORDS, nesting_limit::Int = DEFAULT_NESTING_LIMIT)
         _validate_reader_limits(max_message_size, max_segments)
+        _validate_traversal_limits(traversal_limit_words, nesting_limit)
 
         # num segments
         num_segments = Int(_read_le_uint32(io)) + 1
@@ -162,6 +177,10 @@ end
 Zero-copy message reader that operates on pre-allocated byte buffers.
 Uses views into the provided buffer instead of copying data.
 
+Both message readers enforce `traversal_limit_words` across repeated pointer
+reads and `nesting_limit` along each followed struct/list pointer path. A limit
+violation raises `InvalidMessageError`.
+
 # Usage
 ```julia
 bytes = read("message.bin")
@@ -178,6 +197,7 @@ mutable struct BufferMessageReader <: Reader
 
     function BufferMessageReader(buffer::Vector{UInt8}; max_message_size::Int = DEFAULT_MAX_MESSAGE_SIZE, max_segments::Int = DEFAULT_MAX_SEGMENTS, traversal_limit_words::Int = DEFAULT_TRAVERSAL_LIMIT_WORDS, nesting_limit::Int = DEFAULT_NESTING_LIMIT)
         _validate_reader_limits(max_message_size, max_segments)
+        _validate_traversal_limits(traversal_limit_words, nesting_limit)
 
         length(buffer) >= 8 || throw(InvalidMessageError("message is shorter than the minimum framing header"))
 
@@ -482,7 +502,11 @@ struct StructPointer{T} <: CapnpPointer where {T<:MessageTraverser}
 
     data_word_count::UInt16
     pointer_count::UInt16
+    nesting_limit::Int
 end
+
+StructPointer(traverser::T, segment::UInt32, offset::UInt32, data_word_count::UInt16, pointer_count::UInt16) where {T<:MessageTraverser} =
+    StructPointer(traverser, segment, offset, data_word_count, pointer_count, _initial_nesting_limit(traverser))
 
 function read_struct_pointer(ptr, byte_section_words, ptrix)
     (bytes, segment, offset) = resolve_pointer(ptr, byte_section_words, ptrix)
@@ -496,7 +520,7 @@ function read_struct_pointer(ptr, byte_section_words, ptrix)
 
         _checked_byte_range(_checked_segment(ptr.traverser.segments, segment), 8 * offset, 8 * (Int(data_words) + Int(ptr_words)))
         _decrement_traversal_limit!(ptr.traverser, Int(data_words) + Int(ptr_words))
-        StructPointer(ptr.traverser, segment, offset, data_words, ptr_words)
+        StructPointer(ptr.traverser, segment, offset, data_words, ptr_words, _descend_nesting_limit(ptr))
     else
         throw(InvalidMessageError("Not a struct at byte $offset of segment $segment, A = $(bytes & 0b11)"))
     end
@@ -546,7 +570,11 @@ struct SimpleListPointer{ElType,T} <: ListPointer where {ElType<:CapnpType,T<:Me
 
     element_size::ElementSize
     length::UInt32 # list size, number of elements
+    nesting_limit::Int
 end
+
+SimpleListPointer{ElType,T}(traverser::T, segment::UInt32, offset::UInt32, element_size::ElementSize, length::UInt32) where {ElType,T<:MessageTraverser} =
+    SimpleListPointer{ElType,T}(traverser, segment, offset, element_size, length, _initial_nesting_limit(traverser))
 
 struct CompositeListPointer{T} <: ListPointer where {T<:MessageTraverser}
     traverser::T
@@ -557,7 +585,11 @@ struct CompositeListPointer{T} <: ListPointer where {T<:MessageTraverser}
     length::UInt32 # list size, number of elements
     data_word_count::UInt16
     pointer_count::UInt16
+    nesting_limit::Int
 end
+
+CompositeListPointer(traverser::T, segment::UInt32, offset::UInt32, length::UInt32, data_word_count::UInt16, pointer_count::UInt16) where {T<:MessageTraverser} =
+    CompositeListPointer(traverser, segment, offset, length, data_word_count, pointer_count, _initial_nesting_limit(traverser))
 
 function validate_struct_pointer(ptr, minimum_data_words::Integer, minimum_pointer_words::Integer, type_name)
     ptr === nothing && return ptr
@@ -604,7 +636,7 @@ function Base.getindex(ptr::CompositeListPointer, i)
     # i-1 for 1-based indices
     position = UInt32(ptr.offset + 1 + (i - 1) * (ptr.data_word_count + ptr.pointer_count))
     # println("getting ", i, " ", position)
-    StructPointer(ptr.traverser, ptr.segment, position, ptr.data_word_count, ptr.pointer_count)
+    StructPointer(ptr.traverser, ptr.segment, position, ptr.data_word_count, ptr.pointer_count, _descend_nesting_limit(ptr))
 end
 
 # Iterator interface
@@ -613,7 +645,7 @@ function Base.iterate(ptr::CompositeListPointer, state = 0)
         nothing
     else
         position = ptr.offset + UInt32(1) + UInt32(state) * (ptr.data_word_count + ptr.pointer_count)
-        (StructPointer(ptr.traverser, ptr.segment, position, ptr.data_word_count, ptr.pointer_count), state + 1)
+        (StructPointer(ptr.traverser, ptr.segment, position, ptr.data_word_count, ptr.pointer_count, _descend_nesting_limit(ptr)), state + 1)
     end
 end
 
@@ -627,14 +659,14 @@ function Base.iterate(ptr::SimpleListPointer{T}, state = 0) where {T<:CapnpType}
         elseif ptr.element_size == Pointer
             if T === CapnpData
                 pointer_container = StructPointer(
-                    ptr.traverser, ptr.segment, UInt32(Int(ptr.offset) + state), UInt16(0), UInt16(1),
+                    ptr.traverser, ptr.segment, UInt32(Int(ptr.offset) + state), UInt16(0), UInt16(1), ptr.nesting_limit,
                 )
                 item = read_data(read_list_pointer(pointer_container, 0, 0, CapnpUInt8))
                 return (item, state + 1)
             end
             pointer_word_offset = Int(ptr.offset) + state
             pointer_container = StructPointer(
-                ptr.traverser, ptr.segment, UInt32(pointer_word_offset), UInt16(0), UInt16(1),
+                ptr.traverser, ptr.segment, UInt32(pointer_word_offset), UInt16(0), UInt16(1), ptr.nesting_limit,
             )
             item = read_struct_pointer(pointer_container, 0, 0)
         else
@@ -739,7 +771,7 @@ function read_list_pointer(ptr, byte_section_words, ptrix, element_type = CapnpV
     (bytes, segment, offset) = resolve_pointer(ptr, byte_section_words, ptrix)
 
     if bytes == 0
-        SimpleListPointer{element_type,typeof(ptr.traverser)}(ptr.traverser, segment, offset, Byte, 0)
+        SimpleListPointer{element_type,typeof(ptr.traverser)}(ptr.traverser, segment, offset, Byte, 0, ptr.nesting_limit)
     elseif bytes & 0b11 == 1
         element_size = ElementSize((bytes >> 32) & 0b111)
         list_size = UInt32(bytes >> 35)
@@ -752,7 +784,7 @@ function read_list_pointer(ptr, byte_section_words, ptrix, element_type = CapnpV
             required_words = Int(tag.length) * element_words
             required_words <= Int(list_size) || throw(InvalidMessageError("composite-list elements exceed the declared word count"))
             _decrement_traversal_limit!(ptr.traverser, Int(list_size) + 1)
-            CompositeListPointer(ptr.traverser, segment, offset, tag.length, tag.data_word_count, tag.pointer_count)
+            CompositeListPointer(ptr.traverser, segment, offset, tag.length, tag.data_word_count, tag.pointer_count, _descend_nesting_limit(ptr))
         else
             expected_size = _expected_element_size(element_type)
             expected_size === nothing || element_type === CapnpVoid || element_size == expected_size ||
@@ -760,7 +792,7 @@ function read_list_pointer(ptr, byte_section_words, ptrix, element_type = CapnpV
             byte_count = _simple_list_byte_count(element_size, list_size)
             _checked_byte_range(_checked_segment(ptr.traverser.segments, segment), 8 * offset, byte_count)
             _decrement_traversal_limit!(ptr.traverser, cld(byte_count, 8))
-            SimpleListPointer{element_type,typeof(ptr.traverser)}(ptr.traverser, segment, offset, element_size, list_size)
+            SimpleListPointer{element_type,typeof(ptr.traverser)}(ptr.traverser, segment, offset, element_size, list_size, _descend_nesting_limit(ptr))
         end
     else
         throw(InvalidMessageError("Not a list $(bytes & 0b11) at offset $(ptr.offset) and after $(byte_section_words) word byte section and at $(ptrix) pointer index of segment $(ptr.segment)"))
@@ -932,7 +964,7 @@ function read_any_pointer(ptr, byte_section_words, ptrix)
         pointer_words = UInt16((bytes >> 48) & 0xffff)
         _checked_byte_range(_checked_segment(ptr.traverser.segments, segment), 8 * offset, 8 * (Int(data_words) + Int(pointer_words)))
         _decrement_traversal_limit!(ptr.traverser, Int(data_words) + Int(pointer_words))
-        return StructPointer(ptr.traverser, segment, offset, data_words, pointer_words)
+        return StructPointer(ptr.traverser, segment, offset, data_words, pointer_words, _descend_nesting_limit(ptr))
     elseif kind == 1
         element_size = ElementSize((bytes >> 32) & 0b111)
         list_size = UInt32(bytes >> 35)
@@ -944,12 +976,12 @@ function read_any_pointer(ptr, byte_section_words, ptrix)
             Int(tag.length) * element_words <= Int(list_size) ||
                 throw(InvalidMessageError("composite-list elements exceed the declared word count"))
             _decrement_traversal_limit!(ptr.traverser, Int(list_size) + 1)
-            return CompositeListPointer(ptr.traverser, segment, offset, tag.length, tag.data_word_count, tag.pointer_count)
+            return CompositeListPointer(ptr.traverser, segment, offset, tag.length, tag.data_word_count, tag.pointer_count, _descend_nesting_limit(ptr))
         end
         byte_count = _simple_list_byte_count(element_size, list_size)
         _checked_byte_range(_checked_segment(ptr.traverser.segments, segment), 8 * offset, byte_count)
         _decrement_traversal_limit!(ptr.traverser, cld(byte_count, 8))
-        return SimpleListPointer{CapnpVoid,typeof(ptr.traverser)}(ptr.traverser, segment, offset, element_size, list_size)
+        return SimpleListPointer{CapnpVoid,typeof(ptr.traverser)}(ptr.traverser, segment, offset, element_size, list_size, _descend_nesting_limit(ptr))
     end
     throw(InvalidMessageError("Unsupported any-pointer kind $kind"))
 end

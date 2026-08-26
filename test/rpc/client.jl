@@ -86,16 +86,22 @@ println(stderr, "RUNNING TESTSET: ");
 
         println(stderr, "RUNNING TESTSET: ")
         @testset "Connection options" begin
-            options = RPC.ConnectionOptions(max_message_size = 1024, max_segments = 8)
+            options = RPC.ConnectionOptions(max_message_size = 1024, max_segments = 8, traversal_limit_words = 256, nesting_limit = 12)
             @test options.max_message_size == 1024
             @test options.max_segments == 8
+            @test options.traversal_limit_words == 256
+            @test options.nesting_limit == 12
 
-            mock = RPC.MockTransport(max_message_size = options.max_message_size, max_segments = options.max_segments)
+            mock = RPC.MockTransport(max_message_size = options.max_message_size, max_segments = options.max_segments, traversal_limit_words = options.traversal_limit_words, nesting_limit = options.nesting_limit)
             @test mock.max_message_size == 1024
             @test mock.max_segments == 8
+            @test mock.traversal_limit_words == 256
+            @test mock.nesting_limit == 12
 
             @test_throws ArgumentError RPC.ConnectionOptions(max_message_size = 7)
             @test_throws ArgumentError RPC.ConnectionOptions(max_segments = 0)
+            @test_throws ArgumentError RPC.ConnectionOptions(traversal_limit_words = -1)
+            @test_throws ArgumentError RPC.ConnectionOptions(nesting_limit = -1)
             @test_throws ArgumentError RPC.MockTransport(max_message_size = 7)
         end
     end

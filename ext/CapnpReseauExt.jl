@@ -12,12 +12,15 @@ mutable struct ReseauTransport{S} <: Capnp.RPC.Transport
     is_open::Bool
     max_message_size::Int
     max_segments::Int
+    traversal_limit_words::Int
+    nesting_limit::Int
     read_lock::ReentrantLock
     write_lock::ReentrantLock
 
-    function ReseauTransport(socket::S; max_message_size::Int = Capnp.DEFAULT_MAX_MESSAGE_SIZE, max_segments::Int = Capnp.DEFAULT_MAX_SEGMENTS) where {S}
+    function ReseauTransport(socket::S; max_message_size::Int = Capnp.DEFAULT_MAX_MESSAGE_SIZE, max_segments::Int = Capnp.DEFAULT_MAX_SEGMENTS, traversal_limit_words::Int = Capnp.DEFAULT_TRAVERSAL_LIMIT_WORDS, nesting_limit::Int = Capnp.DEFAULT_NESTING_LIMIT) where {S}
         Capnp._validate_reader_limits(max_message_size, max_segments)
-        return new{S}(socket, true, max_message_size, max_segments, ReentrantLock(), ReentrantLock())
+        Capnp._validate_traversal_limits(traversal_limit_words, nesting_limit)
+        return new{S}(socket, true, max_message_size, max_segments, traversal_limit_words, nesting_limit, ReentrantLock(), ReentrantLock())
     end
 end
 
@@ -38,7 +41,7 @@ end
 Capnp.RPC.send_message(t::ReseauTransport, builder::Capnp.AllocMessageBuilder) = Capnp.RPC._send_builder(t, builder)
 function Capnp.RPC.receive_message(t::ReseauTransport)
     try
-        return Capnp.RPC._receive_reader(t, t.socket, t.read_lock, t.max_message_size, t.max_segments)
+        return Capnp.RPC._receive_reader(t, t.socket, t.read_lock, t.max_message_size, t.max_segments, t.traversal_limit_words, t.nesting_limit)
     catch e
         if e isa Reseau.TLS.TLSError || e isa Reseau.IOPoll.DeadlineExceededError || e isa Reseau.TLS.TLSHandshakeTimeoutError
             throw(Capnp.RPC.DisconnectedException("TLS transport read failed: $(e)"))
@@ -96,7 +99,7 @@ function Capnp.RPC.connect(host::AbstractString, port::Integer, tls_config::RPC.
     if tls_config.write_timeout_ns !== nothing
         Reseau.TLS.set_write_deadline!(socket, time_ns() + tls_config.write_timeout_ns)
     end
-    transport = ReseauTransport(socket; max_message_size = options.max_message_size, max_segments = options.max_segments)
+    transport = ReseauTransport(socket; max_message_size = options.max_message_size, max_segments = options.max_segments, traversal_limit_words = options.traversal_limit_words, nesting_limit = options.nesting_limit)
 
     return RPC.connect(transport)
 end
@@ -155,7 +158,13 @@ function Capnp.RPC.listen(server::RPC.Server, host::AbstractString, port::Intege
                         if tls_config.write_timeout_ns !== nothing
                             Reseau.TLS.set_write_deadline!(tls_sock, time_ns() + tls_config.write_timeout_ns)
                         end
-                        transport = ReseauTransport(tls_sock)
+                        transport = ReseauTransport(
+                            tls_sock;
+                            max_message_size = server.options.max_message_size,
+                            max_segments = server.options.max_segments,
+                            traversal_limit_words = server.options.traversal_limit_words,
+                            nesting_limit = server.options.nesting_limit,
+                        )
                         conn = RPC.Connection(transport; owns_transport = true)
                         RPC.add_client!(server, conn)
                         RPC.start_message_loop!(conn)
