@@ -189,6 +189,8 @@ include("generator_persistent_test.jl")
     include("copy_schema.jl")
 end
 
+include("golden_tests.jl")
+
 # User Story 2: RPC Client tests
 include("rpc/promise.jl")
 include("rpc/client.jl")
