@@ -2836,14 +2836,28 @@ module capnp
             Base.depwarn("Value_setText is deprecated, use set_text!(ptr, txt, Val{:Value}) instead", :Value_setText)
             set_text!(ptr, txt, Val{:Value})
         end
-        # Value's data has type Capnp.Generator.SchemaData() which is not supported by Capnp.jl yet
+        function get_data(ptr, ::Type{Val{:Value}})
+            p = Capnp.read_list_pointer(ptr, ptr.data_word_count, 0)
+            Capnp.read_data(p)
+        end
+        function Value_getData(ptr)
+            Base.depwarn("Value_getData is deprecated, use get_data(ptr, Val{:Value}) instead", :Value_getData)
+            get_data(ptr, Val{:Value})
+        end
+        function set_data!(ptr, data::AbstractVector{UInt8}, ::Type{Val{:Value}})
+            pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + ptr.data_word_count + 0)
+            pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, length(data))
+            child_ptr = Capnp.SimpleListPointer{UInt8, typeof(ptr.traverser)}(ptr.traverser, segment, offset, Capnp.Byte, UInt32(length(data)))
+            Capnp.write_list_pointer(pointer_location, child_ptr)
+            Capnp.write_bits(ptr, 0, UInt16, 13) # union discriminant
+            Capnp.write_data(child_ptr, data)
+        end
+        function Value_setData(ptr, data::AbstractVector{UInt8})
+            Base.depwarn("Value_setData is deprecated, use set_data!(ptr, data, Val{:Value}) instead", :Value_setData)
+            set_data!(ptr, data, Val{:Value})
+        end
         function get_list(ptr, ::Type{Val{:Value}})
-            value = Capnp.read_bits(ptr, 2, Int64)
-            if value == 0
-                Nothing
-            else
-                throw("TODO")
-            end
+            Capnp.read_any_pointer(ptr, ptr.data_word_count, 0)
         end
         function Value_getList(ptr)
             Base.depwarn("Value_getList is deprecated, use get_list(ptr, Val{:Value}) instead", :Value_getList)
@@ -2866,12 +2880,7 @@ module capnp
             set_enum!(ptr, value, Val{:Value})
         end
         function get_struct(ptr, ::Type{Val{:Value}})
-            value = Capnp.read_bits(ptr, 2, Int64)
-            if value == 0
-                Nothing
-            else
-                throw("TODO")
-            end
+            Capnp.read_any_pointer(ptr, ptr.data_word_count, 0)
         end
         function Value_getStruct(ptr)
             Base.depwarn("Value_getStruct is deprecated, use get_struct(ptr, Val{:Value}) instead", :Value_getStruct)
@@ -2885,12 +2894,7 @@ module capnp
             set_interface!(ptr, Val{:Value})
         end
         function get_any_pointer(ptr, ::Type{Val{:Value}})
-            value = Capnp.read_bits(ptr, 2, Int64)
-            if value == 0
-                Nothing
-            else
-                throw("TODO")
-            end
+            Capnp.read_any_pointer(ptr, ptr.data_word_count, 0)
         end
         function Value_getAnyPointer(ptr)
             Base.depwarn("Value_getAnyPointer is deprecated, use get_any_pointer(ptr, Val{:Value}) instead", :Value_getAnyPointer)

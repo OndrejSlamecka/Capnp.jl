@@ -4,7 +4,6 @@ version = "0.2.0"
 authors = ["Ondrej Slamecka <ondrej@slamecka.cz>", "Sébastien Celles <s.celles@gmail.com>"]
 
 [deps]
-Crayons = "a8cc5b0e-0ffa-5ad4-8c14-923d3ee1735f"
 Sockets = "6462fe0b-24de-5631-8697-dd941f90decc"
 
 [weakdeps]
@@ -15,7 +14,6 @@ CapnpReseauExt = "Reseau"
 
 [compat]
 Aqua = "0.8"
-Crayons = "4.2.0"
 Reseau = "1"
 Sockets = "1.10"
 Test = "1.10"

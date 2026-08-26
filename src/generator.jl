@@ -132,6 +132,7 @@ schema_to_runtime_type(::SchemaUInt32) = Capnp.CapnpUInt32
 schema_to_runtime_type(::SchemaUInt64) = Capnp.CapnpUInt64
 schema_to_runtime_type(::SchemaFloat32) = Capnp.CapnpFloat32
 schema_to_runtime_type(::SchemaFloat64) = Capnp.CapnpFloat64
+schema_to_runtime_type(::SchemaData) = Capnp.CapnpData
 schema_to_runtime_type(::SchemaStruct) = Capnp.CapnpStruct
 
 # Helper to convert CamelCase field name to snake_case
@@ -563,17 +564,11 @@ function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFi
 end
 
 function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFieldProps}, type::SchemaUnconstrainedPointer)
-    position = node.nodeProperties.dataWordCount + field.fieldProperties.offset
     field_snake = to_snake_case(field.name)
 
     # New API
     cprintln(env, "function get_$(field_snake)(ptr, ::Type{Val{:$(node.jlName)}})")
-    cprintln(env, "    value = Capnp.read_bits(ptr, $(position), Int64)")
-    cprintln(env, "    if value == 0")
-    cprintln(env, "        Nothing")
-    cprintln(env, "    else")
-    cprintln(env, "        throw(\"TODO\")")
-    cprintln(env, "    end")
+    cprintln(env, "    Capnp.read_any_pointer(ptr, ptr.data_word_count, $(Int(field.fieldProperties.offset)))")
     cprintln(env, "end")
     # Legacy API with deprecation
     cprintln(env, "function $(node.jlName)_get$(uppercasefirst(field.name))(ptr)")
@@ -717,6 +712,33 @@ function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFi
     cprintln(env, "function $(node.jlName)_set$(uppercasefirst(field.name))(ptr, txt)")
     cprintln(env, "    Base.depwarn(\"$(node.jlName)_set$(uppercasefirst(field.name)) is deprecated, use set_$(field_snake)!(ptr, txt, Val{:$(node.jlName)}) instead\", :$(node.jlName)_set$(uppercasefirst(field.name)))")
     cprintln(env, "    set_$(field_snake)!(ptr, txt, Val{:$(node.jlName)})")
+    cprintln(env, "end")
+end
+
+function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFieldProps}, type::SchemaData)
+    field_snake = to_snake_case(field.name)
+    pointer_index = Int(field.fieldProperties.offset)
+
+    cprintln(env, "function get_$(field_snake)(ptr, ::Type{Val{:$(node.jlName)}})")
+    cprintln(env, "    p = Capnp.read_list_pointer(ptr, ptr.data_word_count, $(pointer_index))")
+    cprintln(env, "    Capnp.read_data(p)")
+    cprintln(env, "end")
+    cprintln(env, "function $(node.jlName)_get$(uppercasefirst(field.name))(ptr)")
+    cprintln(env, "    Base.depwarn(\"$(node.jlName)_get$(uppercasefirst(field.name)) is deprecated, use get_$(field_snake)(ptr, Val{:$(node.jlName)}) instead\", :$(node.jlName)_get$(uppercasefirst(field.name)))")
+    cprintln(env, "    get_$(field_snake)(ptr, Val{:$(node.jlName)})")
+    cprintln(env, "end")
+
+    cprintln(env, "function set_$(field_snake)!(ptr, data::AbstractVector{UInt8}, ::Type{Val{:$(node.jlName)}})")
+    cprintln(env, "    pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + ptr.data_word_count + $(pointer_index))")
+    cprintln(env, "    pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, length(data))")
+    cprintln(env, "    child_ptr = Capnp.SimpleListPointer{UInt8, typeof(ptr.traverser)}(ptr.traverser, segment, offset, Capnp.Byte, UInt32(length(data)))")
+    cprintln(env, "    Capnp.write_list_pointer(pointer_location, child_ptr)")
+    generateDiscriminantSetter(env, "ptr", node.nodeProperties, field)
+    cprintln(env, "    Capnp.write_data(child_ptr, data)")
+    cprintln(env, "end")
+    cprintln(env, "function $(node.jlName)_set$(uppercasefirst(field.name))(ptr, data::AbstractVector{UInt8})")
+    cprintln(env, "    Base.depwarn(\"$(node.jlName)_set$(uppercasefirst(field.name)) is deprecated, use set_$(field_snake)!(ptr, data, Val{:$(node.jlName)}) instead\", :$(node.jlName)_set$(uppercasefirst(field.name)))")
+    cprintln(env, "    set_$(field_snake)!(ptr, data, Val{:$(node.jlName)})")
     cprintln(env, "end")
 end
 

@@ -17,6 +17,10 @@ include("generics.jl")       # Generic type support (US1)
 # Deprecation wrappers for API migration
 include("deprecated.jl")
 
+# RPC module for client and server functionality
+include("rpc/RPC.jl")
+using .RPC
+
 # Code generator module
 module Generator
 using ..Capnp
@@ -25,9 +29,5 @@ include("schema.capnp.jl")
 include("schema_tree.jl")
 include("generator.jl")
 end
-
-# RPC module for client and server functionality
-include("rpc/RPC.jl")
-using .RPC
 
 end

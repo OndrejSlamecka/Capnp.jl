@@ -43,9 +43,6 @@ abstract type MessageTraverser end
 abstract type Reader <: MessageTraverser end
 abstract type Writer <: MessageTraverser end
 
-struct InvalidMessageError <: Exception
-    msg::String
-end
 _decrement_traversal_limit!(traverser::Writer, words::Integer) = nothing
 function _decrement_traversal_limit!(traverser::Reader, words::Integer)
     traverser.traversal_limit_words -= Int(words)
@@ -435,7 +432,7 @@ function resolve_pointer(ptr, byte_section_words, ptrix)::Tuple{Int64,UInt32,UIn
 
             far_bytes_struct = _checked_load(Int64, ptr.traverser.segments, segment_id, 8 * (far_offset + 1))
 
-            # TODO: assert far_bytes_struct's offset is 0
+            _decode_signed_word_offset(far_bytes_struct) == 0 || throw(InvalidMessageError("Double far pointer landing pad second word offset must be 0"))
 
             (far_bytes_struct, UInt32(far_segment_id), UInt32(far_far_offset))
         end
@@ -591,6 +588,13 @@ function Base.iterate(ptr::SimpleListPointer{T}, state = 0) where {T<:CapnpType}
         if is_capnp_bits(T)
             item = read_bits(ptr, capnp_sizeof(T) * state, capnp_type_to_bits_type(T))
         elseif ptr.element_size == Pointer
+            if T === CapnpData
+                pointer_container = StructPointer(
+                    ptr.traverser, ptr.segment, UInt32(Int(ptr.offset) + state), UInt16(0), UInt16(1),
+                )
+                item = read_data(read_list_pointer(pointer_container, 0, 0, CapnpUInt8))
+                return (item, state + 1)
+            end
             # Each element is a pointer to a struct (Cap'n Proto 1.3.0+ encoding)
             # Read the pointer at position state (each pointer is 1 word = 8 bytes)
             pointer_word_offset = Int(ptr.offset) + state
@@ -865,4 +869,58 @@ function write_capability_pointer(pointer_location::WirePointer, traverser, cap_
     _checked_store!(traverser.segments, pointer_location.segment, position_bytes, bytes)
 
     CapabilityPointer(traverser, pointer_location.segment, pointer_location.offset, cap_index)
+end
+
+"""Read an untyped pointer while preserving its concrete wire-pointer kind."""
+function read_any_pointer(ptr, byte_section_words, ptrix)
+    position_words = Int(ptr.offset) + Int(byte_section_words) + Int(ptrix)
+    original = _checked_load(Int64, ptr.traverser.segments, ptr.segment, 8 * position_words)
+    original == 0 && return nothing
+    original & 0b11 == 3 && return read_capability_pointer(ptr, byte_section_words, ptrix)
+
+    bytes, segment, offset = resolve_pointer(ptr, byte_section_words, ptrix)
+    kind = bytes & 0b11
+    if kind == 0
+        data_words = UInt16((bytes >> 32) & 0xffff)
+        pointer_words = UInt16((bytes >> 48) & 0xffff)
+        _checked_byte_range(_checked_segment(ptr.traverser.segments, segment), 8 * offset, 8 * (Int(data_words) + Int(pointer_words)))
+        _decrement_traversal_limit!(ptr.traverser, Int(data_words) + Int(pointer_words))
+        return StructPointer(ptr.traverser, segment, offset, data_words, pointer_words)
+    elseif kind == 1
+        element_size = ElementSize((bytes >> 32) & 0b111)
+        list_size = UInt32(bytes >> 35)
+        if element_size == InlineComposite
+            tag = read_list_tag(_checked_segment(ptr.traverser.segments, segment), offset)
+            return CompositeListPointer(ptr.traverser, segment, offset, tag.length, tag.data_word_count, tag.pointer_count)
+        end
+        return SimpleListPointer{CapnpVoid,typeof(ptr.traverser)}(ptr.traverser, segment, offset, element_size, list_size)
+    end
+    throw(InvalidMessageError("Unsupported any-pointer kind $kind"))
+end
+
+function read_data(ptr::SimpleListPointer)
+    ptr.element_size == Byte || throw(InvalidMessageError("Data pointer must point to a list of bytes"))
+    if ptr.length == 0
+        UInt8[]
+    else
+        segment = _checked_segment(ptr.traverser.segments, ptr.segment)
+        byte_offset = 8 * Int(ptr.offset)
+        byte_count = Int(ptr.length)
+        _checked_byte_range(segment, byte_offset, byte_count)
+        copy(@view segment[(byte_offset+1):(byte_offset+byte_count)])
+    end
+end
+function read_data(ptr::Nothing)
+    UInt8[]
+end
+function write_data(ptr::SimpleListPointer, data::AbstractVector{UInt8})
+    ptr.element_size == Byte || throw(InvalidMessageError("Data pointer must point to a list of bytes"))
+    ptr.length == length(data) || throw(InvalidMessageError("List size must match data length"))
+
+    segment = _checked_segment(ptr.traverser.segments, ptr.segment)
+    byte_offset = 8 * Int(ptr.offset)
+    byte_count = length(data)
+    _checked_byte_range(segment, byte_offset, byte_count)
+    segment[(byte_offset+1):(byte_offset+byte_count)] .= data
+    ptr
 end

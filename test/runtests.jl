@@ -27,6 +27,7 @@ end
 # their common helper names, this prevents method invalidation issues on Julia 1.10.
 compile_capnp("test/elementary.capnp")
 compile_capnp("test/lists.capnp")
+compile_capnp("test/complextypes.capnp")
 
 module ElementarySchema
 include("elementary.capnp.jl")
@@ -34,6 +35,10 @@ end
 
 module ListsSchema
 include("lists.capnp.jl")
+end
+
+module ComplexTypesSchema
+include("complextypes.capnp.jl")
 end
 
 @testset "Addressbook integration test" begin
@@ -143,7 +148,8 @@ end
 # User Story 1: Wire Format Compliance tests
 include("defaults.jl")
 include("packed.jl")
-    include("double_far.jl")
+include("double_far.jl")
+include("data.jl")
 include("generics.jl")
 include("reader_validation.jl")
 include("interop/roundtrip.jl")

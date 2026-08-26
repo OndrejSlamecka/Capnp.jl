@@ -385,36 +385,21 @@ function read_Value(ptr::Capnp.StructPointer)
         result = capnp.schema.Value_getText(ptr)
     elseif tag == capnp.schema.Value_union_data
         p = Capnp.read_list_pointer(ptr, 2, 0)
-        if p isa Capnp.ListPointer && !isempty(p)
-            throw("TODO")
+        result = if p isa Capnp.ListPointer && length(p) > 0
+            Capnp.read_data(p)
         else
-            []
+            UInt8[]
         end
     elseif tag == capnp.schema.Value_union_list
-        p = capnp.schema.Value_getList(ptr)
-        if p isa Capnp.ListPointer && !isempty(p)
-            throw("TODO")
-        else
-            []
-        end
+        result = Capnp.read_list_pointer(ptr, 2, 0)
     elseif tag == capnp.schema.Value_union_enum
         result = capnp.schema.Value_getEnum(ptr)
     elseif tag == capnp.schema.Value_union_struct
-        p = Capnp.read_struct_pointer(ptr, 2, 0)
-        if p isa Capnp.StructPointer
-            throw("TODO")
-        else
-            []
-        end
+        result = Capnp.read_struct_pointer(ptr, 2, 0)
     elseif tag == capnp.schema.Value_union_interface
         result = nothing
     elseif tag == capnp.schema.Value_union_anyPointer
-        ptr = Capnp.read_struct_pointer(ptr, 2, 0)
-        if ptr === nothing
-            result = []
-        else
-            throw("TODO")
-        end
+        result = Capnp.read_any_pointer(ptr, 2, 0)
     end
 
     result
