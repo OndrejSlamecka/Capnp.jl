@@ -367,11 +367,14 @@ function alloc(builder::AllocMessageBuilder, pointer_location::WirePointer, size
 
     remaining_bytes = length(builder.segments[builder.current_segment]) - 8 * builder.current_offset
     if size_bytes > remaining_bytes
-        next_size = length(builder.segments[builder.current_segment]) * 2
+        old_size = length(builder.segments[builder.current_segment])
+        next_size = old_size * 2
         while size_bytes > next_size - 8 * builder.current_offset
             next_size *= 2
         end
         resize!(builder.segments[builder.current_segment], next_size)
+        # resize! does not zero-initialize newly allocated elements
+        fill!(@view(builder.segments[builder.current_segment][old_size+1:end]), 0x00)
     end
 
     segment, offset = builder.current_segment, builder.current_offset

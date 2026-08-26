@@ -185,6 +185,10 @@ include("fuzz.jl")
 include("interop/roundtrip.jl")
 include("generator_persistent_test.jl")
 
+@testset "Code Generator Request Copy" begin
+    include("copy_schema.jl")
+end
+
 # User Story 2: RPC Client tests
 include("rpc/promise.jl")
 include("rpc/client.jl")
@@ -196,6 +200,20 @@ include("rpc/test_persistent_integration.jl")
 
 # User Story 3: RPC Server tests
 include("rpc/server.jl")
+
+@testset "C++ Interoperability Tests" begin
+    if isfile(joinpath(@__DIR__, "interop", "cpp_client_test"))
+        include("interop/test_cpp_interop.jl")
+    else
+        println("Skipping C++ client interop: cpp_client_test not found")
+    end
+    
+    if isfile(joinpath(@__DIR__, "interop", "cpp_server_test"))
+        include("interop/test_cpp_tls_interop.jl")
+    else
+        println("Skipping C++ TLS interop: cpp_server_test not found")
+    end
+end
 
 # User Story 4: Zero-Copy Performance tests
 include("performance.jl")

@@ -8,7 +8,10 @@ const capnp = Capnp.Generator.capnp # similar to include("schema.capnp.jl")
 builder = Capnp.AllocMessageBuilder()
 request = capnp.schema.init_root!(builder, Val{:CodeGeneratorRequest})
 
-println(builder.segments[1][1:64])
+# Read request.bin
+input_buffer = read(joinpath(@__DIR__, "..", "request.bin"))
+reader = Capnp.BufferMessageReader(input_buffer)
+ptr_codeGeneratorRequest = capnp.schema.root(reader, Val{:CodeGeneratorRequest})
 
 println("= capnp version")
 capnpVersion = capnp.schema.init_capnp_version!(request, Val{:CodeGeneratorRequest})

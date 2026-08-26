@@ -2,14 +2,21 @@ using Test
 using Capnp
 using Capnp.RPC
 using Sockets
-using Reseau
 
-@testset "C++ TLS Interoperability" begin
-    println("Starting C++ server...")
-    cpp_server = joinpath(@__DIR__, "cpp_server_test")
+# Check if Reseau is installed
+if Base.find_package("Reseau") === nothing
+    println("Skipping C++ TLS Interoperability tests: Reseau package not installed.")
+else
+    using Reseau
 
-    server_process = open(`$cpp_server 127.0.0.1:0`, "r+")
-    line = readline(server_process)
+    @testset "C++ TLS Interoperability" begin
+        println("Starting C++ server...")
+        cpp_server = joinpath(@__DIR__, "cpp_server_test")
+        if !isfile(cpp_server)
+            println("Skipping C++ TLS Interoperability tests: $cpp_server not found.")
+            return
+        end
+        server_process = open(`$cpp_server 127.0.0.1:0`, "r+")
     cpp_port = parse(Int, split(line, ":")[2])
     println("C++ server running on port $cpp_port")
 
@@ -110,4 +117,5 @@ using Reseau
     end
 
     kill(server_process)
+end
 end

@@ -14,26 +14,34 @@ include("../../example/calculator.capnp.jl")
 # Implement the Calculator server
 struct TestCalculator <: Calculator_Server end
 
-function Calculator_add(::TestCalculator, ctx::RPC.CallContext, params::RPC.ParsedParams)
-    result = params.left + params.right
+function Calculator_add(::TestCalculator, ctx::RPC.CallContext, params)
+    left = Capnp.read_bits(params, 0, Float64)
+    right = Capnp.read_bits(params, 8, Float64)
+    result = left + right
     RPC.set_result!(ctx, result)
 end
 
-function Calculator_subtract(::TestCalculator, ctx::RPC.CallContext, params::RPC.ParsedParams)
-    result = params.left - params.right
+function Calculator_subtract(::TestCalculator, ctx::RPC.CallContext, params)
+    left = Capnp.read_bits(params, 0, Float64)
+    right = Capnp.read_bits(params, 8, Float64)
+    result = left - right
     RPC.set_result!(ctx, result)
 end
 
-function Calculator_multiply(::TestCalculator, ctx::RPC.CallContext, params::RPC.ParsedParams)
-    result = params.left * params.right
+function Calculator_multiply(::TestCalculator, ctx::RPC.CallContext, params)
+    left = Capnp.read_bits(params, 0, Float64)
+    right = Capnp.read_bits(params, 8, Float64)
+    result = left * right
     RPC.set_result!(ctx, result)
 end
 
-function Calculator_divide(::TestCalculator, ctx::RPC.CallContext, params::RPC.ParsedParams)
-    if params.right == 0.0
+function Calculator_divide(::TestCalculator, ctx::RPC.CallContext, params)
+    left = Capnp.read_bits(params, 0, Float64)
+    right = Capnp.read_bits(params, 8, Float64)
+    if right == 0.0
         RPC.set_exception!(ctx, "Division by zero", RPC.ExceptionType.FAILED)
     else
-        result = params.left / params.right
+        result = left / right
         RPC.set_result!(ctx, result)
     end
 end
