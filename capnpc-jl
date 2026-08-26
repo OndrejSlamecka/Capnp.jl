@@ -1,4 +1,4 @@
-#!/usr/bin/env -S julia --project
+#!/usr/bin/env -S julia --project=@.
 
 # The main plugin entry point called by capnp when you do `capnp -o./capnp-jl`.
 
@@ -6,7 +6,7 @@
 
 import Capnp
 
-const capnp = Capnp.Generator.capnp 
+const capnp = Capnp.Generator.capnp
 
 const message = Capnp.MessageReader(stdin)
 const request = capnp.schema.root_CodeGeneratorRequest(message)

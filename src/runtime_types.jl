@@ -16,11 +16,16 @@ abstract type CapnpUInt32 <: CapnpType end
 abstract type CapnpUInt64 <: CapnpType end
 abstract type CapnpFloat32 <: CapnpType end
 abstract type CapnpFloat64 <: CapnpType end
-# abstract type CapnpText <: CapnpType end
-# abstract type CapnpData <: CapnpType end
-# abstract type CapnpList{T} <: CapnpType where {T <: CapnpType} end
+abstract type CapnpText <: CapnpType end
+abstract type CapnpData <: CapnpType end
+abstract type CapnpList{T<:CapnpType} <: CapnpType end
+abstract type CapnpAnyPointer <: CapnpType end
+abstract type CapnpInterface <: CapnpType end
 
 abstract type CapnpStruct <: CapnpType end
+
+# Capability type for RPC (type 3 pointers)
+abstract type CapnpCapability <: CapnpType end
 
 # This supports, for example, "$(CapnpVoid())" == "CapnpVoid",
 # although it's a bit naughty to rely on typeof here

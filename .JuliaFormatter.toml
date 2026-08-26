@@ -1,1 +1,2 @@
 margin = 240
+ignore = ["src/schema.capnp.jl"]

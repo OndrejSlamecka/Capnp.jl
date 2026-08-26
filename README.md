@@ -1,0 +1,190 @@
+# Capnp.jl - Julia package for Cap'n Proto
+
+[![Run tests](https://github.com/s-celles/Capnp.jl/actions/workflows/runtests.yml/badge.svg?branch=main)](https://github.com/s-celles/Capnp.jl/actions/workflows/runtests.yml)
+[![Documentation](https://github.com/s-celles/Capnp.jl/actions/workflows/documentation.yml/badge.svg?branch=main)](https://s-celles.github.io/Capnp.jl/)
+[![codecov](https://codecov.io/gh/s-celles/Capnp.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/s-celles/Capnp.jl)
+
+A Julia implementation of the Cap'n Proto serialization format with an experimental RPC implementation.
+
+> [!WARNING]
+> The serialization and code-generation APIs are under active development. Promise pipelining is currently experimental. Message framing and pointer bounds are checked, but traversal and nesting budgets are not yet enforced; treat untrusted-message processing as experimental.
+
+## Features
+
+- **Wire format support**: Binary messages, default values, basic packed encoding, and generic types
+- **Experimental RPC**: Client/server infrastructure and partial level 1/2 protocol support
+- **Zero-copy performance**: Pre-allocated buffer support for minimal allocations
+- **Code generation**: Generate Julia types from Cap'n Proto schemas
+
+## Current limitations
+
+- Message-size and segment-count limits are enforced at framing; traversal and nesting budgets are not yet enforced.
+- Two-word far-pointer landing pads are not generated.
+- The generated API may change before 1.0.
+
+## Install & Use
+
+Capnp.jl requires Julia 1.10 or newer and the `capnp` compiler for schema generation. Install the registered release with Julia's package manager:
+
+    ] add Capnp
+
+Download `capnpc-jl` from this repository and generate code for a schema with:
+
+    capnpc -o./capnpc-jl example/addressbook.capnp
+
+## Quick Start
+
+### Reading and Writing Messages
+
+```julia
+using Capnp
+
+# Include generated schema code
+include("addressbook.capnp.jl")
+
+# Writing
+message = Capnp.AllocMessageBuilder()
+addressBook = init_root!(message, Val{:AddressBook})
+# ... build message ...
+writeMessageToStream(message, stdout)
+
+# Reading
+message = Capnp.MessageReader(stdin)
+addressBook = root(message, Val{:AddressBook})
+# ... read data ...
+```
+
+### Experimental RPC Client API
+
+The following illustrates the intended API. Generated method calls currently report that RPC calls are not implemented.
+
+```julia
+using Capnp
+using Capnp.RPC
+
+# Connect to server
+conn = RPC.connect("localhost", 55000)
+client = RPC.bootstrap(conn, Calculator_Client)
+
+# Planned generated call API
+result_promise = Calculator_addAsync(client, params)
+result = fetch(result_promise)
+```
+
+### Experimental RPC Server
+
+```julia
+using Capnp
+using Capnp.RPC
+
+# Implement the server interface
+struct MyCalculator <: Calculator_Server end
+
+function Calculator_add(impl::MyCalculator, context, params)
+    RPC.set_result!(context, params.left + params.right)
+end
+
+# Start server
+server = RPC.Server(MyCalculator())
+RPC.listen(server, "127.0.0.1", 55000)
+RPC.serve(server)
+```
+
+### Zero-Copy Operations
+
+```julia
+using Capnp
+
+# Pre-allocated buffer reading
+buffer = read("message.bin")
+reader = Capnp.BufferMessageReader(buffer)
+
+# Pre-allocated buffer writing
+buffer = zeros(UInt8, 4096)
+builder = Capnp.BufferMessageBuilder(buffer)
+# ... build message ...
+bytes_written = Capnp.finalize!(builder)
+```
+
+## Examples
+
+See the [`example` directory](example/) for examples and API sketches:
+
+- `addressbook.jl` - Basic serialization example
+- `calculator.capnp` - Calculator RPC interface schema
+- `calculator_client.jl` - intended RPC client API (not yet functional end-to-end)
+- `calculator_server.jl` - experimental RPC server implementation
+
+## Generated API
+
+### New API (recommended)
+
+For a struct `MyStruct` with a field `my_field`:
+- Reading: `get_my_field(reader, Val{:MyStruct})`
+- Writing: `set_my_field!(writer, value, Val{:MyStruct})`
+- Init (for structs/lists): `init_my_field!(writer, Val{:MyStruct})`
+
+### Legacy API (deprecated)
+
+The old naming convention is still supported but deprecated:
+- `MyStruct_getMyField(reader)` → use `get_my_field(reader, Val{:MyStruct})`
+- `MyStruct_setMyField(writer, value)` → use `set_my_field!(writer, value, Val{:MyStruct})`
+
+### Namespace Support
+
+Capnp.jl supports namespace annotations and translates them into Julia modules:
+- Using `$Cxx.namespace("capnp::schema");` generates code in module `capnp.schema`
+- Note: Julia modules can't reference each other in a cycle
+
+### Lists
+
+Access lists with brackets `[]` (1-based indexing as is standard in Julia).
+Initialize lists with `init_items!(writer, count, Val{:MyStruct})`.
+
+### Unions
+
+For struct `A` with union group `u`:
+- Enum: `A_u_union`
+- Check variant: `A_u_which(reader)`
+- Set variant: `A_u_setXy(writer, value)`
+- Initialize struct variant: `A_u_initXy(writer)`
+
+## API Stability Rules
+
+Before the 1.0 release, the Capnp.jl API (and specifically the code generated by `capnpc-jl`) is subject to the following stability rules and recommendations:
+
+1. **Method-Name Collisions**: Capnp.jl generates accessor methods like `get_xxx` and `set_xxx!` which can easily collide with Julia Base functions (e.g., `get_type`, `set_length!`) or accessors from other schemas.
+   - **Recommendation**: To minimize collisions, we strongly encourage **module-scoped generated schemas**. You should either use the `$Cxx.namespace("MySchema");` annotation in your `.capnp` file (which tells the generator to wrap the output in a Julia module), or manually wrap the generated code when including it:
+     ```julia
+     module MySchema
+         include("my_schema.capnp.jl")
+     end
+     ```
+2. **Legacy API Deprecation**: The legacy `StructName_getFieldName` style accessors are officially deprecated. They are currently maintained for backwards compatibility but will be completely removed in the 1.0 release. Users must migrate to the trait-based `get_field_name(reader, Val{:StructName})` API.
+3. **Internal Memory Layout**: The structure of the internal types (`MessageReader`, `ListPointer`, `WirePointer`) is considered private implementation detail. Scripts should exclusively use the generated getters/setters instead of attempting to parse Cap'n Proto pointers directly.
+
+## Development
+
+See `src/Capnp.jl` for code structure description.
+
+To regenerate the schema code:
+
+    capnpc -o./capnpc-jl src/schema.capnp
+
+Run tests:
+
+    julia --project test/runtests.jl
+
+Or using Pkg:
+
+    ] test
+
+Format code (the repository configuration excludes the committed generated schema):
+
+```julia
+using JuliaFormatter
+format(".")
+```
+
+For debugging, save messages to files and use `xxd --bits --cols 8`.
+See [How to Write Compiler Plugins](https://capnproto.org/otherlang.html) for more tips.
