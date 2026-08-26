@@ -256,7 +256,7 @@ mutable struct AllocMessageBuilder <: Writer
 
     capabilities::Vector{Any}
 
-    AllocMessageBuilder() = new([zeros(1024)], 1, 0, Any[]) # the c++ lib uses 1024
+    AllocMessageBuilder() = new([zeros(UInt8, 1024)], 1, 0, Any[]) # the c++ lib uses 1024
 end
 
 function writeMessageToStream(builder::AllocMessageBuilder, io)
@@ -360,47 +360,36 @@ Get the segment views from a BufferMessageBuilder.
 """
 get_segments(builder::BufferMessageBuilder) = builder.segments
 
-function alloc(builder::Writer, pointer_location::WirePointer, size_bytes)
-    # recall cld(x,y) = div(x,y,RoundUp)
-
-    # TODO: This implementation is of course very wasteful of space; improve
-
+function alloc(builder::AllocMessageBuilder, pointer_location::WirePointer, size_bytes)
     if size_bytes == 0
-        # println("alloc 0, special case")
-        return (pointer_location, pointer_location.segment, pointer_location.offset) # TODO: maybe this isn't the right default?
+        return (pointer_location, pointer_location.segment, pointer_location.offset)
     end
 
     remaining_bytes = length(builder.segments[builder.current_segment]) - 8 * builder.current_offset
     if size_bytes > remaining_bytes
-        next_size = length(builder.segments[end])
-        if length(builder.segments) > 1
+        next_size = length(builder.segments[builder.current_segment]) * 2
+        while size_bytes > next_size - 8 * builder.current_offset
             next_size *= 2
         end
-
-        # +8 for landing pointer
-        while size_bytes + 8 > next_size # what does the C++ implementation do?
-            next_size *= 2
-        end
-
-        push!(builder.segments, zeros(next_size))
-        builder.current_segment += 1
-        builder.current_offset = 0
+        resize!(builder.segments[builder.current_segment], next_size)
     end
 
-    landing_pad_space = UInt32(0)
-    if pointer_location.segment != builder.current_segment
-        size_bytes += 8 # need 1 word more for landing pointer
+    segment, offset = builder.current_segment, builder.current_offset
+    builder.current_offset += cld(size_bytes, 8)
+    (pointer_location, segment, offset)
+end
 
-        # make pointer_location into a far pointer
-        landing_location = WirePointer(builder.current_segment, builder.current_offset)
-        write_far_pointer(builder, pointer_location, landing_location)
-        pointer_location = landing_location
-
-        landing_pad_space = UInt32(1)
+function alloc(builder::BufferMessageBuilder, pointer_location::WirePointer, size_bytes)
+    if size_bytes == 0
+        return (pointer_location, pointer_location.segment, pointer_location.offset)
     end
 
-    segment, offset = builder.current_segment, builder.current_offset + landing_pad_space
-    # println("alloc ", size_bytes, " bytes in segment ", segment, " starting from ", 8*offset)
+    remaining_bytes = length(builder.segments[builder.current_segment]) - 8 * builder.current_offset
+    if size_bytes > remaining_bytes
+        throw(InvalidMessageError("BufferMessageBuilder out of space: need $size_bytes bytes, have $remaining_bytes"))
+    end
+
+    segment, offset = builder.current_segment, builder.current_offset
     builder.current_offset += cld(size_bytes, 8)
     (pointer_location, segment, offset)
 end

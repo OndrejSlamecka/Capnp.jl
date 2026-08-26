@@ -247,7 +247,7 @@ Goal: move untrusted-message handling from experimental to explicitly bounded.
 - [ ] Detect cycles and amplification patterns without quadratic work.
 - [x] Validate struct/list extents when pointers are resolved, not only when a
       later scalar field is read.
-- [ ] Validate all reserved pointer bits and replace wire-facing assertions with
+- [x] Validate all reserved pointer bits and replace wire-facing assertions with
       typed malformed-message errors.
 - [x] Make framing writes explicitly little-endian as reads already are.
 - [ ] Add property tests and coverage-guided fuzzing for framing, packed streams,
@@ -269,7 +269,7 @@ Acceptance criteria:
       validation of both landing-pad forms.
 - [x] Complete packed encoding zero-word and literal-word run optimizations and
       test byte-for-byte compatibility with `capnp`.
-- [ ] Improve segment allocation to avoid the current wasteful growth strategy
+- [x] Improve segment allocation to avoid the current wasteful growth strategy
       and unnecessary landing pads.
 - [ ] Complete schema-tree cases that still throw `TODO`, including complex
       values, brands, groups, and nested/generic constructs.
