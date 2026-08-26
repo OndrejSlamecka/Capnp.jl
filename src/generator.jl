@@ -106,9 +106,7 @@ end
 # Finds $Cxx.namespace("capnp::schema"); and returns ["capnp", "schema"]
 function namespace_annotation(env::Environment, node::Node{FileNodeProps})::Vector{String}
     namespace_annotations = Iterators.filter(node.annotations) do annotation
-        annotation_node = env.nodes[annotation.id]
-        # Capnp specification advises against parsing displayName, TODO
-        annotation_node.displayName[(annotation_node.displayNamePrefixLength+1):end] == "namespace"
+        annotation.id == 0xb9c6f99ebf805f2c
     end
 
     if isempty(namespace_annotations)
@@ -284,8 +282,9 @@ function generateNode(env::Environment, node::Node{ConstNodeProps})
     cprintln(env, "const $(node.jlName) = $(node.nodeProperties.value)")
 end
 function generateNode(env::Environment, node::Node{EnumNodeProps})
-    # TODO: Use enumerant.codeOrder
-    cprintln(env, "@enum $(node.jlName)::UInt16 $([ "$(node.jlName)_$(enumerant.name) " for enumerant in node.nodeProperties.enumerants ]...)")
+    sorted_enumerants = sort(node.nodeProperties.enumerants, by = e -> e.codeOrder)
+    enumerants_str = join(["$(node.jlName)_$(e.name)=$(findfirst(x -> x.name == e.name, node.nodeProperties.enumerants) - 1)" for e in sorted_enumerants], " ")
+    cprintln(env, "@enum $(node.jlName)::UInt16 $enumerants_str")
 end
 
 # Generate code for interface nodes (RPC interfaces)
@@ -327,11 +326,11 @@ function generateNode(env::Environment, node::Node{InterfaceNodeProps})
 
     # Generate method dispatch function for server-side RPC
     cprintln(env, "\"\"\"")
-    cprintln(env, "    $(node.jlName)_dispatch(impl::$(node.jlName)_Server, method_id::UInt16, context, params)")
+    cprintln(env, "    $(node.jlName)_dispatch(impl, method_id::UInt16, context, params)")
     cprintln(env, "")
     cprintln(env, "Dispatch a method call to the appropriate handler based on method_id.")
     cprintln(env, "\"\"\"")
-    cprintln(env, "function $(node.jlName)_dispatch(impl::$(node.jlName)_Server, method_id::UInt16, context, params)")
+    cprintln(env, "function $(node.jlName)_dispatch(impl, method_id::UInt16, context, params)")
     for (idx, method) in enumerate(node.nodeProperties.methods)
         method_id_val = idx - 1
         if idx == 1
@@ -356,7 +355,7 @@ function generateNode(env::Environment, node::Node{InterfaceNodeProps})
     cprintln(env, "")
     cprintln(env, "Dispatch a method call if interface_id matches, otherwise return false.")
     cprintln(env, "\"\"\"")
-    cprintln(env, "function $(node.jlName)_interface_dispatch(impl::$(node.jlName)_Server, interface_id::UInt64, method_id::UInt16, context, params)")
+    cprintln(env, "function $(node.jlName)_interface_dispatch(impl, interface_id::UInt64, method_id::UInt16, context, params)")
     cprintln(env, "    if interface_id == $(node.jlName)_interface_id")
     cprintln(env, "        $(node.jlName)_dispatch(impl, method_id, context, params)")
     cprintln(env, "        return true")
@@ -369,7 +368,12 @@ function generateNode(env::Environment, node::Node{InterfaceNodeProps})
     cprintln(env, "    if $(node.jlName)_interface_dispatch(impl, interface_id, method_id, context, params)")
     cprintln(env, "        return")
     cprintln(env, "    end")
-    # TODO: Traverse superclasses if implemented
+    for sc in node.nodeProperties.superclasses
+        sc_node = env.nodes[sc.id]
+        cprintln(env, "    if $(sc_node.jlName)_interface_dispatch(impl, interface_id, method_id, context, params)")
+        cprintln(env, "        return")
+        cprintln(env, "    end")
+    end
     cprintln(env, "    Capnp.RPC.set_exception!(context, \"Method not found: interface=\$interface_id method=\$method_id\", Capnp.RPC.ExceptionType.UNIMPLEMENTED)")
     cprintln(env, "end")
 end

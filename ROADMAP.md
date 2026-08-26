@@ -271,9 +271,9 @@ Acceptance criteria:
       test byte-for-byte compatibility with `capnp`.
 - [x] Improve segment allocation to avoid the current wasteful growth strategy
       and unnecessary landing pads.
-- [ ] Complete schema-tree cases that still throw `TODO`, including complex
+- [x] Complete schema-tree cases that still throw `TODO`, including complex
       values, brands, groups, and nested/generic constructs.
-- [ ] Respect declaration/code order where required and harden namespace/import
+- [x] Respect declaration/code order where required and harden namespace/import
       handling across multiple generated schema files.
 - [ ] Finish lists of pointers/structs and less-common list element forms.
 - [ ] Define generated API stability rules before 1.0 and minimize method-name
