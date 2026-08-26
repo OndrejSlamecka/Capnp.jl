@@ -242,7 +242,7 @@ Goal: move untrusted-message handling from experimental to explicitly bounded.
 
 - [x] Enforce traversal-word budgets across pointer following and repeated reads.
 - [x] Enforce nesting limits for structs, lists, far pointers, and RPC payloads.
-- [ ] Bound capability-table sizes, outstanding questions/answers, pipeline
+- [x] Bound capability-table sizes, outstanding questions/answers, pipeline
       transforms, queued messages, and exception/reason text.
 - [ ] Detect cycles and amplification patterns without quadratic work.
 - [x] Validate struct/list extents when pointers are resolved, not only when a
@@ -265,9 +265,9 @@ Acceptance criteria:
 
 ## Milestone 7 — Wire format and generator completeness
 
-- [ ] Implement and test two-word far-pointer landing-pad generation and strict
+- [x] Implement and test two-word far-pointer landing-pad generation and strict
       validation of both landing-pad forms.
-- [ ] Complete packed encoding zero-word and literal-word run optimizations and
+- [x] Complete packed encoding zero-word and literal-word run optimizations and
       test byte-for-byte compatibility with `capnp`.
 - [ ] Improve segment allocation to avoid the current wasteful growth strategy
       and unnecessary landing pads.
