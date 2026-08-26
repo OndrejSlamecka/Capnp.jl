@@ -278,7 +278,7 @@ Acceptance criteria:
 - [x] Finish lists of pointers/structs and less-common list element forms.
 - [x] Define generated API stability rules before 1.0 and minimize method-name
       collisions by encouraging module-scoped generated schemas.
-- [ ] Re-enable or replace the currently excluded `copy_schema.jl` work and the
+- [x] Re-enable or replace the currently excluded `copy_schema.jl` work and the
       standalone C++ interoperability tests in the main test entry point.
 - [ ] Add golden-generation tests so generator changes produce reviewable diffs.
 
