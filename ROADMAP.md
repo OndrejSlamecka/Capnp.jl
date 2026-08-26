@@ -245,11 +245,11 @@ Goal: move untrusted-message handling from experimental to explicitly bounded.
 - [ ] Bound capability-table sizes, outstanding questions/answers, pipeline
       transforms, queued messages, and exception/reason text.
 - [ ] Detect cycles and amplification patterns without quadratic work.
-- [ ] Validate struct/list extents when pointers are resolved, not only when a
+- [x] Validate struct/list extents when pointers are resolved, not only when a
       later scalar field is read.
 - [ ] Validate all reserved pointer bits and replace wire-facing assertions with
       typed malformed-message errors.
-- [ ] Make framing writes explicitly little-endian as reads already are.
+- [x] Make framing writes explicitly little-endian as reads already are.
 - [ ] Add property tests and coverage-guided fuzzing for framing, packed streams,
       pointers, lists, text, capability descriptors, and RPC messages.
 - [ ] Seed the corpus with truncations, oversized declarations, invalid UTF-8,

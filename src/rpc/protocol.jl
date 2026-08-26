@@ -753,8 +753,8 @@ function build_bootstrap_request(question_id::QuestionId)
     copyto!(segment, 25, reinterpret(UInt8, [UInt32(question_id)]), 1, 4)
 
     message = Vector{UInt8}(undef, 8 + length(segment))
-    copyto!(message, 1, reinterpret(UInt8, [UInt32(0)]), 1, 4)
-    copyto!(message, 5, reinterpret(UInt8, [UInt32(4)]), 1, 4)
+    Capnp._store_le_uint32!(message, 1, 0)
+    Capnp._store_le_uint32!(message, 5, 4)
     copyto!(message, 9, segment, 1, length(segment))
     return message
 end
@@ -878,8 +878,8 @@ function build_exception_return(answer_id::AnswerId, reason::String, exception_t
     segment_size = UInt32(total_words)
 
     message = Vector{UInt8}(undef, 8 + used_size)
-    copyto!(message, 1, reinterpret(UInt8, [num_segments]), 1, 4)
-    copyto!(message, 5, reinterpret(UInt8, [segment_size]), 1, 4)
+    Capnp._store_le_uint32!(message, 1, num_segments)
+    Capnp._store_le_uint32!(message, 5, segment_size)
     copyto!(message, 9, segment, 1, used_size)
 
     return message
@@ -959,8 +959,8 @@ function build_minimal_return(answer_id::AnswerId, result::Any)
     segment_size = UInt32(used_size ÷ 8)  # 10 words
 
     message = Vector{UInt8}(undef, 8 + used_size)  # 88 bytes
-    copyto!(message, 1, reinterpret(UInt8, [num_segments]), 1, 4)
-    copyto!(message, 5, reinterpret(UInt8, [segment_size]), 1, 4)
+    Capnp._store_le_uint32!(message, 1, num_segments)
+    Capnp._store_le_uint32!(message, 5, segment_size)
     copyto!(message, 9, segment, 1, used_size)
 
     return message
@@ -1041,8 +1041,8 @@ function build_capability_return(answer_id::AnswerId, export_id::ExportId)
     segment_size = UInt32(used_size ÷ 8)
 
     message = Vector{UInt8}(undef, 8 + used_size)
-    copyto!(message, 1, reinterpret(UInt8, [num_segments]), 1, 4)
-    copyto!(message, 5, reinterpret(UInt8, [segment_size]), 1, 4)
+    Capnp._store_le_uint32!(message, 1, num_segments)
+    Capnp._store_le_uint32!(message, 5, segment_size)
     copyto!(message, 9, segment, 1, used_size)
 
     return message
@@ -1132,8 +1132,8 @@ function build_bootstrap_return(question_id::QuestionId, export_id::ExportId)
     segment_size = UInt32(used_size ÷ 8)
 
     message = Vector{UInt8}(undef, 8 + used_size)
-    copyto!(message, 1, reinterpret(UInt8, [num_segments]), 1, 4)
-    copyto!(message, 5, reinterpret(UInt8, [segment_size]), 1, 4)
+    Capnp._store_le_uint32!(message, 1, num_segments)
+    Capnp._store_le_uint32!(message, 5, segment_size)
     copyto!(message, 9, segment, 1, used_size)
 
     return message
@@ -1206,8 +1206,8 @@ function build_resolve_message(promise_id::ExportId, cap_kind::CapDescriptorType
     segment_size = UInt32(used_size ÷ 8)
 
     message = Vector{UInt8}(undef, 8 + used_size)
-    copyto!(message, 1, reinterpret(UInt8, [num_segments]), 1, 4)
-    copyto!(message, 5, reinterpret(UInt8, [segment_size]), 1, 4)
+    Capnp._store_le_uint32!(message, 1, num_segments)
+    Capnp._store_le_uint32!(message, 5, segment_size)
     copyto!(message, 9, segment, 1, used_size)
 
     return message
@@ -1285,8 +1285,8 @@ function build_resolve_exception(promise_id::ExportId, reason::String, exception
     segment_size = UInt32(total_words)
 
     message = Vector{UInt8}(undef, 8 + used_size)
-    copyto!(message, 1, reinterpret(UInt8, [num_segments]), 1, 4)
-    copyto!(message, 5, reinterpret(UInt8, [segment_size]), 1, 4)
+    Capnp._store_le_uint32!(message, 1, num_segments)
+    Capnp._store_le_uint32!(message, 5, segment_size)
     copyto!(message, 9, segment, 1, used_size)
 
     return message
@@ -1743,8 +1743,8 @@ function build_finish_message(question_id::QuestionId, release_result_caps::Bool
 
     # Add frame header
     message = Vector{UInt8}(undef, 8 + length(segment))
-    copyto!(message, 1, reinterpret(UInt8, [UInt32(0)]), 1, 4)
-    copyto!(message, 5, reinterpret(UInt8, [UInt32(4)]), 1, 4)
+    Capnp._store_le_uint32!(message, 1, 0)
+    Capnp._store_le_uint32!(message, 5, 4)
     copyto!(message, 9, segment, 1, length(segment))
 
     return message
@@ -1780,8 +1780,8 @@ function build_release_message(import_id::ImportId, reference_count::UInt32)
 
     # Add frame header
     message = Vector{UInt8}(undef, 8 + length(segment))
-    copyto!(message, 1, reinterpret(UInt8, [UInt32(0)]), 1, 4)
-    copyto!(message, 5, reinterpret(UInt8, [UInt32(4)]), 1, 4)
+    Capnp._store_le_uint32!(message, 1, 0)
+    Capnp._store_le_uint32!(message, 5, 4)
     copyto!(message, 9, segment, 1, length(segment))
 
     return message
