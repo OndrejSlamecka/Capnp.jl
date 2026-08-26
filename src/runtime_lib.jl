@@ -504,8 +504,8 @@ function read_struct_pointer(ptr, byte_section_words, ptrix)
         # It's up to readers to default
         nothing
     elseif bytes & 0b11 == 0
-        data_words = UInt16((bytes >> 32) & 0xffff)
-        ptr_words = UInt16((bytes >> 48) & 0xffff)
+        data_words = UInt16((bytes >>> 32) & 0xffff)
+        ptr_words = UInt16((bytes >>> 48) & 0xffff)
 
         _checked_byte_range(_checked_segment(ptr.traverser.segments, segment), 8 * offset, 8 * (Int(data_words) + Int(ptr_words)))
         _decrement_traversal_limit!(ptr.traverser, Int(data_words) + Int(ptr_words))
@@ -682,8 +682,8 @@ function read_list_tag(segment, offset)
     (bytes & 0b11) == 0 || throw(InvalidMessageError("Invalid list tag"))
 
     length = (bytes & 0xff_ff) >> 2
-    data_word_count = (bytes >> 32) & 0xffff
-    ptr_count = (bytes >> 48) & 0xffff
+    data_word_count = (bytes >>> 32) & 0xffff
+    ptr_count = (bytes >>> 48) & 0xffff
 
     ListTag(length, data_word_count, ptr_count)
 end
@@ -762,8 +762,8 @@ function read_list_pointer(ptr, byte_section_words, ptrix, element_type = CapnpV
     if bytes == 0
         SimpleListPointer{element_type,typeof(ptr.traverser)}(ptr.traverser, segment, offset, Byte, 0, ptr.nesting_limit)
     elseif bytes & 0b11 == 1
-        element_size = ElementSize((bytes >> 32) & 0b111)
-        list_size = UInt32(bytes >> 35)
+        element_size = ElementSize((bytes >>> 32) & 0b111)
+        list_size = UInt32(bytes >>> 35)
 
         if element_size == InlineComposite
             segment_bytes = _checked_segment(ptr.traverser.segments, segment)
@@ -904,7 +904,7 @@ function read_capability_pointer(ptr, byte_section_words, ptrix)
         (bytes & 0x_ff_ff_ff_fc) == 0 || throw(InvalidMessageError("Invalid capability pointer: bits 2-31 must be 0"))
 
         # Capability index is in the upper 32 bits
-        cap_index = UInt32(bytes >> 32)
+        cap_index = UInt32(bytes >>> 32)
 
         CapabilityPointer(ptr.traverser, ptr.segment, ptr.offset + byte_section_words + ptrix, cap_index)
     else
@@ -949,14 +949,14 @@ function read_any_pointer(ptr, byte_section_words, ptrix)
     bytes, segment, offset = resolve_pointer(ptr, byte_section_words, ptrix)
     kind = bytes & 0b11
     if kind == 0
-        data_words = UInt16((bytes >> 32) & 0xffff)
-        pointer_words = UInt16((bytes >> 48) & 0xffff)
+        data_words = UInt16((bytes >>> 32) & 0xffff)
+        pointer_words = UInt16((bytes >>> 48) & 0xffff)
         _checked_byte_range(_checked_segment(ptr.traverser.segments, segment), 8 * offset, 8 * (Int(data_words) + Int(pointer_words)))
         _decrement_traversal_limit!(ptr.traverser, Int(data_words) + Int(pointer_words))
         return StructPointer(ptr.traverser, segment, offset, data_words, pointer_words, _descend_nesting_limit(ptr))
     elseif kind == 1
-        element_size = ElementSize((bytes >> 32) & 0b111)
-        list_size = UInt32(bytes >> 35)
+        element_size = ElementSize((bytes >>> 32) & 0b111)
+        list_size = UInt32(bytes >>> 35)
         if element_size == InlineComposite
             segment_bytes = _checked_segment(ptr.traverser.segments, segment)
             _checked_byte_range(segment_bytes, 8 * offset, 8 * (Int(list_size) + 1))

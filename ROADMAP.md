@@ -250,9 +250,9 @@ Goal: move untrusted-message handling from experimental to explicitly bounded.
 - [x] Validate all reserved pointer bits and replace wire-facing assertions with
       typed malformed-message errors.
 - [x] Make framing writes explicitly little-endian as reads already are.
-- [ ] Add property tests and coverage-guided fuzzing for framing, packed streams,
+- [x] Add property tests and coverage-guided fuzzing for framing, packed streams,
       pointers, lists, text, capability descriptors, and RPC messages.
-- [ ] Seed the corpus with truncations, oversized declarations, invalid UTF-8,
+- [x] Seed the corpus with truncations, oversized declarations, invalid UTF-8,
       backward pointers, single/double-far pointers, and deep/cyclic graphs.
 - [ ] Run sanitizers in the C++ interoperability fixtures where practical.
 

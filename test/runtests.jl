@@ -152,6 +152,7 @@ include("double_far.jl")
 include("data.jl")
 include("generics.jl")
 include("reader_validation.jl")
+include("fuzz.jl")
 include("interop/roundtrip.jl")
 include("generator_persistent_test.jl")
 
