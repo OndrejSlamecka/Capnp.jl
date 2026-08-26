@@ -76,9 +76,9 @@ end
             end
             
             # Try to read as ElementaryTest
-            # ElementarySchema needs to be loaded if not already loaded, but we don't strictly need it if we just want it to not crash.
             # We'll just read raw bits from the struct root.
-            root_struct = Capnp.read_struct_pointer(Capnp.WirePointer(UInt32(1), UInt32(0)), 0, 0)
+            root_ptr = Capnp.StructPointer(reader, UInt32(1), UInt32(0), UInt16(0), UInt16(1))
+            root_struct = Capnp.read_struct_pointer(root_ptr, 0, 0)
             if root_struct !== nothing
                 Capnp.read_bits(root_struct, 0, UInt64)
             end

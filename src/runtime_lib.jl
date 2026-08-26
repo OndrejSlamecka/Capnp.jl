@@ -600,22 +600,54 @@ end
 # [] operator
 function Base.getindex(ptr::SimpleListPointer{ElType,Traverser}, i) where {ElType<:CapnpType,Traverser<:MessageTraverser}
     1 <= i <= ptr.length || throw(BoundsError(ptr, i))
-    is_capnp_bits(ElType) || throw(ArgumentError("list element type $ElType is not a scalar type"))
-
-    # i-1 for 1-based indices
-    position = 8 * Int(ptr.offset) + (i - 1) * capnp_sizeof(ElType)
-    # println("getting ", i, " ", position)
-    _checked_load(capnp_type_to_bits_type(ElType), ptr.traverser.segments, ptr.segment, position)
+    
+    if is_capnp_bits(ElType)
+        position = 8 * Int(ptr.offset) + (i - 1) * capnp_sizeof(ElType)
+        return _checked_load(capnp_type_to_bits_type(ElType), ptr.traverser.segments, ptr.segment, position)
+    elseif ptr.element_size == Pointer
+        pointer_container = StructPointer(
+            ptr.traverser, ptr.segment, UInt32(Int(ptr.offset) + (i - 1)), UInt16(0), UInt16(1), ptr.nesting_limit,
+        )
+        if ElType === CapnpData
+            return read_data(read_list_pointer(pointer_container, 0, 0, CapnpUInt8))
+        elseif ElType === CapnpText
+            return read_text(read_list_pointer(pointer_container, 0, 0, CapnpUInt8))
+        elseif ElType <: CapnpList
+            return read_list_pointer(pointer_container, 0, 0, ElType.parameters[1])
+        elseif ElType === CapnpAnyPointer || ElType === CapnpInterface || ElType === CapnpStruct
+            # For AnyPointer and capability pointers
+            return resolve_pointer(ptr.traverser, pointer_container.segment, UInt32(Int(ptr.offset) + (i - 1)), _descend_nesting_limit(ptr))
+        end
+    end
+    throw(ArgumentError("list element type $ElType is not a scalar type or supported pointer type"))
 end
 
 function Base.setindex!(ptr::SimpleListPointer{ElType,Traverser}, value, i) where {ElType<:CapnpType,Traverser<:MessageTraverser}
     1 <= i <= ptr.length || throw(BoundsError(ptr, i))
-    is_capnp_bits(ElType) || throw(ArgumentError("list element type $ElType is not a scalar type"))
 
-    # i-1 for 1-based indices
-    position = 8 * Int(ptr.offset) + (i - 1) * capnp_sizeof(ElType)
-    # println("setting ", i, " ", position)
-    _checked_store!(ptr.traverser.segments, ptr.segment, position, convert(capnp_type_to_bits_type(ElType), value))
+    if is_capnp_bits(ElType)
+        position = 8 * Int(ptr.offset) + (i - 1) * capnp_sizeof(ElType)
+        _checked_store!(ptr.traverser.segments, ptr.segment, position, convert(capnp_type_to_bits_type(ElType), value))
+        return value
+    elseif ptr.element_size == Pointer
+        pointer_location = WirePointer(ptr.segment, UInt32(Int(ptr.offset) + (i - 1)))
+        if ElType === CapnpText
+            txt = String(value)
+            pointer_location, segment, offset = alloc(ptr.traverser, pointer_location, length(txt) + 1)
+            child_ptr = SimpleListPointer{CapnpUInt8, typeof(ptr.traverser)}(ptr.traverser, segment, offset, Byte, UInt32(length(txt) + 1))
+            write_list_pointer(pointer_location, child_ptr)
+            write_text(child_ptr, txt)
+            return value
+        elseif ElType === CapnpData
+            data = value
+            pointer_location, segment, offset = alloc(ptr.traverser, pointer_location, length(data))
+            child_ptr = SimpleListPointer{CapnpUInt8, typeof(ptr.traverser)}(ptr.traverser, segment, offset, Byte, UInt32(length(data)))
+            write_list_pointer(pointer_location, child_ptr)
+            write_data(child_ptr, data)
+            return value
+        end
+    end
+    throw(ArgumentError("list element type $ElType is not a scalar type or supported pointer type for setindex!"))
 end
 
 function Base.getindex(ptr::CompositeListPointer, i)
@@ -642,27 +674,7 @@ function Base.iterate(ptr::SimpleListPointer{T}, state = 0) where {T<:CapnpType}
     if state >= ptr.length
         nothing
     else
-        item = nothing
-        if is_capnp_bits(T)
-            item = read_bits(ptr, capnp_sizeof(T) * state, capnp_type_to_bits_type(T))
-        elseif ptr.element_size == Pointer
-            if T === CapnpData
-                pointer_container = StructPointer(
-                    ptr.traverser, ptr.segment, UInt32(Int(ptr.offset) + state), UInt16(0), UInt16(1), ptr.nesting_limit,
-                )
-                item = read_data(read_list_pointer(pointer_container, 0, 0, CapnpUInt8))
-                return (item, state + 1)
-            end
-            pointer_word_offset = Int(ptr.offset) + state
-            pointer_container = StructPointer(
-                ptr.traverser, ptr.segment, UInt32(pointer_word_offset), UInt16(0), UInt16(1), ptr.nesting_limit,
-            )
-            item = read_struct_pointer(pointer_container, 0, 0)
-        else
-            throw(InvalidMessageError("Iteration over simple lists only supports bits types or pointer types (element_size=$(ptr.element_size))."))
-        end
-
-        (item, state + 1)
+        return (ptr[state + 1], state + 1)
     end
 end
 
@@ -701,8 +713,11 @@ _expected_element_size(::Type{CapnpInt64}) = EightBytes
 _expected_element_size(::Type{CapnpUInt64}) = EightBytes
 _expected_element_size(::Type{CapnpFloat64}) = EightBytes
 _expected_element_size(::Type{CapnpData}) = Pointer
+_expected_element_size(::Type{CapnpText}) = Pointer
+_expected_element_size(::Type{<:CapnpList}) = Pointer
+_expected_element_size(::Type{CapnpAnyPointer}) = Pointer
+_expected_element_size(::Type{CapnpInterface}) = Pointer
 _expected_element_size(::Type{CapnpStruct}) = nothing
-
 function _simple_list_byte_count(element_size::ElementSize, length::UInt32)
     count = Int(length)
     element_size == Empty && return 0

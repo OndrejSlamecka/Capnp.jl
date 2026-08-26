@@ -105,8 +105,22 @@ end
         int_writer[i] = i
         # bools[i] = i % 2
     end
+    
+    texts_writer = ListsSchema.init_texts!(list_writer, 2, Val{:ListTest})
+    texts_writer[1] = "hello"
+    texts_writer[2] = "world"
+    
+    lists_writer = ListsSchema.init_lists!(list_writer, 2, Val{:ListTest})
+    # To initialize inner lists, we need init_ints! equivalent... wait, Capnp API for allocating inner lists?
+    # SimpleListPointer doesn't have an `init` for its elements. Wait, if we assign to lists_writer[i], what does it do?
+    # It would try to `setindex!` with a list value, but how do we create the inner list before writing it?
+    # Actually, in Capnp.jl, nested lists of lists are tricky without a dedicated init method. 
+    # For now, let's just leave the lists_writer empty (it is allocated as a list of lists, but all pointers are null).
+    
+    data_writer = ListsSchema.init_data_list!(list_writer, 2, Val{:ListTest})
+    data_writer[1] = UInt8[0xde, 0xad]
+    data_writer[2] = UInt8[0xbe, 0xef]
 
-    # finish writing and flush into buffer for reading
     buffer = IOBuffer()
     writeMessageToStream(list_builder, buffer)
     seek(buffer, 0)
@@ -129,6 +143,21 @@ end
     # @test bools[1] == 1
     # @test length(bools) == 7
     # @test collect(bools) == [1,0,1,0,1,0,1]
+    
+    texts_reader = ListsSchema.get_texts(list_value, Val{:ListTest})
+    @test length(texts_reader) == 2
+    @test texts_reader[1] == "hello"
+    @test texts_reader[2] == "world"
+    @test collect(texts_reader) == ["hello", "world"]
+    
+    lists_reader = ListsSchema.get_lists(list_value, Val{:ListTest})
+    @test length(lists_reader) == 2
+    
+    data_reader = ListsSchema.get_data_list(list_value, Val{:ListTest})
+    @test length(data_reader) == 2
+    @test data_reader[1] == UInt8[0xde, 0xad]
+    @test data_reader[2] == UInt8[0xbe, 0xef]
+    @test collect(data_reader) == [[0xde, 0xad], [0xbe, 0xef]]
 end
 
 # RPC capability tests

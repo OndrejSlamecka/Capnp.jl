@@ -131,7 +131,11 @@ schema_to_runtime_type(::SchemaUInt64) = Capnp.CapnpUInt64
 schema_to_runtime_type(::SchemaFloat32) = Capnp.CapnpFloat32
 schema_to_runtime_type(::SchemaFloat64) = Capnp.CapnpFloat64
 schema_to_runtime_type(::SchemaData) = Capnp.CapnpData
+schema_to_runtime_type(::SchemaText) = Capnp.CapnpText
 schema_to_runtime_type(::SchemaStruct) = Capnp.CapnpStruct
+schema_to_runtime_type(s::SchemaList) = :(Capnp.CapnpList{$(schema_to_runtime_type(s.elementType))})
+schema_to_runtime_type(::SchemaAnyPointer) = Capnp.CapnpAnyPointer
+schema_to_runtime_type(::SchemaInterface) = Capnp.CapnpInterface
 
 # Helper to convert CamelCase field name to snake_case
 function to_snake_case(name::AbstractString)
@@ -636,6 +640,21 @@ function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFi
         cprintln(env, "    pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + ptr.data_word_count + $(field.fieldProperties.offset))")
         cprintln(env, "    pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, 8*(1 + size * ($(slotStructProps.dataWordCount) + $(slotStructProps.pointerCount))))")
         cprintln(env, "    child_ptr = Capnp.CompositeListPointer(ptr.traverser, segment, offset, convert(UInt32, size), UInt16($(slotStructProps.dataWordCount)), UInt16($(slotStructProps.pointerCount)))")
+        cprintln(env, "    Capnp.write_list_pointer(pointer_location, child_ptr)")
+        generateDiscriminantSetter(env, "ptr", node.nodeProperties, field)
+        cprintln(env, "    child_ptr")
+        cprintln(env, "end")
+        # Legacy API
+        cprintln(env, "function $(node.jlName)_init$(uppercasefirst(field.name))(ptr, size)")
+        cprintln(env, "    Base.depwarn(\"$(node.jlName)_init$(uppercasefirst(field.name)) is deprecated, use init_$(field_snake)!(ptr, size, Val{:$(node.jlName)}) instead\", :$(node.jlName)_init$(uppercasefirst(field.name)))")
+        cprintln(env, "    init_$(field_snake)!(ptr, size, Val{:$(node.jlName)})")
+        cprintln(env, "end")
+    elseif field.fieldProperties.type.elementType isa Union{SchemaText, SchemaData, SchemaList, SchemaAnyPointer, SchemaInterface}
+        # New API: init
+        cprintln(env, "function init_$(field_snake)!(ptr, size, ::Type{Val{:$(node.jlName)}})")
+        cprintln(env, "    pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + ptr.data_word_count + $(field.fieldProperties.offset))")
+        cprintln(env, "    pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, 8 * size)")
+        cprintln(env, "    child_ptr = Capnp.SimpleListPointer{$(runtimeElementType), typeof(ptr.traverser)}(ptr.traverser, segment, offset, Capnp.Pointer, convert(UInt32, size))")
         cprintln(env, "    Capnp.write_list_pointer(pointer_location, child_ptr)")
         generateDiscriminantSetter(env, "ptr", node.nodeProperties, field)
         cprintln(env, "    child_ptr")
