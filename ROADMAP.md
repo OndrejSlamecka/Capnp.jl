@@ -276,7 +276,7 @@ Acceptance criteria:
 - [x] Respect declaration/code order where required and harden namespace/import
       handling across multiple generated schema files.
 - [x] Finish lists of pointers/structs and less-common list element forms.
-- [ ] Define generated API stability rules before 1.0 and minimize method-name
+- [x] Define generated API stability rules before 1.0 and minimize method-name
       collisions by encouraging module-scoped generated schemas.
 - [ ] Re-enable or replace the currently excluded `copy_schema.jl` work and the
       standalone C++ interoperability tests in the main test entry point.
