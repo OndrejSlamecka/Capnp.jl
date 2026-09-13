@@ -408,10 +408,19 @@ end
 
 function write_text(ptr::ListPointer, text)
     @assert ptr.element_size == Byte
+    n = ncodeunits(text)
+    # The list covers the text and its terminator, which is what the generated setter allocates.
+    # Without this the text would be copied past the end of the space reserved for it.
+    @assert ptr.length == n + 1
     segment = ptr.traverser.segments[ptr.segment]
-    # TODO: this relies on internal text representation... add some safety
-    # println("TEXT. segment=", ptr.segment, "; offset=", ptr.offset * 8, "; length=", length(text), "; text=LEFT OUT")
-    unsafe_copyto!(Ptr{UInt8}(pointer(segment) + ptr.offset * 8), pointer(text), ncodeunits(text) + 1)
+    # The terminator is written explicitly rather than copied along with the text: a String
+    # happens to be stored with a trailing NUL but a SubString is not, its last code unit is
+    # followed by the rest of the parent string.
+    # TODO: this still assumes text is backed by a contiguous byte buffer, i.e. String or
+    # SubString{String}; other AbstractStrings have no `pointer` and fail with a MethodError.
+    destination = Ptr{UInt8}(pointer(segment) + ptr.offset * 8)
+    GC.@preserve text unsafe_copyto!(destination, pointer(text), n)
+    unsafe_store!(destination + n, 0x00)
 end
 
 # List pointer read/write

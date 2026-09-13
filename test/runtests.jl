@@ -58,6 +58,22 @@ end
     @test signed64 == -1
 
     @test Test_getText(test) == "Žofia"
+
+    # A SubString is not stored with a trailing NUL, so the terminator has to be written
+    # explicitly. capnp rejects a message whose text is not NUL-terminated, and Capnp.jl
+    # reads such text back correctly, so the capnp tool is what makes this observable.
+    message = Capnp.AllocMessageBuilder()
+    test = initRoot_Test(message)
+    Test_setText(test, SubString("hello world", 1, 5))
+    buffer = IOBuffer()
+    writeMessageToStream(message, buffer)
+    seek(buffer, 0)
+    @test Test_getText(root_Test(Capnp.MessageReader(buffer))) == "hello"
+
+    seek(buffer, 0)
+    converted = IOBuffer()
+    @test success(pipeline(`capnp convert binary:text test/elementary.capnp Test`, stdin = buffer, stdout = converted, stderr = devnull))
+    @test occursin("text = \"hello\"", String(take!(converted)))
 end
 
 @testset "Lists" begin
