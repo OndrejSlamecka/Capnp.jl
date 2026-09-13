@@ -2,3 +2,4 @@
 *.capnp.jl
 !src/schema.capnp.jl
 .direnv/
+Manifest.toml
