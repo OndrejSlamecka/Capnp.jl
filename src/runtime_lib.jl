@@ -403,6 +403,8 @@ function read_text(ptr::SimpleListPointer)
         ""
     else
         segment = ptr.traverser.segments[ptr.segment]
+        terminator = segment[ptr.offset*8+ptr.length]
+        terminator == 0x00 || throw("Text at offset $(ptr.offset) of segment $(ptr.segment) is not NUL-terminated")
         # TODO: this likely creates a copy -- is there a way to make this more like reinterpret_cast<...*>?
         unsafe_string(Ptr{UInt8}(pointer(segment) + ptr.offset * 8), ptr.length - 1)
     end
@@ -410,10 +412,14 @@ end
 
 function write_text(ptr::ListPointer, text)
     @assert ptr.element_size == Byte
+    text_size = ncodeunits(text)
+    @assert ptr.length == text_size + 1 # + null terminator
     segment = ptr.traverser.segments[ptr.segment]
-    # TODO: this relies on internal text representation... add some safety
-    # println("TEXT. segment=", ptr.segment, "; offset=", ptr.offset * 8, "; length=", length(text), "; text=LEFT OUT")
-    unsafe_copyto!(Ptr{UInt8}(pointer(segment) + ptr.offset * 8), pointer(text), ncodeunits(text) + 1)
+    # TODO: this assumes text is backed by a contiguous byte buffer, i.e. String or
+    # SubString{String}; other AbstractStrings have no `pointer` and fail with a MethodError.
+    destination = Ptr{UInt8}(pointer(segment) + ptr.offset * 8)
+    unsafe_copyto!(destination, pointer(text), text_size)
+    unsafe_store!(destination + text_size, 0x00)
 end
 
 # List pointer read/write
