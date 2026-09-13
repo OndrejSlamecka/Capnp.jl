@@ -66,6 +66,13 @@ schema_to_runtime_type(::SchemaFloat32) = Capnp.CapnpFloat32
 schema_to_runtime_type(::SchemaFloat64) = Capnp.CapnpFloat64
 schema_to_runtime_type(::SchemaStruct) = Capnp.CapnpStruct
 
+# capnp's own spelling of a type, for talking about it in generated code. The primitive and blob
+# types are named after their struct, so strip the prefix rather than repeat the whole list here.
+capnp_type_name(env, type) = replace(string(nameof(typeof(type))), r"^Schema" => "")
+capnp_type_name(env, type::SchemaList) = "List($(capnp_type_name(env, type.elementType)))"
+capnp_type_name(env, type::SchemaEnum) = env.nodes[type.typeId].jlName
+capnp_type_name(env, type::SchemaStruct) = env.nodes[type.typeId].jlName
+
 # Phase 1: Determine nested names of types to know all of them before the generation phase.
 function assign_node_names(env::Environment, node::Node{FileNodeProps})
     assign_node_names(env, String[], node)
@@ -259,7 +266,15 @@ end
 
 function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFieldProps}, type::SchemaList)
     elementType = field.fieldProperties.type.elementType
-    runtimeElementType = schema_to_runtime_type(field.fieldProperties.type.elementType)
+
+    # Bool is not among the bits types because capnp packs a list of them bit by bit rather than
+    # giving each element a whole number of bytes, which is all SimpleListPointer can index.
+    if !(is_capnp_bits(elementType) || elementType isa SchemaStruct)
+        cprintln(env, "# $(node.jlName)'s $(field.name) has type $(capnp_type_name(env, field.fieldProperties.type)) which is not supported by Capnp.jl yet")
+        return
+    end
+
+    runtimeElementType = schema_to_runtime_type(elementType)
 
     cprintln(env, "function $(node.jlName)_get$(uppercasefirst(field.name))(ptr::Nothing)")
     cprintln(env, "    []") # TODO: return Capnp.SimpleListPointer with length 0
@@ -280,20 +295,18 @@ function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFi
     cprintln(env, "    p")
     cprintln(env, "end")
 
-    if field.fieldProperties.type.elementType isa SchemaBool
-        throw("Lists of bools not supported yet.")
-    elseif is_capnp_bits(field.fieldProperties.type.elementType)
+    if is_capnp_bits(elementType)
         cprintln(env, "function $(node.jlName)_init$(uppercasefirst(field.name))(ptr, size)")
         cprintln(env, "    pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + $(node.nodeProperties.dataWordCount + field.fieldProperties.offset))")
-        cprintln(env, "    pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, $(capnp_sizeof(field.fieldProperties.type.elementType)) * size)")
-        cprintln(env, "    child_ptr = Capnp.SimpleListPointer{$(runtimeElementType), typeof(ptr.traverser)}(ptr.traverser, segment, offset, Capnp.$(elementsize(field.fieldProperties.type.elementType)), convert(UInt32, size))")
+        cprintln(env, "    pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, $(capnp_sizeof(elementType)) * size)")
+        cprintln(env, "    child_ptr = Capnp.SimpleListPointer{$(runtimeElementType), typeof(ptr.traverser)}(ptr.traverser, segment, offset, Capnp.$(elementsize(elementType)), convert(UInt32, size))")
         cprintln(env, "    Capnp.write_list_pointer(pointer_location, child_ptr)")
         generateDiscriminantSetter(env, "ptr", node.nodeProperties, field)
         cprintln(env, "    child_ptr")
         cprintln(env, "end")
-    elseif field.fieldProperties.type.elementType isa SchemaStruct
+    elseif elementType isa SchemaStruct
         # TODO: maybe assert?
-        slotStructProps = env.nodes[field.fieldProperties.type.elementType.typeId].nodeProperties
+        slotStructProps = env.nodes[elementType.typeId].nodeProperties
         cprintln(env, "function $(node.jlName)_init$(uppercasefirst(field.name))(ptr, size)")
         cprintln(env, "    pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + $(node.nodeProperties.dataWordCount + field.fieldProperties.offset))")
         cprintln(env, "    pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, 8*(1 + size * ($(slotStructProps.dataWordCount) + $(slotStructProps.pointerCount))))")
@@ -302,8 +315,6 @@ function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFi
         generateDiscriminantSetter(env, "ptr", node.nodeProperties, field)
         cprintln(env, "    child_ptr")
         cprintln(env, "end")
-    else
-        # throw("Non-simple or non-struct lists not implemented yet")
     end
 end
 
@@ -355,7 +366,7 @@ function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFi
 end
 
 function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFieldProps}, type)
-    cprintln(env, "# $(node.jlName)'s $(field.name) has type $(type) which is not supported by Capnp.jl yet")
+    cprintln(env, "# $(node.jlName)'s $(field.name) has type $(capnp_type_name(env, type)) which is not supported by Capnp.jl yet")
 end
 
 # Separate generator for bools than other "plain values" because capnp fits 8 bools into 1 byte.

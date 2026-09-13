@@ -1536,7 +1536,7 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             Capnp.write_bits(ptr, 0, UInt16, 12) # union discriminant
             Capnp.write_text(child_ptr, txt)
         end
-        # Value's data has type Capnp.Generator.SchemaData() which is not supported by Capnp.jl yet
+        # Value's data has type Data which is not supported by Capnp.jl yet
         function Value_getList(ptr)
             value = Capnp.read_bits(ptr, 8 * (ptr.data_word_count + 0), Int64)
             if value == 0
