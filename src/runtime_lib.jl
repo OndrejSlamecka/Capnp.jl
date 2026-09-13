@@ -48,6 +48,12 @@ struct MessageReader <: Reader
     end
 end
 
+# Every pointer carries its traverser, and the traverser carries every segment, so showing a
+# pointer the default way dumps the whole message. Summarise the segments instead.
+function Base.show(io::IO, traverser::MessageTraverser)
+    print(io, typeof(traverser), "(", length(traverser.segments), " segment(s), ", sum(length, traverser.segments; init = 0), " bytes)")
+end
+
 # Structures for writing
 mutable struct AllocMessageBuilder <: Writer
     segments::Vector{Segment}
