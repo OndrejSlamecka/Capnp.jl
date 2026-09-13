@@ -361,6 +361,8 @@ function Base.iterate(ptr::SimpleListPointer{T}, state = 0) where {T<:CapnpType}
 end
 
 Base.length(ptr::ListPointer) = ptr.length
+Base.firstindex(::ListPointer) = 1
+Base.lastindex(ptr::ListPointer) = Int(ptr.length)
 
 # Tags for composite lists
 struct ListTag
