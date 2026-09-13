@@ -91,6 +91,7 @@ end
     @test ints[1] == 1
     @test length(ints) == 7
     @test collect(ints) == 1:7
+    @test ints[end] == 7 # tests lastindex
 
     # bools = ListTest_getBools(listTest)
     # @test bools[1] == 1
