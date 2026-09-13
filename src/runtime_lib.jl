@@ -83,7 +83,7 @@ function writeMessageToStream(builder::AllocMessageBuilder, io)
 
     for (i, segment) in enumerate(builder.segments)
         if i == builder.current_segment # last
-            write(io, segment[1:8*builder.current_offset])
+            write(io, segment[1:(8*builder.current_offset)])
         else
             write(io, segment)
         end
