@@ -246,7 +246,7 @@ function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFi
 
     # writer
     cprintln(env, "function $(node.jlName)_set$(uppercasefirst(field.name))(ptr, value)")
-    cprintln(env, "    value = Capnp.write_bits(ptr, $(position), $(enum.jlName), value)")
+    cprintln(env, "    Capnp.write_bits(ptr, $(position), $(enum.jlName), value)")
     generateDiscriminantSetter(env, "ptr", node.nodeProperties, field)
     cprintln(env, "end")
 end

@@ -270,7 +270,7 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
             value
         end
         function Node_struct_setPreferredListEncoding(ptr, value)
-            value = Capnp.write_bits(ptr, 26, ElementSize, value)
+            Capnp.write_bits(ptr, 26, ElementSize, value)
         end
         function Node_struct_getIsGroup(ptr)
             value = Capnp.read_bool(ptr, 224)
