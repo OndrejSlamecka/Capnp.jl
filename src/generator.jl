@@ -337,11 +337,11 @@ function generateSlotField(env, node::Node{StructNodeProps}, field::Field{SlotFi
     cprintln(env, "    Capnp.read_text(p)")
     cprintln(env, "end")
 
-    # length +1 for terminating \0
+    # ncodeunits and not length because capnp text is a list of bytes; +1 for terminating \0
     cprintln(env, "function $(node.jlName)_set$(uppercasefirst(field.name))(ptr, txt)")
     cprintln(env, "    pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + $(node.nodeProperties.dataWordCount + field.fieldProperties.offset))")
-    cprintln(env, "    pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, length(txt) + 1)")
-    cprintln(env, "    child_ptr = Capnp.SimpleListPointer{UInt8, typeof(ptr.traverser)}(ptr.traverser, segment, offset, Capnp.Byte, UInt32(length(txt) + 1))")
+    cprintln(env, "    pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, ncodeunits(txt) + 1)")
+    cprintln(env, "    child_ptr = Capnp.SimpleListPointer{UInt8, typeof(ptr.traverser)}(ptr.traverser, segment, offset, Capnp.Byte, UInt32(ncodeunits(txt) + 1))")
     cprintln(env, "    Capnp.write_list_pointer(pointer_location, child_ptr)")
     generateDiscriminantSetter(env, "ptr", node.nodeProperties, field)
     cprintln(env, "    Capnp.write_text(child_ptr, txt)")
