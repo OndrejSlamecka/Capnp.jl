@@ -241,7 +241,7 @@ function read_CodeGeneratorRequest_RequestedFile_Import(ptr::Capnp.StructPointer
 end
 
 function read_Parameter(ptr::Capnp.StructPointer)
-    name = capnp.schema.Parameter_getName(ptr)
+    name = capnp.schema.Node_Parameter_getName(ptr)
     Parameter(name)
 end
 
@@ -303,11 +303,11 @@ function read_Type(ptr::Capnp.StructPointer)
             unconstrainedPointerUnionTag = capnp.schema.Type_anyPointer_unconstrained_which(ptr)
             result = SchemaUnconstrainedPointer(unconstrainedPointerUnionTag)
         elseif pointerUnionTag == capnp.schema.Type_anyPointer_union_parameter
-            scopeId = capnp.schema.Type_anyPointer_parameter_scopeId(ptr)
-            parameterIndex = capnp.schema.Type_anyPointer_Parameter_getParameterIndex(ptr)
+            scopeId = capnp.schema.Type_anyPointer_parameter_getScopeId(ptr)
+            parameterIndex = capnp.schema.Type_anyPointer_parameter_getParameterIndex(ptr)
             result = SchemaParameterPointer(scopeId, parameterIndex)
         elseif pointerUnionTag == capnp.schema.Type_anyPointer_union_implicitMethodParameter
-            parameterIndex = capnp.schema.Type_anyPointer_ImplciitMethodParameter_getParameterIndex(ptr)
+            parameterIndex = capnp.schema.Type_anyPointer_implicitMethodParameter_getParameterIndex(ptr)
             result = SchemaImplicitMethodParameterPointer(parameterIndex)
         end
     end
@@ -396,14 +396,14 @@ function read_Brand_Binding(ptr::Capnp.StructPointer)
 end
 
 function read_Brand_Scope(ptr::Capnp.StructPointer)
-    scopeId = capnp.schema.Brand_Scope_scopeId(ptr)
+    scopeId = capnp.schema.Brand_Scope_getScopeId(ptr)
     tag = capnp.schema.Brand_Scope_which(ptr)
 
     if tag == capnp.schema.Brand_Scope_union_bind
-        bind = [read_Brand_Binding(p) for p in capnp.schema.Brand_Scope_bind(ptr)]
+        bind = [read_Brand_Binding(p) for p in capnp.schema.Brand_Scope_getBind(ptr)]
         Scope(scopeId, bind)
     elseif tag == capnp.schema.Brand_Scope_union_inherit
-        Scope(scopeId, nothing)
+        Scope(scopeId, inherit)
     end
 end
 
