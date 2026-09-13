@@ -40,7 +40,7 @@ function namespace_annotation(env::Environment, node::Node{FileNodeProps})::Vect
     namespace_annotations = Iterators.filter(node.annotations) do annotation
         annotation_node = env.nodes[annotation.id]
         # Capnp specification advises against parsing displayName, TODO
-        annotation_node.displayName[annotation_node.displayNamePrefixLength+1:end] == "namespace"
+        annotation_node.displayName[(annotation_node.displayNamePrefixLength+1):end] == "namespace"
     end
 
     if isempty(namespace_annotations)
