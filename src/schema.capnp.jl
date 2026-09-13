@@ -27,8 +27,8 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         end
         function Node_Parameter_setName(ptr, txt)
             pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + 0)
-            pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, length(txt) + 1)
-            child_ptr = Capnp.SimpleListPointer{UInt8, typeof(ptr.traverser)}(ptr.traverser, segment, offset, Capnp.Byte, UInt32(length(txt) + 1))
+            pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, ncodeunits(txt) + 1)
+            child_ptr = Capnp.SimpleListPointer{UInt8, typeof(ptr.traverser)}(ptr.traverser, segment, offset, Capnp.Byte, UInt32(ncodeunits(txt) + 1))
             Capnp.write_list_pointer(pointer_location, child_ptr)
             Capnp.write_text(child_ptr, txt)
         end
@@ -54,8 +54,8 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         end
         function Node_NestedNode_setName(ptr, txt)
             pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + 1)
-            pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, length(txt) + 1)
-            child_ptr = Capnp.SimpleListPointer{UInt8, typeof(ptr.traverser)}(ptr.traverser, segment, offset, Capnp.Byte, UInt32(length(txt) + 1))
+            pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, ncodeunits(txt) + 1)
+            child_ptr = Capnp.SimpleListPointer{UInt8, typeof(ptr.traverser)}(ptr.traverser, segment, offset, Capnp.Byte, UInt32(ncodeunits(txt) + 1))
             Capnp.write_list_pointer(pointer_location, child_ptr)
             Capnp.write_text(child_ptr, txt)
         end
@@ -88,8 +88,8 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         end
         function Node_SourceInfo_Member_setDocComment(ptr, txt)
             pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + 0)
-            pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, length(txt) + 1)
-            child_ptr = Capnp.SimpleListPointer{UInt8, typeof(ptr.traverser)}(ptr.traverser, segment, offset, Capnp.Byte, UInt32(length(txt) + 1))
+            pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, ncodeunits(txt) + 1)
+            child_ptr = Capnp.SimpleListPointer{UInt8, typeof(ptr.traverser)}(ptr.traverser, segment, offset, Capnp.Byte, UInt32(ncodeunits(txt) + 1))
             Capnp.write_list_pointer(pointer_location, child_ptr)
             Capnp.write_text(child_ptr, txt)
         end
@@ -122,8 +122,8 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         end
         function Node_SourceInfo_setDocComment(ptr, txt)
             pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + 1)
-            pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, length(txt) + 1)
-            child_ptr = Capnp.SimpleListPointer{UInt8, typeof(ptr.traverser)}(ptr.traverser, segment, offset, Capnp.Byte, UInt32(length(txt) + 1))
+            pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, ncodeunits(txt) + 1)
+            child_ptr = Capnp.SimpleListPointer{UInt8, typeof(ptr.traverser)}(ptr.traverser, segment, offset, Capnp.Byte, UInt32(ncodeunits(txt) + 1))
             Capnp.write_list_pointer(pointer_location, child_ptr)
             Capnp.write_text(child_ptr, txt)
         end
@@ -176,8 +176,8 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         end
         function Node_setDisplayName(ptr, txt)
             pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + 5)
-            pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, length(txt) + 1)
-            child_ptr = Capnp.SimpleListPointer{UInt8, typeof(ptr.traverser)}(ptr.traverser, segment, offset, Capnp.Byte, UInt32(length(txt) + 1))
+            pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, ncodeunits(txt) + 1)
+            child_ptr = Capnp.SimpleListPointer{UInt8, typeof(ptr.traverser)}(ptr.traverser, segment, offset, Capnp.Byte, UInt32(ncodeunits(txt) + 1))
             Capnp.write_list_pointer(pointer_location, child_ptr)
             Capnp.write_text(child_ptr, txt)
         end
@@ -611,8 +611,8 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         end
         function Field_setName(ptr, txt)
             pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + 3)
-            pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, length(txt) + 1)
-            child_ptr = Capnp.SimpleListPointer{UInt8, typeof(ptr.traverser)}(ptr.traverser, segment, offset, Capnp.Byte, UInt32(length(txt) + 1))
+            pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, ncodeunits(txt) + 1)
+            child_ptr = Capnp.SimpleListPointer{UInt8, typeof(ptr.traverser)}(ptr.traverser, segment, offset, Capnp.Byte, UInt32(ncodeunits(txt) + 1))
             Capnp.write_list_pointer(pointer_location, child_ptr)
             Capnp.write_text(child_ptr, txt)
         end
@@ -791,8 +791,8 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         end
         function Enumerant_setName(ptr, txt)
             pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + 1)
-            pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, length(txt) + 1)
-            child_ptr = Capnp.SimpleListPointer{UInt8, typeof(ptr.traverser)}(ptr.traverser, segment, offset, Capnp.Byte, UInt32(length(txt) + 1))
+            pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, ncodeunits(txt) + 1)
+            child_ptr = Capnp.SimpleListPointer{UInt8, typeof(ptr.traverser)}(ptr.traverser, segment, offset, Capnp.Byte, UInt32(ncodeunits(txt) + 1))
             Capnp.write_list_pointer(pointer_location, child_ptr)
             Capnp.write_text(child_ptr, txt)
         end
@@ -876,8 +876,8 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         end
         function Method_setName(ptr, txt)
             pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + 3)
-            pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, length(txt) + 1)
-            child_ptr = Capnp.SimpleListPointer{UInt8, typeof(ptr.traverser)}(ptr.traverser, segment, offset, Capnp.Byte, UInt32(length(txt) + 1))
+            pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, ncodeunits(txt) + 1)
+            child_ptr = Capnp.SimpleListPointer{UInt8, typeof(ptr.traverser)}(ptr.traverser, segment, offset, Capnp.Byte, UInt32(ncodeunits(txt) + 1))
             Capnp.write_list_pointer(pointer_location, child_ptr)
             Capnp.write_text(child_ptr, txt)
         end
@@ -1530,8 +1530,8 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         end
         function Value_setText(ptr, txt)
             pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + 2)
-            pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, length(txt) + 1)
-            child_ptr = Capnp.SimpleListPointer{UInt8, typeof(ptr.traverser)}(ptr.traverser, segment, offset, Capnp.Byte, UInt32(length(txt) + 1))
+            pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, ncodeunits(txt) + 1)
+            child_ptr = Capnp.SimpleListPointer{UInt8, typeof(ptr.traverser)}(ptr.traverser, segment, offset, Capnp.Byte, UInt32(ncodeunits(txt) + 1))
             Capnp.write_list_pointer(pointer_location, child_ptr)
             Capnp.write_bits(ptr, 0, UInt16, 12) # union discriminant
             Capnp.write_text(child_ptr, txt)
@@ -1686,8 +1686,8 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         end
         function CodeGeneratorRequest_RequestedFile_Import_setName(ptr, txt)
             pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + 1)
-            pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, length(txt) + 1)
-            child_ptr = Capnp.SimpleListPointer{UInt8, typeof(ptr.traverser)}(ptr.traverser, segment, offset, Capnp.Byte, UInt32(length(txt) + 1))
+            pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, ncodeunits(txt) + 1)
+            child_ptr = Capnp.SimpleListPointer{UInt8, typeof(ptr.traverser)}(ptr.traverser, segment, offset, Capnp.Byte, UInt32(ncodeunits(txt) + 1))
             Capnp.write_list_pointer(pointer_location, child_ptr)
             Capnp.write_text(child_ptr, txt)
         end
@@ -1720,8 +1720,8 @@ if !@isdefined(capnp); eval(:(module capnp end)); end
         end
         function CodeGeneratorRequest_RequestedFile_setFilename(ptr, txt)
             pointer_location = Capnp.WirePointer(ptr.segment, ptr.offset + 1)
-            pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, length(txt) + 1)
-            child_ptr = Capnp.SimpleListPointer{UInt8, typeof(ptr.traverser)}(ptr.traverser, segment, offset, Capnp.Byte, UInt32(length(txt) + 1))
+            pointer_location, segment, offset = Capnp.alloc(ptr.traverser, pointer_location, ncodeunits(txt) + 1)
+            child_ptr = Capnp.SimpleListPointer{UInt8, typeof(ptr.traverser)}(ptr.traverser, segment, offset, Capnp.Byte, UInt32(ncodeunits(txt) + 1))
             Capnp.write_list_pointer(pointer_location, child_ptr)
             Capnp.write_text(child_ptr, txt)
         end

@@ -411,7 +411,7 @@ function write_text(ptr::ListPointer, text)
     segment = ptr.traverser.segments[ptr.segment]
     # TODO: this relies on internal text representation... add some safety
     # println("TEXT. segment=", ptr.segment, "; offset=", ptr.offset * 8, "; length=", length(text), "; text=LEFT OUT")
-    unsafe_copyto!(Ptr{UInt8}(pointer(segment) + ptr.offset * 8), pointer(text), length(text) + 1)
+    unsafe_copyto!(Ptr{UInt8}(pointer(segment) + ptr.offset * 8), pointer(text), ncodeunits(text) + 1)
 end
 
 # List pointer read/write

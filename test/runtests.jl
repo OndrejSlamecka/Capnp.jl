@@ -37,6 +37,7 @@ end
     Test_setBooleanFalse(test, false)
     Test_setBooleanTrue(test, true)
     Test_setSigned64(test, -1)
+    Test_setText(test, "Žofia") # non-ASCII so that character and byte counts differ
 
     # finish writing and flush into buffer for reading
     buffer = IOBuffer()
@@ -55,6 +56,8 @@ end
 
     signed64 = Test_getSigned64(test)
     @test signed64 == -1
+
+    @test Test_getText(test) == "Žofia"
 end
 
 @testset "Lists" begin
