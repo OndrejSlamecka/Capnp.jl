@@ -58,6 +58,15 @@ end
     @test signed64 == -1
 
     @test Test_getText(test) == "Ondřej"
+
+    # A SubString is not stored with a trailing NUL, so the terminator has to be written explicitly
+    message = Capnp.AllocMessageBuilder()
+    test = initRoot_Test(message)
+    Test_setText(test, first(split("Ondřej was here")))
+    buffer = IOBuffer()
+    writeMessageToStream(message, buffer)
+    seek(buffer, 0)
+    @test Test_getText(root_Test(Capnp.MessageReader(buffer))) == "Ondřej"
 end
 
 @testset "Lists" begin
